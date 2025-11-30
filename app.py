@@ -5,9 +5,11 @@ from config import Config
 from models.database import db, init_db
 import os
 
-app = Flask(__name__, static_folder='frontend/build', static_url_path='')
+app = Flask(__name__, static_folder='frontend/build', static_url_path='', instance_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'))
 app.config.from_object(Config)
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{Config.DB_PATH}'
+# Use instance folder for database
+db_path = os.path.join(app.instance_path, Config.DB_PATH) if not os.path.isabs(Config.DB_PATH) else Config.DB_PATH
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = Config.SECRET_KEY  # Required for session
 app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET

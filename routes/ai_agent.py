@@ -241,11 +241,19 @@ def chat():
         elif 'kids' in message or 'kid' in message or 'children' in message:
             detected_category = 'kids'
         
-        # Extract clothing type from message
+        # Extract color from message early so we can use it in search
+        detected_color = None
+        color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange', 'navy', 'beige', 'tan']
+        for color in color_keywords:
+            if color in message:
+                detected_color = color
+                break
+        
+        # Extract clothing type from message - be more flexible
         detected_clothing_type = None
         clothing_type_keywords = {
-            'T-Shirt': ['t-shirt', 'tshirt', 'tee'],
-            'Shirt': ['shirt'],
+            'T-Shirt': ['t-shirt', 'tshirt', 'tee', 't shirt'],
+            'Shirt': ['shirt', 'shirts'],  # Match both singular and plural
             'Dress Shirt': ['dress shirt', 'button-down', 'button down'],
             'Polo Shirt': ['polo'],
             'Dress': ['dress'],
@@ -259,21 +267,42 @@ def chat():
             'Blazer': ['blazer'],
             'Suit': ['suit']
         }
+        # Check for clothing type - prioritize more specific matches
         for clothing_type, keywords in clothing_type_keywords.items():
             if any(keyword in message for keyword in keywords):
                 detected_clothing_type = clothing_type
                 break
         
+        # If "shirt" is mentioned but no specific type detected, use generic "Shirt"
+        if not detected_clothing_type and 'shirt' in message:
+            detected_clothing_type = 'Shirt'
+        
         # Perform enhanced search with filters
         vector_product_ids = []
         vector_products = []
         
+        # Extract color from message for better search
+        detected_color = None
+        color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange', 'navy', 'beige', 'tan']
+        for color in color_keywords:
+            if color in message:
+                detected_color = color
+                break
+        
         # If we have specific filters, use direct database query first
-        if detected_occasion or detected_age_group or detected_category or detected_clothing_type:
+        if detected_occasion or detected_age_group or detected_category or detected_clothing_type or detected_color:
             query = Product.query.filter_by(is_active=True)
             
             if detected_category:
                 query = query.filter_by(category=detected_category)
+            
+            if detected_color:
+                query = query.filter(
+                    or_(
+                        Product.color.ilike(f'%{detected_color}%'),
+                        Product.name.ilike(f'%{detected_color}%')
+                    )
+                )
             
             if detected_occasion:
                 # Check if occasion field contains the detected occasion
@@ -294,22 +323,90 @@ def chat():
                 )
             
             if detected_clothing_type:
-                query = query.filter(
-                    or_(
-                        Product.clothing_type.ilike(f'%{detected_clothing_type}%'),
-                        Product.name.ilike(f'%{detected_clothing_type}%')
+                # More flexible matching for clothing types
+                # Handle both "T-Shirt" and "Shirt" matching
+                if detected_clothing_type == 'Shirt':
+                    # Match both "Shirt" and "T-Shirt" 
+                    query = query.filter(
+                        or_(
+                            Product.clothing_type.ilike(f'%{detected_clothing_type}%'),
+                            Product.clothing_type.ilike('%T-Shirt%'),
+                            Product.name.ilike(f'%{detected_clothing_type}%'),
+                            Product.name.ilike('%T-Shirt%')
+                        )
                     )
-                )
+                else:
+                    query = query.filter(
+                        or_(
+                            Product.clothing_type.ilike(f'%{detected_clothing_type}%'),
+                            Product.name.ilike(f'%{detected_clothing_type}%')
+                        )
+                    )
             
             # Limit results and get product IDs
             filtered_products = query.limit(20).all()
             vector_product_ids = [p.id for p in filtered_products]
             vector_products = [p.to_dict() for p in filtered_products]
+            
+            # Debug logging for search results
+            print(f"Direct search - Category: {detected_category}, Color: {detected_color}, Clothing: {detected_clothing_type}, Found: {len(vector_products)} products")
         else:
             # Regular vector search if no specific filters
             vector_product_ids = search_products_vector(message, n_results=10)
             if vector_product_ids:
-                vector_products = [p.to_dict() for p in Product.query.filter(Product.id.in_(vector_product_ids)).all()]
+                products = Product.query.filter(Product.id.in_(vector_product_ids)).filter_by(is_active=True).all()
+                vector_products = [p.to_dict() for p in products]
+                # Ensure vector_product_ids matches the actual products found
+                vector_product_ids = [p.id for p in products]
+            
+            # Fallback: try direct search if vector search fails or returns no results
+            if not vector_products or len(vector_products) == 0:
+                search_query = Product.query.filter_by(is_active=True)
+                
+                # Extract search terms from message
+                if 'women' in message or 'woman' in message or 'ladies' in message:
+                    search_query = search_query.filter_by(category='women')
+                elif 'men' in message or 'man' in message:
+                    search_query = search_query.filter_by(category='men')
+                elif 'kids' in message or 'kid' in message or 'children' in message:
+                    search_query = search_query.filter_by(category='kids')
+                
+                # Color search
+                color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange']
+                detected_color = None
+                for color in color_keywords:
+                    if color in message:
+                        detected_color = color
+                        break
+                
+                if detected_color:
+                    search_query = search_query.filter(
+                        or_(
+                            Product.color.ilike(f'%{detected_color}%'),
+                            Product.name.ilike(f'%{detected_color}%')
+                        )
+                    )
+                
+                # Clothing type search
+                clothing_keywords = ['shirt', 'dress', 'pants', 'jeans', 'shoes', 'jacket', 'sweater', 'blazer', 'suit']
+                detected_clothing = None
+                for clothing in clothing_keywords:
+                    if clothing in message:
+                        detected_clothing = clothing
+                        break
+                
+                if detected_clothing:
+                    search_query = search_query.filter(
+                        or_(
+                            Product.name.ilike(f'%{detected_clothing}%'),
+                            Product.clothing_type.ilike(f'%{detected_clothing}%')
+                        )
+                    )
+                
+                fallback_products = search_query.limit(20).all()
+                if fallback_products:
+                    vector_product_ids = [p.id for p in fallback_products]
+                    vector_products = [p.to_dict() for p in fallback_products]
         
         # Determine if this is a product search request BEFORE calling Bedrock
         # Check for product request keywords
@@ -326,11 +423,15 @@ def chat():
         
         # If vector search found products AND message seems like a product request, treat as product list
         action = None
-        if len(vector_products) > 0 and len(vector_product_ids) > 0:
+        # Always set action to search_results if we have products and it's a product request
+        if len(vector_products) > 0:
             if is_likely_product_request:
                 # Definitely a product list request
                 action = 'search_results'
             elif len(vector_products) >= 3:  # If 3+ products found, likely a search
+                action = 'search_results'
+            elif len(vector_products) > 0 and ('show' in message or 'find' in message or 'search' in message or 'look' in message):
+                # If user explicitly asks to see/find/search, treat as product list
                 action = 'search_results'
         
         # Get fashion knowledge base
@@ -376,26 +477,53 @@ Be friendly, detailed, and helpful. Share your fashion knowledge generously!"""
         # Build the full prompt with context
         recent_products_text = ""
         if vector_products:
-            recent_products_text = "\nRecent search results:\n"
-            for p in vector_products[:5]:
+            recent_products_text = f"\nIMPORTANT: I found {len(vector_products)} product(s) matching the customer's request:\n"
+            for p in vector_products[:10]:  # Show up to 10 products
                 recent_products_text += f"Product #{p['id']}: {p['name']} - ${float(p['price']):.2f} ({p['category']}, {p.get('color', 'N/A')})\n"
+            recent_products_text += "\nThese products ARE available in our store. Please show them to the customer and include their product IDs."
+        else:
+            recent_products_text = "\nNo products found matching the customer's specific criteria. You may suggest similar products or ask for clarification."
         
         full_prompt = f"""Customer message: {message}
 
 Available products in store: {len(all_products)} total products.
-{recent_products_text if recent_products_text else 'No recent search results.'}
+{recent_products_text}
 
-Please help the customer with their request. When mentioning products, ALWAYS include the product ID number like "Product #ID: Name - Price"."""
+Please help the customer with their request. When mentioning products, ALWAYS include the product ID number like "Product #ID: Name - Price".
+
+IMPORTANT: If products were found above, you MUST mention them and their product IDs. Do NOT say we don't have products if they were found in the search results."""
         
         # Call Bedrock
         response = call_bedrock(full_prompt, system_prompt)
         
         # Extract product IDs - use all vector_product_ids (up to 10) to ensure frontend gets them
-        suggested_product_ids = vector_product_ids[:10] if vector_product_ids else []
+        # If vector_product_ids is empty but we have vector_products, extract IDs from products
+        if vector_product_ids:
+            suggested_product_ids = vector_product_ids[:10]
+        elif vector_products:
+            # Extract IDs from products if vector_product_ids is not available
+            suggested_product_ids = []
+            for p in vector_products[:10]:
+                if p:
+                    if isinstance(p, dict):
+                        pid = p.get('id')
+                    else:
+                        pid = getattr(p, 'id', None)
+                    if pid is not None and pid not in suggested_product_ids:
+                        suggested_product_ids.append(int(pid))
+        else:
+            suggested_product_ids = []
+        
+        # Final fallback: if we still have products but no IDs, extract from vector_products again
+        if not suggested_product_ids and vector_products:
+            suggested_product_ids = [int(p.get('id') if isinstance(p, dict) else getattr(p, 'id', None)) 
+                                    for p in vector_products[:10] 
+                                    if p and (p.get('id') if isinstance(p, dict) else getattr(p, 'id', None))]
+            suggested_product_ids = [pid for pid in suggested_product_ids if pid is not None]
         
         # Always set action to 'search_results' if we have products to ensure frontend shows them
         # This ensures the grid updates when products are found
-        if len(vector_products) > 0 and len(suggested_product_ids) > 0:
+        if len(vector_products) > 0 and action is None:
             action = 'search_results'
         
         # Update response to include navigation message when products are found
@@ -404,6 +532,11 @@ Please help the customer with their request. When mentioning products, ALWAYS in
             # Don't modify response if user explicitly asked to see in chat
             # The frontend will handle that case
             pass
+        
+        # Debug logging
+        print(f"AI Agent Response - vector_products: {len(vector_products)}, suggested_product_ids: {suggested_product_ids}, action: {action}")
+        print(f"First few product IDs: {suggested_product_ids[:5] if suggested_product_ids else 'None'}")
+        print(f"First few products: {[p.get('id') if isinstance(p, dict) else getattr(p, 'id', None) for p in vector_products[:3]] if vector_products else 'None'}")
         
         return jsonify({
             'response': final_response,

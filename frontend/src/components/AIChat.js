@@ -14,8 +14,15 @@ const AIChat = ({ onClose, onMinimize }) => {
   const [suggestedProducts, setSuggestedProducts] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(() => {
+    // Load voice preference from localStorage
+    const saved = localStorage.getItem('aiVoiceEnabled');
+    return saved === 'true';
+  });
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const synthesisRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -24,6 +31,98 @@ const AIChat = ({ onClose, onMinimize }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Initialize text-to-speech
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      synthesisRef.current = window.speechSynthesis;
+    }
+
+    // Cleanup: stop speaking when component unmounts
+    return () => {
+      if (synthesisRef.current && synthesisRef.current.speaking) {
+        synthesisRef.current.cancel();
+      }
+    };
+  }, []);
+
+  // Save voice preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('aiVoiceEnabled', voiceEnabled.toString());
+  }, [voiceEnabled]);
+
+  // Function to speak text
+  const speakText = (text) => {
+    if (!voiceEnabled || !synthesisRef.current) return;
+
+    // Stop any ongoing speech
+    if (synthesisRef.current.speaking) {
+      synthesisRef.current.cancel();
+    }
+
+    // Clean text - remove markdown, URLs, and special formatting
+    const cleanText = text
+      .replace(/Product\s*#\d+/gi, '') // Remove product IDs for cleaner speech
+      .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+      .replace(/[*_`]/g, '') // Remove markdown formatting
+      .replace(/\n+/g, '. ') // Replace newlines with periods
+      .trim();
+
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Configure voice settings
+    utterance.rate = 1.0; // Normal speed
+    utterance.pitch = 1.0; // Normal pitch
+    utterance.volume = 0.8; // 80% volume
+    
+    // Try to use a natural-sounding voice
+    const voices = synthesisRef.current.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.name.includes('Google') || 
+      voice.name.includes('Microsoft') ||
+      voice.name.includes('Samantha') ||
+      voice.name.includes('Alex')
+    ) || voices.find(voice => voice.lang.startsWith('en'));
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    } else {
+      utterance.lang = 'en-US';
+    }
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event.error);
+      setIsSpeaking(false);
+    };
+
+    synthesisRef.current.speak(utterance);
+  };
+
+  // Stop speaking
+  const stopSpeaking = () => {
+    if (synthesisRef.current && synthesisRef.current.speaking) {
+      synthesisRef.current.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  // Toggle voice on/off
+  const toggleVoice = () => {
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+    setVoiceEnabled(prev => !prev);
+  };
 
   // Initialize speech recognition
   useEffect(() => {
@@ -102,6 +201,14 @@ const AIChat = ({ onClose, onMinimize }) => {
 
       setMessages(prev => [...prev, aiMessage]);
       
+      // Speak the AI's response if voice is enabled
+      if (voiceEnabled && response.data.response) {
+        // Small delay to ensure message is added to state
+        setTimeout(() => {
+          speakText(response.data.response);
+        }, 100);
+      }
+      
       // Update selected products if new ones are mentioned
       if (response.data.suggested_products && response.data.suggested_products.length > 0) {
         const newProductIds = response.data.suggested_product_ids || 
@@ -132,6 +239,17 @@ const AIChat = ({ onClose, onMinimize }) => {
       const hasSuggestedProducts = response.data.suggested_products && response.data.suggested_products.length > 0;
       const isSearchResultsAction = response.data.action === 'search_results';
       
+      // Debug logging
+      console.log('AI Response Debug:', {
+        hasProductIds,
+        hasSuggestedProducts,
+        isSearchResultsAction,
+        productIdsCount: response.data.suggested_product_ids?.length || 0,
+        productsCount: response.data.suggested_products?.length || 0,
+        action: response.data.action,
+        wantsToSeeInChat
+      });
+      
       // If user wants to see products in chat, format them as text list
       if (wantsToSeeInChat && hasSuggestedProducts && response.data.suggested_products.length > 0) {
         const productsList = response.data.suggested_products.map(p => 
@@ -152,7 +270,8 @@ const AIChat = ({ onClose, onMinimize }) => {
       
       // If we have product IDs or suggested products with search_results action, treat as product list
       // Prioritize suggested_product_ids, but fall back to extracting from suggested_products
-      if (hasProductIds || (hasSuggestedProducts && isSearchResultsAction)) {
+      // Also navigate if we have products and action is search_results, even without explicit IDs
+      if (hasProductIds || (hasSuggestedProducts && isSearchResultsAction) || (hasSuggestedProducts && hasProductIds === false && response.data.action === 'search_results')) {
         let productIds = [];
         
         // First try to use suggested_product_ids
@@ -161,26 +280,29 @@ const AIChat = ({ onClose, onMinimize }) => {
         } 
         // If no IDs but we have products, extract IDs from products array
         else if (hasSuggestedProducts) {
-          productIds = response.data.suggested_products.map(p => p.id || p).filter(id => id != null);
+          productIds = response.data.suggested_products.map(p => {
+            const id = p.id || (typeof p === 'object' ? p.id : p);
+            return id;
+          }).filter(id => id != null && !isNaN(id));
         }
         
         if (productIds && productIds.length > 0) {
           console.log('Navigating to products page with IDs:', productIds);
           
+          // Navigate to products page with product IDs immediately
+          const idsParam = productIds.join(',');
+          navigate(`/products?ai_results=${idsParam}`);
+          
           // Update AI message to include navigation hint
           const updatedMessage = {
             role: 'assistant',
-            content: `${response.data.response}\n\nHere are what you asked for. Please check the products page to see them.`
+            content: `${response.data.response}\n\n✨ I found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! Check the products page to see them.`
           };
           setMessages(prev => {
             const newMessages = [...prev];
             newMessages[newMessages.length - 1] = updatedMessage;
             return newMessages;
           });
-          
-          // Navigate to products page with product IDs
-          const idsParam = productIds.join(',');
-          navigate(`/products?ai_results=${idsParam}`);
           
           // Minimize chat immediately for product lists
           setTimeout(() => {
@@ -191,6 +313,11 @@ const AIChat = ({ onClose, onMinimize }) => {
             }
           }, 100); // Small delay to ensure navigation happens first
           return;
+        } else {
+          console.warn('Products found but no valid IDs extracted:', {
+            suggested_product_ids: response.data.suggested_product_ids,
+            suggested_products: response.data.suggested_products?.map(p => ({ id: p.id, name: p.name }))
+          });
         }
       }
       

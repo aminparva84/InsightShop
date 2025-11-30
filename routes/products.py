@@ -20,7 +20,19 @@ def get_products():
         product_ids_param = request.args.get('ids', '')
         if product_ids_param:
             try:
-                product_ids = [int(id.strip()) for id in product_ids_param.split(',') if id.strip().isdigit()]
+                # Parse product IDs more robustly
+                product_ids = []
+                for id_str in product_ids_param.split(','):
+                    id_str = id_str.strip()
+                    if id_str:  # Only process non-empty strings
+                        try:
+                            product_id = int(id_str)
+                            if product_id > 0:  # Ensure positive ID
+                                product_ids.append(product_id)
+                        except ValueError:
+                            # Skip invalid IDs but continue processing
+                            continue
+                
                 if product_ids:
                     # Fetch products by IDs and maintain order
                     products = Product.query.filter(
@@ -37,8 +49,25 @@ def get_products():
                         'per_page': len(ordered_products),
                         'pages': 1
                     }), 200
-            except (ValueError, AttributeError):
-                pass  # Fall through to regular query if IDs parsing fails
+                else:
+                    # If no valid IDs found, return empty result instead of falling through
+                    return jsonify({
+                        'products': [],
+                        'total': 0,
+                        'page': 1,
+                        'per_page': 0,
+                        'pages': 1
+                    }), 200
+            except Exception as e:
+                # Log error but return empty result for AI queries
+                print(f"Error parsing product IDs: {e}")
+                return jsonify({
+                    'products': [],
+                    'total': 0,
+                    'page': 1,
+                    'per_page': 0,
+                    'pages': 1
+                }), 200
         
         query = Product.query.filter_by(is_active=True)
         

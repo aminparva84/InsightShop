@@ -79,7 +79,11 @@ const Products = () => {
       const response = await axios.get('/api/products/sizes');
       setSizes(response.data.sizes || []);
     } catch (error) {
-      console.error('Error fetching sizes:', error);
+      // Silently handle 404 - sizes are optional
+      if (error.response?.status !== 404) {
+        console.error('Error fetching sizes:', error);
+      }
+      setSizes([]);
     }
   };
 
@@ -88,7 +92,11 @@ const Products = () => {
       const response = await axios.get('/api/products/fabrics');
       setFabrics(response.data.fabrics || []);
     } catch (error) {
-      console.error('Error fetching fabrics:', error);
+      // Silently handle 404 - fabrics are optional
+      if (error.response?.status !== 404) {
+        console.error('Error fetching fabrics:', error);
+      }
+      setFabrics([]);
     }
   };
 
@@ -99,7 +107,12 @@ const Products = () => {
         setPriceRange({ min: response.data.min, max: response.data.max });
       }
     } catch (error) {
-      console.error('Error fetching price range:', error);
+      // Silently handle 404 - price range is optional
+      if (error.response?.status !== 404) {
+        console.error('Error fetching price range:', error);
+      }
+      // Set default price range
+      setPriceRange({ min: 0, max: 1000 });
     }
   };
 
@@ -109,7 +122,7 @@ const Products = () => {
       
       // If AI results are specified, fetch those specific products
       if (filters.ai_results) {
-        const productIds = filters.ai_results.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        const productIds = filters.ai_results.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id) && id > 0);
         console.log('AI Results - Product IDs from filters:', productIds);
         console.log('AI Results - Filter value:', filters.ai_results);
         
@@ -117,23 +130,37 @@ const Products = () => {
           // Fetch products by IDs using the ids parameter
           const idsParam = productIds.join(',');
           console.log('Fetching products with IDs param:', idsParam);
-          const response = await axios.get(`/api/products?ids=${idsParam}`);
-          
-          console.log('Products fetched by IDs:', response.data.products.length);
-          console.log('AI Products:', response.data.products.map(p => ({ id: p.id, name: p.name })));
-          
-          if (response.data.products && response.data.products.length > 0) {
-            setAllProducts(response.data.products);
-            setProducts(response.data.products);
-          } else {
-            console.warn('No products returned for AI results');
+          try {
+            const response = await axios.get(`/api/products?ids=${idsParam}`);
+            
+            console.log('Products fetched by IDs:', response.data.products?.length || 0);
+            console.log('AI Products:', response.data.products?.map(p => ({ id: p.id, name: p.name })) || []);
+            
+            if (response.data.products && response.data.products.length > 0) {
+              setAllProducts(response.data.products);
+              setProducts(response.data.products);
+            } else {
+              console.warn('No products returned for AI results');
+              setAllProducts([]);
+              setProducts([]);
+            }
+            setLoading(false);
+            return;
+          } catch (error) {
+            console.error('Error fetching AI results:', error);
+            console.error('Error response:', error.response?.data);
             setAllProducts([]);
             setProducts([]);
+            setLoading(false);
+            return;
           }
-          setLoading(false);
-          return;
         } else {
           console.warn('AI results filter exists but no valid product IDs found');
+          // Set empty arrays when AI results are requested but no valid IDs
+          setAllProducts([]);
+          setProducts([]);
+          setLoading(false);
+          return;
         }
       }
       
@@ -152,6 +179,10 @@ const Products = () => {
       setAllProducts(response.data.products);
     } catch (error) {
       console.error('Error fetching products:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      // Set empty arrays on error to prevent showing stale data
+      setProducts([]);
+      setAllProducts([]);
     } finally {
       setLoading(false);
     }

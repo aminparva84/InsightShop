@@ -91,23 +91,7 @@ def get_products():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@products_bp.route('/<int:product_id>', methods=['GET'])
-def get_product(product_id):
-    """Get a single product by ID."""
-    try:
-        product = Product.query.get(product_id)
-        
-        if not product:
-            return jsonify({'error': 'Product not found'}), 404
-        
-        if not product.is_active:
-            return jsonify({'error': 'Product not found'}), 404
-        
-        return jsonify({'product': product.to_dict()}), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+# IMPORTANT: Specific routes must come BEFORE the dynamic route to avoid conflicts
 @products_bp.route('/categories', methods=['GET'])
 def get_categories():
     """Get all product categories."""
@@ -173,6 +157,23 @@ def get_price_range():
             'min': float(result.min) if result.min else 0,
             'max': float(result.max) if result.max else 1000
         }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@products_bp.route('/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    """Get a single product by ID."""
+    try:
+        product = Product.query.get(product_id)
+        
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        if not product.is_active:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        return jsonify({'product': product.to_dict()}), 200
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

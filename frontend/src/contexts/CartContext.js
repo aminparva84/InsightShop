@@ -27,10 +27,16 @@ export const CartProvider = ({ children }) => {
     try {
       setLoading(true);
       const response = await axios.get('/api/cart');
-      setCartItems(response.data.items);
-      setCartTotal(response.data.total);
+      setCartItems(response.data.items || []);
+      setCartTotal(response.data.total || 0);
     } catch (error) {
-      console.error('Error fetching cart:', error);
+      // For 401 (unauthorized), treat as empty guest cart
+      if (error.response?.status === 401) {
+        setCartItems([]);
+        setCartTotal(0);
+      } else {
+        console.error('Error fetching cart:', error);
+      }
     } finally {
       setLoading(false);
     }

@@ -23,7 +23,7 @@ function App() {
     <AuthProvider>
       <CartProvider>
         <NotificationProvider>
-          <Router>
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <div className="App">
               <Navbar />
               <Routes>

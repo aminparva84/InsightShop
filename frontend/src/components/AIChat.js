@@ -77,9 +77,16 @@ const AIChat = ({ onClose, onMinimize }) => {
     if (!input.trim() || loading) return;
 
     const userMessage = { role: 'user', content: input };
+    const userInputLower = input.toLowerCase();
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
+
+    // Check if user wants to see products in chat (explicit request) - check BEFORE API call
+    const showInChatKeywords = ['show it here', 'show here', 'display here', 'list here', 'show me here', 'tell me here', 'show them here'];
+    const wantsToSeeInChat = showInChatKeywords.some(keyword => 
+      userInputLower.includes(keyword)
+    );
 
     try {
       const response = await axios.post('/api/ai/chat', {
@@ -118,12 +125,6 @@ const AIChat = ({ onClose, onMinimize }) => {
         }
         return;
       }
-      
-      // Check if user wants to see products in chat (explicit request)
-      const showInChatKeywords = ['show it here', 'show here', 'display here', 'list here', 'show me here', 'tell me here'];
-      const wantsToSeeInChat = showInChatKeywords.some(keyword => 
-        userMessage.content.toLowerCase().includes(keyword)
-      );
       
       // Detect if this is a product list response
       // Check multiple conditions to ensure we catch all product list scenarios

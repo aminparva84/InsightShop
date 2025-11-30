@@ -16,6 +16,30 @@ def get_products():
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 20))
         
+        # Support filtering by product IDs (for AI results)
+        product_ids_param = request.args.get('ids', '')
+        if product_ids_param:
+            try:
+                product_ids = [int(id.strip()) for id in product_ids_param.split(',') if id.strip().isdigit()]
+                if product_ids:
+                    # Fetch products by IDs and maintain order
+                    products = Product.query.filter(
+                        Product.id.in_(product_ids),
+                        Product.is_active == True
+                    ).all()
+                    # Maintain order from the IDs list
+                    product_dict = {p.id: p for p in products}
+                    ordered_products = [product_dict[id] for id in product_ids if id in product_dict]
+                    return jsonify({
+                        'products': [p.to_dict() for p in ordered_products],
+                        'total': len(ordered_products),
+                        'page': 1,
+                        'per_page': len(ordered_products),
+                        'pages': 1
+                    }), 200
+            except (ValueError, AttributeError):
+                pass  # Fall through to regular query if IDs parsing fails
+        
         query = Product.query.filter_by(is_active=True)
         
         if category:

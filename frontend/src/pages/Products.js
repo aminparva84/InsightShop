@@ -93,13 +93,23 @@ const Products = () => {
       // If AI results are specified, fetch those specific products
       if (filters.ai_results) {
         const productIds = filters.ai_results.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        console.log('AI Results - Product IDs:', productIds);
+        
         if (productIds.length > 0) {
           // Fetch all products first
-          const allResponse = await axios.get('/api/products');
+          const allResponse = await axios.get('/api/products?per_page=1000');
+          console.log('All products fetched:', allResponse.data.products.length);
           setAllProducts(allResponse.data.products);
           
-          // Filter to only show AI-suggested products
-          const aiProducts = allResponse.data.products.filter(p => productIds.includes(p.id));
+          // Filter to only show AI-suggested products - ensure ID matching works
+          const aiProducts = allResponse.data.products.filter(p => {
+            const matches = productIds.includes(Number(p.id));
+            return matches;
+          });
+          
+          console.log('AI Products filtered:', aiProducts.length);
+          console.log('AI Products:', aiProducts.map(p => ({ id: p.id, name: p.name })));
+          
           setProducts(aiProducts);
           setLoading(false);
           return;

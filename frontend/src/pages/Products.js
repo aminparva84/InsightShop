@@ -96,21 +96,15 @@ const Products = () => {
         console.log('AI Results - Product IDs:', productIds);
         
         if (productIds.length > 0) {
-          // Fetch all products first
-          const allResponse = await axios.get('/api/products?per_page=1000');
-          console.log('All products fetched:', allResponse.data.products.length);
-          setAllProducts(allResponse.data.products);
+          // Fetch products by IDs using the ids parameter
+          const idsParam = productIds.join(',');
+          const response = await axios.get(`/api/products?ids=${idsParam}`);
           
-          // Filter to only show AI-suggested products - ensure ID matching works
-          const aiProducts = allResponse.data.products.filter(p => {
-            const matches = productIds.includes(Number(p.id));
-            return matches;
-          });
+          console.log('Products fetched by IDs:', response.data.products.length);
+          console.log('AI Products:', response.data.products.map(p => ({ id: p.id, name: p.name })));
           
-          console.log('AI Products filtered:', aiProducts.length);
-          console.log('AI Products:', aiProducts.map(p => ({ id: p.id, name: p.name })));
-          
-          setProducts(aiProducts);
+          setAllProducts(response.data.products);
+          setProducts(response.data.products);
           setLoading(false);
           return;
         }

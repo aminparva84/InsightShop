@@ -182,11 +182,13 @@
 
 .ai-chat-input {
   display: flex;
-  padding: 16px;
+  padding: 12px;
   border-top: 2px solid #e5e7eb;
   background: white;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0; /* Prevent input from shrinking */
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
 .ai-chat-input input {
@@ -222,11 +224,33 @@
 }
 
 .voice-btn {
-  padding: 12px 16px !important;
-  font-size: 20px;
+  padding: 8px 10px !important;
+  font-size: 16px;
   background: #1a2332 !important;
   border: 1px solid #d4af37 !important;
-  min-width: 48px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-controls {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.voice-gender-select {
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+  background: #1a2332 !important;
+  color: #fff !important;
+  border: 1px solid #d4af37 !important;
+  border-radius: 4px;
+  cursor: pointer;
+  height: 36px;
 }
 
 .voice-btn.listening {

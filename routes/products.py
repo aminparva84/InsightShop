@@ -182,11 +182,19 @@ def get_price_range():
             func.max(Product.price).label('max')
         ).filter(Product.is_active == True).first()
         
+        if result:
+            min_price = float(result.min) if result.min is not None else 0
+            max_price = float(result.max) if result.max is not None else 1000
+        else:
+            min_price = 0
+            max_price = 1000
+        
         return jsonify({
-            'min': float(result.min) if result.min else 0,
-            'max': float(result.max) if result.max else 1000
+            'min': min_price,
+            'max': max_price
         }), 200
     except Exception as e:
+        print(f"Error in get_price_range: {e}")
         return jsonify({'error': str(e)}), 500
 
 @products_bp.route('/<int:product_id>', methods=['GET'])

@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from './ProductCard';
 import './AIChat.css';
 
 const AIChat = ({ onClose, onMinimize }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const initialMessage = "Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!";
   const [messages, setMessages] = useState([
     { role: 'assistant', content: initialMessage }
@@ -164,39 +165,72 @@ const AIChat = ({ onClose, onMinimize }) => {
       { pattern: /english/i, priority: 4 }
     ];
     
-    // Filter voices by gender preference
+    // Filter voices by gender preference and prioritize American English (en-US)
     const genderPatterns = voiceGender === 'woman' ? femaleVoicePatterns : maleVoicePatterns;
-    const genderVoices = voices.filter(voice => {
-      if (!voice.lang.startsWith('en')) return false;
+    
+    // First, filter for American English voices (en-US) with gender preference
+    const americanGenderVoices = voices.filter(voice => {
+      if (voice.lang !== 'en-US') return false;
       return genderPatterns.some(pattern => pattern.test(voice.name));
     });
     
-    // Score and sort gender-specific voices
-    const scoredVoices = genderVoices.length > 0 ? genderVoices : voices.filter(voice => voice.lang.startsWith('en'));
+    // If no American gender-specific voices, try any American English voice
+    const americanVoices = americanGenderVoices.length > 0 
+      ? americanGenderVoices 
+      : voices.filter(voice => voice.lang === 'en-US');
+    
+    // Fallback to any English voice with gender preference
+    const genderVoices = americanVoices.length > 0 
+      ? americanVoices 
+      : voices.filter(voice => {
+          if (!voice.lang.startsWith('en')) return false;
+          return genderPatterns.some(pattern => pattern.test(voice.name));
+        });
+    
+    // Final fallback to any English voice
+    const scoredVoices = genderVoices.length > 0 
+      ? genderVoices 
+      : (americanVoices.length > 0 
+          ? americanVoices 
+          : voices.filter(voice => voice.lang.startsWith('en')));
+    
     const sortedVoices = scoredVoices
       .map(voice => {
         let score = 999; // Default low priority
+        
+        // Prioritize American English (en-US)
+        if (voice.lang === 'en-US') {
+          score = 0; // Highest priority for American English
+        } else if (voice.lang.startsWith('en-US')) {
+          score = 1; // Second priority for en-US variants
+        } else if (voice.lang.startsWith('en')) {
+          score = 100; // Lower priority for other English variants
+        }
+        
+        // Then apply voice quality priority
         for (const { pattern, priority } of voicePriority) {
           if (pattern.test(voice.name)) {
-            score = Math.min(score, priority);
+            score += priority; // Add to existing score
           }
         }
         return { voice, score };
       })
       .sort((a, b) => a.score - b.score);
     
-    // Use the best available voice matching gender preference
+    // Use the best available voice matching gender preference and American accent
     const selectedVoice = sortedVoices.length > 0 ? sortedVoices[0].voice : null;
     
     if (selectedVoice) {
       utterance.voice = selectedVoice;
+      // Ensure American English is set
+      utterance.lang = 'en-US';
     } else {
-      // Fallback to any English voice
-      const englishVoice = voices.find(voice => voice.lang.startsWith('en'));
-      if (englishVoice) {
-        utterance.voice = englishVoice;
-      } else {
-        utterance.lang = 'en-US';
+      // Fallback: set to American English
+      utterance.lang = 'en-US';
+      // Try to find any American English voice
+      const anyAmericanVoice = voices.find(voice => voice.lang === 'en-US');
+      if (anyAmericanVoice) {
+        utterance.voice = anyAmericanVoice;
       }
     }
 
@@ -324,6 +358,16 @@ const AIChat = ({ onClose, onMinimize }) => {
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
+    
+    // If on products page, switch to AI Dashboard tab when user chats
+    if (location.pathname === '/products') {
+      const currentParams = new URLSearchParams(window.location.search);
+      if (currentParams.get('tab') !== 'ai') {
+        // Update URL to switch to AI Dashboard tab
+        currentParams.set('tab', 'ai');
+        navigate(`/products?${currentParams.toString()}`, { replace: true });
+      }
+    }
 
     const userMessage = { role: 'user', content: input };
     const userInputLower = input.toLowerCase();
@@ -446,14 +490,16 @@ const AIChat = ({ onClose, onMinimize }) => {
         }
         
         if (productIds && productIds.length > 0) {
-          // Navigate to products page with product IDs immediately
+          // Navigate to products page with product IDs and switch to AI Dashboard tab
           const idsParam = productIds.join(',');
-          navigate(`/products?ai_results=${idsParam}`);
+          console.log('AI Chat: Navigating to products page with IDs:', productIds);
+          console.log('AI Chat: Full URL will be:', `/products?ai_results=${idsParam}&tab=ai`);
+          navigate(`/products?ai_results=${idsParam}&tab=ai`);
           
           // Update AI message to include navigation hint
           const updatedMessage = {
             role: 'assistant',
-            content: `${response.data.response}\n\n✨ I found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! Check the products page to see them.`
+            content: `${response.data.response}\n\n✨ I found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! Check the AI Dashboard tab to see them.`
           };
           setMessages(prev => {
             const newMessages = [...prev];
@@ -491,7 +537,7 @@ const AIChat = ({ onClose, onMinimize }) => {
       // If 3+ product IDs mentioned, treat as product list
       if (mentionedIds.length >= 3 && !hasProductIds) {
         const idsParam = [...new Set(mentionedIds)].join(',');
-        navigate(`/products?ai_results=${idsParam}`);
+        navigate(`/products?ai_results=${idsParam}&tab=ai`);
         setTimeout(() => {
           if (onMinimize) {
             onMinimize();
@@ -593,7 +639,7 @@ const AIChat = ({ onClose, onMinimize }) => {
         >
           🎤
         </button>
-        <div className="voice-controls" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        <div className="voice-controls">
           <button
             type="button"
             onClick={toggleVoice}
@@ -605,22 +651,13 @@ const AIChat = ({ onClose, onMinimize }) => {
           </button>
           {voiceEnabled && (
             <select
+              className="voice-gender-select"
               value={voiceGender}
               onChange={(e) => {
                 setVoiceGender(e.target.value);
                 if (isSpeaking) stopSpeaking();
               }}
-              className="voice-gender-select"
               title="Select voice gender"
-              style={{
-                padding: '8px 12px',
-                fontSize: '14px',
-                background: '#1a2332',
-                color: '#fff',
-                border: '1px solid #d4af37',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
             >
               <option value="woman">👩 Woman</option>
               <option value="man">👨 Man</option>

@@ -1,0 +1,247 @@
+.filter-bar {
+  background-color: #fdfbf8;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.filter-bar-container {
+  padding: 8px 20px;
+}
+
+.filter-search-container {
+  margin-bottom: 10px;
+}
+
+.filter-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1a2332;
+  transition: border-color 0.2s ease;
+}
+
+.filter-search-input:focus {
+  outline: none;
+  border-color: #d4af37;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+.filter-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.filter-bar-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a2332;
+  margin: 0;
+}
+
+.active-filter-count {
+  font-size: 12px;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.filter-dropdowns {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-dropdown {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.filter-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1a2332;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.filter-button:hover {
+  border-color: #d4af37;
+  background: #faf0e6;
+}
+
+.filter-button.active {
+  background: #1a2332;
+  color: #faf0e6;
+  border-color: #1a2332;
+}
+
+.filter-value {
+  font-size: 11px;
+  opacity: 0.8;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.filter-dropdown.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a2332;
+}
+
+.clear-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.clear-btn:hover {
+  background: #fee2e2;
+}
+
+.dropdown-options {
+  padding: 4px 0;
+}
+
+.dropdown-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1a2332;
+  transition: background 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dropdown-option:hover {
+  background: #f3f4f6;
+}
+
+.dropdown-option.selected {
+  background: #1a2332;
+  color: #faf0e6;
+}
+
+.color-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #ccc;
+  display: inline-block;
+}
+
+.price-menu {
+  min-width: 250px;
+}
+
+.price-inputs {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.price-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.price-input-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.price-input-group input {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.clear-all-filters {
+  padding: 6px 12px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s ease;
+  white-space: nowrap;
+}
+
+.clear-all-filters:hover {
+  background: #b91c1c;
+}
+
+@media (max-width: 768px) {
+  .filter-dropdowns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-button {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .dropdown-menu {
+    width: 100%;
+    left: 0;
+  }
+}

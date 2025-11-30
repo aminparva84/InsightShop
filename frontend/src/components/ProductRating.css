@@ -1,0 +1,42 @@
+.product-rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.stars {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  font-size: 16px;
+  line-height: 1;
+  color: #d1d5db;
+}
+
+.star.full {
+  color: #d4af37;
+}
+
+.star.half {
+  color: #d4af37;
+  opacity: 0.5;
+}
+
+.star.empty {
+  color: #e5e7eb;
+}
+
+.review-count {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.rating-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a2332;
+}
+

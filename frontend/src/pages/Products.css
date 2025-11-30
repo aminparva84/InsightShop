@@ -1,0 +1,143 @@
+.products-page {
+  padding: 40px 0;
+  min-height: calc(100vh - 70px);
+}
+
+.page-title {
+  font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+  font-size: 42px;
+  font-weight: 700;
+  margin-bottom: 40px;
+  color: #1f2937;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.products-layout {
+  display: block;
+}
+
+.filters-sidebar {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  height: fit-content;
+  position: sticky;
+  top: 90px;
+}
+
+.filters-sidebar h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: #1f2937;
+}
+
+.filter-group {
+  margin-bottom: 24px;
+}
+
+.filter-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.products-main {
+  min-height: 400px;
+}
+
+.products-count {
+  margin-bottom: 24px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.products-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 15px;
+}
+
+.btn-compare {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ai-results-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #1a2332;
+  color: #faf0e6;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 4px solid #d4af37;
+}
+
+.ai-results-banner .btn-link {
+  color: white;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.product-grid-item-wrapper {
+  position: relative;
+}
+
+.compare-checkbox-wrapper {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid #d4af37;
+  backdrop-filter: blur(4px);
+}
+
+.compare-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a2332;
+  margin: 0;
+  user-select: none;
+}
+
+.compare-checkbox:hover {
+  color: #d4af37;
+}
+
+.compare-checkbox input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #1a2332;
+  border: 2px solid #1a2332;
+}
+
+.compare-checkbox input[type="checkbox"]:checked {
+  accent-color: #d4af37;
+  background-color: #d4af37;
+}
+
+@media (max-width: 968px) {
+  .products-layout {
+    display: block;
+  }
+}
+

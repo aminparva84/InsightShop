@@ -1,0 +1,246 @@
+.ai-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  background: white;
+  overflow: hidden;
+}
+
+.ai-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 2px solid #d4af37;
+  background: #1a2332;
+  color: #faf0e6;
+  flex-shrink: 0; /* Prevent header from shrinking */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.ai-chat-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.ai-chat-header-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.close-btn,
+.minimize-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #faf0e6;
+  font-size: 24px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.minimize-btn {
+  font-size: 28px;
+  padding-bottom: 4px;
+}
+
+.close-btn:hover,
+.minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: #d4af37;
+  transform: scale(1.1);
+}
+
+.ai-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  background: #f9fafb;
+  min-height: 0; /* Important for flex children to respect max-height */
+}
+
+.message {
+  margin-bottom: 16px;
+  display: flex;
+}
+
+.message.user {
+  justify-content: flex-end;
+}
+
+.message.assistant {
+  justify-content: flex-start;
+}
+
+.message-content {
+  max-width: 70%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  word-wrap: break-word;
+}
+
+.message.user .message-content {
+  background: #1a2332;
+  color: #faf0e6;
+}
+
+.message.assistant .message-content {
+  background: white;
+  color: #1f2937;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background: #1a2332;
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+.product-id-highlight {
+  background: #d4af37;
+  color: #1a2332;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.selected-products-info {
+  padding: 12px 16px;
+  border-top: 2px solid #d4af37;
+  background: #faf0e6;
+  font-size: 14px;
+}
+
+.selected-products-info p {
+  margin: 4px 0;
+}
+
+.help-text {
+  color: #6b7280;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.suggested-products {
+  padding: 20px;
+  border-top: 2px solid #e5e7eb;
+  background: white;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.suggested-products h4 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.suggested-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.ai-chat-input {
+  display: flex;
+  padding: 16px;
+  border-top: 2px solid #e5e7eb;
+  background: white;
+  gap: 12px;
+  flex-shrink: 0; /* Prevent input from shrinking */
+}
+
+.ai-chat-input input {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.ai-chat-input input:focus {
+  border-color: #1a2332;
+}
+
+.ai-chat-input button {
+  padding: 12px 24px;
+  background: #1a2332;
+  color: #faf0e6;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: transform 0.3s ease;
+  border: 1px solid #d4af37;
+  cursor: pointer;
+}
+
+.ai-chat-input button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.ai-chat-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-btn {
+  padding: 12px 16px !important;
+  font-size: 20px;
+  background: #1a2332 !important;
+  border: 1px solid #d4af37 !important;
+  min-width: 48px;
+}
+
+.voice-btn.listening {
+  background: #ef4444 !important;
+  border-color: #dc2626 !important;
+  animation: pulse-voice 1.5s infinite;
+}
+
+@keyframes pulse-voice {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+

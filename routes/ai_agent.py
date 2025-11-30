@@ -390,16 +390,12 @@ Please help the customer with their request. When mentioning products, ALWAYS in
         # Call Bedrock
         response = call_bedrock(full_prompt, system_prompt)
         
-        # Extract product IDs if mentioned
-        suggested_product_ids = vector_product_ids[:5] if vector_product_ids else []
+        # Extract product IDs - use all vector_product_ids (up to 10) to ensure frontend gets them
+        suggested_product_ids = vector_product_ids[:10] if vector_product_ids else []
         
-        # Final check: if we have products and action wasn't set, set it now
         # Always set action to 'search_results' if we have products to ensure frontend shows them
-        if action is None and len(vector_products) > 0 and len(suggested_product_ids) > 0:
-            # If products were found via vector search, it's definitely a product list
-            action = 'search_results'
-        elif len(vector_products) > 0 and len(suggested_product_ids) > 0:
-            # Ensure action is set if we have products
+        # This ensures the grid updates when products are found
+        if len(vector_products) > 0 and len(suggested_product_ids) > 0:
             action = 'search_results'
         
         # Update response to include navigation message when products are found
@@ -412,7 +408,7 @@ Please help the customer with their request. When mentioning products, ALWAYS in
         return jsonify({
             'response': final_response,
             'suggested_products': vector_products[:10] if len(vector_products) > 0 else [],  # Return up to 10 products
-            'suggested_product_ids': suggested_product_ids[:10] if len(suggested_product_ids) > 0 else [],  # Return up to 10 IDs
+            'suggested_product_ids': suggested_product_ids,  # Return all IDs (already limited to 10)
             'action': action  # 'search_results' will trigger navigation and minimize chat
         }), 200
         

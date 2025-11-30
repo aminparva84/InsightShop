@@ -48,11 +48,8 @@ const Products = () => {
       ai_results: searchParams.get('ai_results') || ''
     };
     
-    // Only update if something actually changed to avoid infinite loops
-    const hasChanged = Object.keys(newFilters).some(key => newFilters[key] !== filters[key]);
-    if (hasChanged) {
-      setFilters(newFilters);
-    }
+    // Always update filters when URL changes (especially for AI navigation)
+    setFilters(newFilters);
   }, [searchParams]);
 
   useEffect(() => {
@@ -113,20 +110,30 @@ const Products = () => {
       // If AI results are specified, fetch those specific products
       if (filters.ai_results) {
         const productIds = filters.ai_results.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-        console.log('AI Results - Product IDs:', productIds);
+        console.log('AI Results - Product IDs from filters:', productIds);
+        console.log('AI Results - Filter value:', filters.ai_results);
         
         if (productIds.length > 0) {
           // Fetch products by IDs using the ids parameter
           const idsParam = productIds.join(',');
+          console.log('Fetching products with IDs param:', idsParam);
           const response = await axios.get(`/api/products?ids=${idsParam}`);
           
           console.log('Products fetched by IDs:', response.data.products.length);
           console.log('AI Products:', response.data.products.map(p => ({ id: p.id, name: p.name })));
           
-          setAllProducts(response.data.products);
-          setProducts(response.data.products);
+          if (response.data.products && response.data.products.length > 0) {
+            setAllProducts(response.data.products);
+            setProducts(response.data.products);
+          } else {
+            console.warn('No products returned for AI results');
+            setAllProducts([]);
+            setProducts([]);
+          }
           setLoading(false);
           return;
+        } else {
+          console.warn('AI results filter exists but no valid product IDs found');
         }
       }
       

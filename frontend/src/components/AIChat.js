@@ -6,8 +6,9 @@ import './AIChat.css';
 
 const AIChat = ({ onClose, onMinimize }) => {
   const navigate = useNavigate();
+  const initialMessage = "Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!";
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!" }
+    { role: 'assistant', content: initialMessage }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,6 +20,11 @@ const AIChat = ({ onClose, onMinimize }) => {
     // Load voice preference from localStorage
     const saved = localStorage.getItem('aiVoiceEnabled');
     return saved === 'true';
+  });
+  const [voiceGender, setVoiceGender] = useState(() => {
+    // Load voice gender preference from localStorage, default to 'woman'
+    const saved = localStorage.getItem('aiVoiceGender');
+    return saved || 'woman';
   });
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -46,12 +52,26 @@ const AIChat = ({ onClose, onMinimize }) => {
     };
   }, []);
 
-  // Save voice preference to localStorage
+  // Save voice preferences to localStorage
   useEffect(() => {
     localStorage.setItem('aiVoiceEnabled', voiceEnabled.toString());
   }, [voiceEnabled]);
 
-  // Function to speak text
+  useEffect(() => {
+    localStorage.setItem('aiVoiceGender', voiceGender);
+  }, [voiceGender]);
+
+  // Speak initial greeting when voice is enabled on mount
+  useEffect(() => {
+    if (voiceEnabled && synthesisRef.current && messages.length === 1) {
+      // Small delay to ensure voices are loaded
+      setTimeout(() => {
+        speakText(initialMessage);
+      }, 500);
+    }
+  }, []); // Only run on mount
+
+  // Function to speak text with natural-sounding voice
   const speakText = (text) => {
     if (!voiceEnabled || !synthesisRef.current) return;
 
@@ -60,36 +80,124 @@ const AIChat = ({ onClose, onMinimize }) => {
       synthesisRef.current.cancel();
     }
 
-    // Clean text - remove markdown, URLs, and special formatting
-    const cleanText = text
-      .replace(/Product\s*#\d+/gi, '') // Remove product IDs for cleaner speech
-      .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
-      .replace(/[*_`]/g, '') // Remove markdown formatting
-      .replace(/\n+/g, '. ') // Replace newlines with periods
+    // Enhanced text preprocessing for more natural speech
+    let cleanText = text
+      // Remove product IDs but keep the context
+      .replace(/Product\s*#\d+/gi, '')
+      // Remove URLs
+      .replace(/https?:\/\/[^\s]+/g, '')
+      // Remove markdown formatting
+      .replace(/[*_`]/g, '')
+      // Remove emojis (they don't speak well)
+      .replace(/[^\w\s.,!?;:()\-'"]/g, ' ')
+      // Add pauses for better flow - convert multiple newlines to longer pauses
+      .replace(/\n\n+/g, '. ')
+      // Convert single newlines to short pauses
+      .replace(/\n/g, ', ')
+      // Clean up multiple spaces
+      .replace(/\s+/g, ' ')
+      // Add natural pauses after sentences
+      .replace(/\.\s+/g, '. ')
+      .replace(/\?\s+/g, '? ')
+      .replace(/!\s+/g, '! ')
+      // Ensure proper spacing around punctuation
+      .replace(/\s*([.,!?;:])\s*/g, '$1 ')
       .trim();
 
     if (!cleanText) return;
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
-    // Configure voice settings
-    utterance.rate = 1.0; // Normal speed
-    utterance.pitch = 1.0; // Normal pitch
-    utterance.volume = 0.8; // 80% volume
+    // More natural speech parameters
+    utterance.rate = 0.95; // Slightly slower for more natural speech (was 1.0)
+    utterance.pitch = 1.1; // Slightly higher pitch for more warmth (was 1.0)
+    utterance.volume = 0.9; // Slightly louder (was 0.8)
     
-    // Try to use a natural-sounding voice
+    // Get all available voices and prioritize neural/premium voices
     const voices = synthesisRef.current.getVoices();
-    const preferredVoice = voices.find(voice => 
-      voice.name.includes('Google') || 
-      voice.name.includes('Microsoft') ||
-      voice.name.includes('Samantha') ||
-      voice.name.includes('Alex')
-    ) || voices.find(voice => voice.lang.startsWith('en'));
     
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
+    // Gender-specific voice patterns
+    const femaleVoicePatterns = [
+      /neural.*female|female.*neural/i,
+      /premium.*female|female.*premium/i,
+      /zira/i,           // Microsoft female
+      /samantha/i,       // Apple female
+      /victoria/i,       // Apple female
+      /karen/i,          // Australian female
+      /fiona/i,          // Scottish female
+      /tessa/i,         // South African female
+      /google.*female|female.*google/i,
+      /polly.*joanna|joanna/i,  // Amazon Polly female
+      /polly.*amy|amy/i,
+      /polly.*emma|emma/i
+    ];
+    
+    const maleVoicePatterns = [
+      /neural.*male|male.*neural/i,
+      /premium.*male|male.*premium/i,
+      /david/i,          // Microsoft male
+      /alex/i,           // Apple male
+      /daniel/i,         // British male
+      /thomas/i,         // British male
+      /google.*male|male.*google/i,
+      /polly.*matthew|matthew/i,  // Amazon Polly male
+      /polly.*joey|joey/i,
+      /polly.*justin|justin/i
+    ];
+    
+    // Priority list for natural-sounding voices (neural voices first)
+    const voicePriority = [
+      // Neural/premium voices (most natural)
+      { pattern: /neural/i, priority: 1 },
+      { pattern: /premium/i, priority: 1 },
+      { pattern: /enhanced/i, priority: 1 },
+      // Google voices (usually good quality)
+      { pattern: /google.*english/i, priority: 2 },
+      { pattern: /google/i, priority: 3 },
+      // Microsoft voices
+      { pattern: /microsoft/i, priority: 3 },
+      // Apple voices (Mac/iOS)
+      { pattern: /samantha|alex|victoria|daniel/i, priority: 2 },
+      // Amazon Polly voices (if available)
+      { pattern: /polly/i, priority: 2 },
+      // Other English voices
+      { pattern: /english/i, priority: 4 }
+    ];
+    
+    // Filter voices by gender preference
+    const genderPatterns = voiceGender === 'woman' ? femaleVoicePatterns : maleVoicePatterns;
+    const genderVoices = voices.filter(voice => {
+      if (!voice.lang.startsWith('en')) return false;
+      return genderPatterns.some(pattern => pattern.test(voice.name));
+    });
+    
+    // Score and sort gender-specific voices
+    const scoredVoices = genderVoices.length > 0 ? genderVoices : voices.filter(voice => voice.lang.startsWith('en'));
+    const sortedVoices = scoredVoices
+      .map(voice => {
+        let score = 999; // Default low priority
+        for (const { pattern, priority } of voicePriority) {
+          if (pattern.test(voice.name)) {
+            score = Math.min(score, priority);
+          }
+        }
+        return { voice, score };
+      })
+      .sort((a, b) => a.score - b.score);
+    
+    // Use the best available voice matching gender preference
+    const selectedVoice = sortedVoices.length > 0 ? sortedVoices[0].voice : null;
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
     } else {
-      utterance.lang = 'en-US';
+      // Fallback to any English voice
+      const englishVoice = voices.find(voice => voice.lang.startsWith('en'));
+      if (englishVoice) {
+        utterance.voice = englishVoice;
+      } else {
+        utterance.lang = 'en-US';
+      }
     }
 
     utterance.onstart = () => {
@@ -104,6 +212,21 @@ const AIChat = ({ onClose, onMinimize }) => {
       console.error('Speech synthesis error:', event.error);
       setIsSpeaking(false);
     };
+
+    // Add a small delay to ensure voices are loaded (especially on first use)
+    if (voices.length === 0) {
+      // Wait for voices to load
+      const checkVoices = setInterval(() => {
+        const availableVoices = synthesisRef.current.getVoices();
+        if (availableVoices.length > 0) {
+          clearInterval(checkVoices);
+          // Re-run with voices now available
+          speakText(text);
+        }
+      }, 100);
+      setTimeout(() => clearInterval(checkVoices), 2000); // Timeout after 2 seconds
+      return;
+    }
 
     synthesisRef.current.speak(utterance);
   };
@@ -149,9 +272,36 @@ const AIChat = ({ onClose, onMinimize }) => {
       };
     }
 
+    // Load voices for text-to-speech (some browsers need this)
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        // Voices are loaded asynchronously, so we call this when they're ready
+        if (synthesisRef.current) {
+          const voices = synthesisRef.current.getVoices();
+          // Only log in development
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Available voices:', voices.length);
+            const neuralVoices = voices.filter(v => /neural|premium|enhanced/i.test(v.name));
+            if (neuralVoices.length > 0) {
+              console.log('Neural/Premium voices found:', neuralVoices.map(v => v.name));
+            }
+          }
+        }
+      };
+      loadVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      }
+      // Also try loading voices after a short delay (some browsers need this)
+      setTimeout(loadVoices, 500);
+    }
+
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
+      }
+      if (synthesisRef.current && synthesisRef.current.speaking) {
+        synthesisRef.current.cancel();
       }
     };
   }, []);
@@ -239,16 +389,10 @@ const AIChat = ({ onClose, onMinimize }) => {
       const hasSuggestedProducts = response.data.suggested_products && response.data.suggested_products.length > 0;
       const isSearchResultsAction = response.data.action === 'search_results';
       
-      // Debug logging
-      console.log('AI Response Debug:', {
-        hasProductIds,
-        hasSuggestedProducts,
-        isSearchResultsAction,
-        productIdsCount: response.data.suggested_product_ids?.length || 0,
-        productsCount: response.data.suggested_products?.length || 0,
-        action: response.data.action,
-        wantsToSeeInChat
-      });
+      // Debug logging (only log if there's an issue)
+      if (!hasProductIds && !hasSuggestedProducts && response.data.action === 'search_results') {
+        console.warn('AI Response - action is search_results but no products found');
+      }
       
       // If user wants to see products in chat, format them as text list
       if (wantsToSeeInChat && hasSuggestedProducts && response.data.suggested_products.length > 0) {
@@ -268,10 +412,9 @@ const AIChat = ({ onClose, onMinimize }) => {
         return; // Don't navigate, just show in chat
       }
       
-      // If we have product IDs or suggested products with search_results action, treat as product list
-      // Prioritize suggested_product_ids, but fall back to extracting from suggested_products
-      // Also navigate if we have products and action is search_results, even without explicit IDs
-      if (hasProductIds || (hasSuggestedProducts && isSearchResultsAction) || (hasSuggestedProducts && hasProductIds === false && response.data.action === 'search_results')) {
+      // CRITICAL: Always navigate if we have products and action is search_results
+      // This ensures the grid updates when products are found
+      if (hasProductIds || (hasSuggestedProducts && isSearchResultsAction) || (hasSuggestedProducts && response.data.action === 'search_results')) {
         let productIds = [];
         
         // First try to use suggested_product_ids
@@ -286,9 +429,23 @@ const AIChat = ({ onClose, onMinimize }) => {
           }).filter(id => id != null && !isNaN(id));
         }
         
+        // If we still don't have IDs but have products, try one more extraction
+        if (!productIds || productIds.length === 0) {
+          if (hasSuggestedProducts && response.data.suggested_products) {
+            productIds = response.data.suggested_products
+              .map(p => {
+                try {
+                  const id = p?.id || (typeof p === 'number' ? p : null);
+                  return id ? parseInt(id) : null;
+                } catch {
+                  return null;
+                }
+              })
+              .filter(id => id != null && !isNaN(id) && id > 0);
+          }
+        }
+        
         if (productIds && productIds.length > 0) {
-          console.log('Navigating to products page with IDs:', productIds);
-          
           // Navigate to products page with product IDs immediately
           const idsParam = productIds.join(',');
           navigate(`/products?ai_results=${idsParam}`);
@@ -313,10 +470,12 @@ const AIChat = ({ onClose, onMinimize }) => {
             }
           }, 100); // Small delay to ensure navigation happens first
           return;
-        } else {
-          console.warn('Products found but no valid IDs extracted:', {
+        } else if (hasSuggestedProducts && response.data.suggested_products?.length > 0) {
+          // Last resort: log detailed error for debugging
+          console.error('Failed to extract product IDs:', {
             suggested_product_ids: response.data.suggested_product_ids,
-            suggested_products: response.data.suggested_products?.map(p => ({ id: p.id, name: p.name }))
+            suggested_products: response.data.suggested_products,
+            firstProduct: response.data.suggested_products[0]
           });
         }
       }
@@ -434,6 +593,51 @@ const AIChat = ({ onClose, onMinimize }) => {
         >
           🎤
         </button>
+        <div className="voice-controls" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={toggleVoice}
+            className={`voice-btn ${voiceEnabled ? 'speaking-enabled' : ''} ${isSpeaking ? 'speaking' : ''}`}
+            title={voiceEnabled ? (isSpeaking ? 'AI is speaking - Click to stop' : 'Voice enabled - Click to disable') : 'Enable AI voice responses'}
+            disabled={loading}
+          >
+            {isSpeaking ? '🔊' : voiceEnabled ? '🔊' : '🔇'}
+          </button>
+          {voiceEnabled && (
+            <select
+              value={voiceGender}
+              onChange={(e) => {
+                setVoiceGender(e.target.value);
+                if (isSpeaking) stopSpeaking();
+              }}
+              className="voice-gender-select"
+              title="Select voice gender"
+              style={{
+                padding: '8px 12px',
+                fontSize: '14px',
+                background: '#1a2332',
+                color: '#fff',
+                border: '1px solid #d4af37',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="woman">👩 Woman</option>
+              <option value="man">👨 Man</option>
+            </select>
+          )}
+          {isSpeaking && (
+            <button
+              type="button"
+              onClick={stopSpeaking}
+              className="voice-btn"
+              title="Stop speaking"
+              style={{ background: '#ef4444', borderColor: '#dc2626' }}
+            >
+              ⏹
+            </button>
+          )}
+        </div>
         <button type="submit" disabled={loading || !input.trim() || isListening}>
           Send
         </button>

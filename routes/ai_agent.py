@@ -533,16 +533,41 @@ IMPORTANT: If products were found above, you MUST mention them and their product
             # The frontend will handle that case
             pass
         
-        # Debug logging
-        print(f"AI Agent Response - vector_products: {len(vector_products)}, suggested_product_ids: {suggested_product_ids}, action: {action}")
-        print(f"First few product IDs: {suggested_product_ids[:5] if suggested_product_ids else 'None'}")
-        print(f"First few products: {[p.get('id') if isinstance(p, dict) else getattr(p, 'id', None) for p in vector_products[:3]] if vector_products else 'None'}")
+        # Ensure action is always set when products are found
+        if len(vector_products) > 0 and not action:
+            action = 'search_results'
+        
+        # Debug logging (only in development)
+        if Config.DEBUG:
+            print(f"AI Agent Response - vector_products: {len(vector_products)}, suggested_product_ids: {suggested_product_ids}, action: {action}")
+            if suggested_product_ids:
+                print(f"Product IDs: {suggested_product_ids[:5]}")
+        
+        # CRITICAL: Always ensure action is set when products are found
+        if len(vector_products) > 0 and not action:
+            action = 'search_results'
+        
+        # CRITICAL: Always ensure product IDs are returned when products exist
+        if len(vector_products) > 0 and not suggested_product_ids:
+            # Extract IDs from products as final fallback
+            for p in vector_products[:10]:
+                if isinstance(p, dict):
+                    pid = p.get('id')
+                else:
+                    pid = getattr(p, 'id', None)
+                if pid is not None and pid not in suggested_product_ids:
+                    suggested_product_ids.append(int(pid))
+        
+        # Final check: ensure action is set when products are found
+        final_action = action
+        if len(vector_products) > 0 and not final_action:
+            final_action = 'search_results'
         
         return jsonify({
             'response': final_response,
             'suggested_products': vector_products[:10] if len(vector_products) > 0 else [],  # Return up to 10 products
             'suggested_product_ids': suggested_product_ids,  # Return all IDs (already limited to 10)
-            'action': action  # 'search_results' will trigger navigation and minimize chat
+            'action': final_action  # Always set action when products found
         }), 200
         
     except Exception as e:

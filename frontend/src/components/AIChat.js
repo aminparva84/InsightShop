@@ -150,12 +150,23 @@ const AIChat = ({ onClose, onMinimize }) => {
         return; // Don't navigate, just show in chat
       }
       
-      // If we have product IDs or suggested products, treat as product list
+      // If we have product IDs or suggested products with search_results action, treat as product list
+      // Prioritize suggested_product_ids, but fall back to extracting from suggested_products
       if (hasProductIds || (hasSuggestedProducts && isSearchResultsAction)) {
-        const productIds = response.data.suggested_product_ids || 
-                          (response.data.suggested_products ? response.data.suggested_products.map(p => p.id || p) : []);
+        let productIds = [];
+        
+        // First try to use suggested_product_ids
+        if (hasProductIds) {
+          productIds = response.data.suggested_product_ids;
+        } 
+        // If no IDs but we have products, extract IDs from products array
+        else if (hasSuggestedProducts) {
+          productIds = response.data.suggested_products.map(p => p.id || p).filter(id => id != null);
+        }
         
         if (productIds && productIds.length > 0) {
+          console.log('Navigating to products page with IDs:', productIds);
+          
           // Update AI message to include navigation hint
           const updatedMessage = {
             role: 'assistant',

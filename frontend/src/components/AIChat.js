@@ -138,12 +138,15 @@ const AIChat = ({ onClose, onMinimize }) => {
           `Product #${p.id}: ${p.name} - $${parseFloat(p.price).toFixed(2)} (${p.category}, ${p.color || 'N/A'})`
         ).join('\n');
         
-        const productsMessage = {
-          role: 'assistant',
-          content: `Here are the products you asked for:\n\n${productsList}`
-        };
-        
-        setMessages(prev => [...prev, productsMessage]);
+        // Replace the last AI message with the products list
+        setMessages(prev => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1] = {
+            role: 'assistant',
+            content: `Here are the products you asked for:\n\n${productsList}`
+          };
+          return newMessages;
+        });
         return; // Don't navigate, just show in chat
       }
       

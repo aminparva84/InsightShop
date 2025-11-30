@@ -35,6 +35,26 @@ const Products = () => {
     fetchPriceRange();
   }, []);
 
+  // Sync filters with URL searchParams when URL changes (e.g., AI navigation)
+  useEffect(() => {
+    const newFilters = {
+      category: searchParams.get('category') || '',
+      color: searchParams.get('color') || '',
+      size: searchParams.get('size') || '',
+      fabric: searchParams.get('fabric') || '',
+      minPrice: searchParams.get('minPrice') || '',
+      maxPrice: searchParams.get('maxPrice') || '',
+      search: searchParams.get('search') || '',
+      ai_results: searchParams.get('ai_results') || ''
+    };
+    
+    // Only update if something actually changed to avoid infinite loops
+    const hasChanged = Object.keys(newFilters).some(key => newFilters[key] !== filters[key]);
+    if (hasChanged) {
+      setFilters(newFilters);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     fetchProducts();
   }, [filters]);

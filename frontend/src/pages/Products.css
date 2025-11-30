@@ -195,6 +195,47 @@
   line-height: 1.6;
 }
 
+/* AI Chat Inline Container - Match FilterBar width */
+.ai-chat-inline-container {
+  width: 100%;
+  margin: 0 0 20px 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+  background-color: #fdfbf8;
+}
+
+/* Inline AI Chat Styles - Reduced height */
+.ai-chat-inline {
+  height: 390px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-inline .ai-chat-messages {
+  flex: 1;
+  min-height: 0;
+}
+
+.ai-chat-inline .ai-chat-header {
+  border-radius: 0;
+  background: #1a2332;
+  border-bottom: 2px solid #d4af37;
+}
+
+@media (max-width: 968px) {
+  .ai-chat-inline-container {
+    margin: 0 0 20px 0;
+    border-radius: 8px;
+  }
+  
+  .ai-chat-inline {
+    height: 340px;
+  }
+}
+
 @media (max-width: 968px) {
   .products-layout {
     display: block;

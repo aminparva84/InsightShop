@@ -242,12 +242,17 @@ def chat():
             detected_category = 'kids'
         
         # Extract color from message early so we can use it in search
-        detected_color = None
-        color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange', 'navy', 'beige', 'tan']
-        for color in color_keywords:
-            if color in message:
-                detected_color = color
-                break
+        # Use comprehensive color names
+        from utils.color_names import normalize_color_name, ALL_COLOR_NAMES
+        detected_color = normalize_color_name(message)
+        
+        # If no match found, try basic keywords as fallback
+        if not detected_color:
+            color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange', 'navy', 'beige', 'tan']
+            for color in color_keywords:
+                if color in message:
+                    detected_color = color
+                    break
         
         # Extract clothing type from message - be more flexible
         detected_clothing_type = None
@@ -277,9 +282,38 @@ def chat():
         if not detected_clothing_type and 'shirt' in message:
             detected_clothing_type = 'Shirt'
         
+        # Extract dress style/neckline features
+        detected_dress_style = None
+        dress_style_keywords = {
+            'scoop': ['scoop', 'scoop neck', 'scoop neckline'],
+            'v-neck': ['v-neck', 'v neck', 'v neckline'],
+            'round': ['round neck', 'round neckline', 'crew neck'],
+            'boat': ['boat neck', 'boat neckline'],
+            'halter': ['halter', 'halter neck'],
+            'off-shoulder': ['off shoulder', 'off-shoulder'],
+            'high-neck': ['high neck', 'turtleneck', 'mock neck'],
+            'square': ['square neck', 'square neckline'],
+            'bow': ['bow', 'bow detail', 'bow tie'],
+            'padding': ['padding', 'padded', 'structured'],
+            'slit': ['slit', 'side slit', 'front slit'],
+            'peplum': ['peplum'],
+            'wrap': ['wrap', 'wrap dress', 'wrap style'],
+            'a-line': ['a-line', 'a line'],
+            'bodycon': ['bodycon', 'body con', 'fitted'],
+            'maxi': ['maxi', 'maxi dress', 'long dress'],
+            'midi': ['midi', 'midi dress', 'mid length'],
+            'mini': ['mini', 'mini dress', 'short dress']
+        }
+        # Check for dress style features
+        for style, keywords in dress_style_keywords.items():
+            if any(keyword in message for keyword in keywords):
+                detected_dress_style = style
+                break
+        
         # Perform enhanced search with filters
         vector_product_ids = []
         vector_products = []
+        strict_filter_no_results = False  # Initialize flag for tracking no results with strict filters
         
         # Extract color from message for better search
         detected_color = None
@@ -290,11 +324,26 @@ def chat():
                 break
         
         # If we have specific filters, use direct database query first
-        if detected_occasion or detected_age_group or detected_category or detected_clothing_type or detected_color:
+        # CRITICAL: When category is detected, we MUST only show products from that category
+        if detected_occasion or detected_age_group or detected_category or detected_clothing_type or detected_color or detected_dress_style:
             query = Product.query.filter_by(is_active=True)
             
+            # STRICT: If category is detected, ONLY show products from that category
             if detected_category:
                 query = query.filter_by(category=detected_category)
+                print(f"STRICT FILTER: Only showing {detected_category} category products")
+            
+            # Filter by dress style if detected
+            if detected_dress_style:
+                # Search in name, description, or dress_style field
+                query = query.filter(
+                    or_(
+                        Product.name.ilike(f'%{detected_dress_style}%'),
+                        Product.description.ilike(f'%{detected_dress_style}%'),
+                        Product.dress_style.ilike(f'%{detected_dress_style}%')
+                    )
+                )
+                print(f"DRESS STYLE FILTER: Filtering for {detected_dress_style} style")
             
             if detected_color:
                 query = query.filter(
@@ -350,6 +399,26 @@ def chat():
             
             # Debug logging for search results
             print(f"Direct search - Category: {detected_category}, Color: {detected_color}, Clothing: {detected_clothing_type}, Found: {len(vector_products)} products")
+            
+            # CRITICAL: If we have strict filters (category/clothing type) but found no products, 
+            # we should return a clear "no results" message instead of showing unrelated products
+            # Note: This flag will be used later to determine response behavior
+            if len(vector_products) == 0 and (detected_category or detected_clothing_type):
+                # Build a helpful "no results" message
+                no_results_parts = []
+                if detected_category:
+                    no_results_parts.append(f"{detected_category}'s")
+                if detected_clothing_type:
+                    no_results_parts.append(detected_clothing_type.lower())
+                if detected_color:
+                    no_results_parts.append(detected_color)
+                
+                no_results_message = " ".join(no_results_parts) if no_results_parts else "those"
+                print(f"NO RESULTS: No products found for strict filter: {no_results_message}")
+                # Set flag for later use (will be checked after vector search fallback)
+                strict_filter_no_results = True
+            else:
+                strict_filter_no_results = False
         else:
             # Regular vector search if no specific filters
             vector_product_ids = search_products_vector(message, n_results=10)
@@ -476,11 +545,30 @@ Be friendly, detailed, and helpful. Share your fashion knowledge generously!"""
         
         # Build the full prompt with context
         recent_products_text = ""
+        has_strict_filters = detected_category or detected_clothing_type
+        # Use the strict_filter_no_results flag if set, otherwise check current state
+        no_results_detected = strict_filter_no_results or (len(vector_products) == 0 and has_strict_filters)
+        
         if vector_products:
             recent_products_text = f"\nIMPORTANT: I found {len(vector_products)} product(s) matching the customer's request:\n"
             for p in vector_products[:10]:  # Show up to 10 products
                 recent_products_text += f"Product #{p['id']}: {p['name']} - ${float(p['price']):.2f} ({p['category']}, {p.get('color', 'N/A')})\n"
             recent_products_text += "\nThese products ARE available in our store. Please show them to the customer and include their product IDs."
+        elif no_results_detected:
+            # Build specific "no results" message for strict filters
+            filter_parts = []
+            if detected_category:
+                filter_parts.append(f"{detected_category}'s")
+            if detected_clothing_type:
+                filter_parts.append(detected_clothing_type.lower())
+            if detected_color:
+                filter_parts.append(detected_color)
+            
+            filter_description = " ".join(filter_parts) if filter_parts else "those items"
+            recent_products_text = f"\nCRITICAL: No products found matching the customer's specific request for {filter_description}.\n"
+            recent_products_text += f"The customer asked for: {filter_description}\n"
+            recent_products_text += "You MUST tell the customer politely that we don't have those specific items in stock right now. "
+            recent_products_text += "Do NOT suggest other products unless the customer asks. Be honest and helpful."
         else:
             recent_products_text = "\nNo products found matching the customer's specific criteria. You may suggest similar products or ask for clarification."
         
@@ -491,18 +579,46 @@ Available products in store: {len(all_products)} total products.
 
 Please help the customer with their request. When mentioning products, ALWAYS include the product ID number like "Product #ID: Name - Price".
 
-IMPORTANT: If products were found above, you MUST mention them and their product IDs. Do NOT say we don't have products if they were found in the search results."""
+IMPORTANT: 
+- If products were found above, you MUST mention them and their product IDs.
+- If NO products were found (especially for specific category/clothing type requests), you MUST tell the customer we don't have those items. Be honest and don't show unrelated products."""
+        
+        # CRITICAL: Create a backup copy of products BEFORE Bedrock call
+        # This ensures we never lose the products even if something goes wrong
+        vector_products_backup = list(vector_products) if vector_products else []
+        vector_product_ids_backup = list(vector_product_ids) if vector_product_ids else []
+        
+        products_count_before = len(vector_products)
+        product_ids_count_before = len(vector_product_ids)
+        print(f"BEFORE Bedrock - vector_products: {products_count_before}, vector_product_ids: {product_ids_count_before}")
+        if products_count_before > 0:
+            print(f"BEFORE Bedrock - First product ID: {vector_products[0].get('id') if isinstance(vector_products[0], dict) else getattr(vector_products[0], 'id', 'N/A')}")
         
         # Call Bedrock
         response = call_bedrock(full_prompt, system_prompt)
+        
+        # CRITICAL: Restore products from backup if they were lost
+        if len(vector_products) == 0 and len(vector_products_backup) > 0:
+            print(f"WARNING: vector_products was lost! Restoring from backup ({len(vector_products_backup)} products)")
+            vector_products = vector_products_backup
+        if len(vector_product_ids) == 0 and len(vector_product_ids_backup) > 0:
+            print(f"WARNING: vector_product_ids was lost! Restoring from backup ({len(vector_product_ids_backup)} IDs)")
+            vector_product_ids = vector_product_ids_backup
+        
+        # Verify products are still there after Bedrock call
+        products_count_after = len(vector_products)
+        product_ids_count_after = len(vector_product_ids)
+        print(f"AFTER Bedrock - vector_products: {products_count_after}, vector_product_ids: {product_ids_count_after}")
         
         # Extract product IDs - use all vector_product_ids (up to 10) to ensure frontend gets them
         # If vector_product_ids is empty but we have vector_products, extract IDs from products
         if vector_product_ids:
             suggested_product_ids = vector_product_ids[:10]
+            print(f"Using vector_product_ids: {suggested_product_ids}")
         elif vector_products:
             # Extract IDs from products if vector_product_ids is not available
             suggested_product_ids = []
+            print(f"Extracting IDs from {len(vector_products)} vector_products...")
             for p in vector_products[:10]:
                 if p:
                     if isinstance(p, dict):
@@ -511,8 +627,10 @@ IMPORTANT: If products were found above, you MUST mention them and their product
                         pid = getattr(p, 'id', None)
                     if pid is not None and pid not in suggested_product_ids:
                         suggested_product_ids.append(int(pid))
+            print(f"Extracted {len(suggested_product_ids)} IDs: {suggested_product_ids}")
         else:
             suggested_product_ids = []
+            print("WARNING: No vector_product_ids and no vector_products!")
         
         # Final fallback: if we still have products but no IDs, extract from vector_products again
         if not suggested_product_ids and vector_products:
@@ -563,11 +681,65 @@ IMPORTANT: If products were found above, you MUST mention them and their product
         if len(vector_products) > 0 and not final_action:
             final_action = 'search_results'
         
+        # CRITICAL: Always ensure we have product IDs if we have products
+        if len(vector_products) > 0 and len(suggested_product_ids) == 0:
+            print(f"WARNING: Have {len(vector_products)} products but no IDs! Extracting from products...")
+            for p in vector_products[:10]:
+                if isinstance(p, dict):
+                    pid = p.get('id')
+                else:
+                    pid = getattr(p, 'id', None)
+                if pid is not None and int(pid) not in suggested_product_ids:
+                    suggested_product_ids.append(int(pid))
+            print(f"Extracted {len(suggested_product_ids)} IDs: {suggested_product_ids}")
+        
+        # Debug: Always log the final response
+        print(f"FINAL RESPONSE - vector_products: {len(vector_products)}, suggested_product_ids: {len(suggested_product_ids)}, action: {final_action}")
+        if len(vector_products) > 0:
+            print(f"First product sample: {vector_products[0] if vector_products else 'None'}")
+            print(f"First product ID: {vector_products[0].get('id') if isinstance(vector_products[0], dict) else getattr(vector_products[0], 'id', 'N/A')}")
+        else:
+            print("WARNING: vector_products is EMPTY in final response!")
+        
+        # CRITICAL: Use backup if main arrays are empty (final safety net)
+        # BUT: Don't use backup if we had strict filters and found nothing (that's intentional)
+        if len(vector_products) == 0 and len(vector_products_backup) > 0 and not no_results_detected:
+            print(f"FINAL SAFETY: Using backup products ({len(vector_products_backup)} products)")
+            vector_products = vector_products_backup
+            # Re-extract IDs from backup
+            if len(suggested_product_ids) == 0:
+                suggested_product_ids = [p.get('id') if isinstance(p, dict) else getattr(p, 'id', None) 
+                                       for p in vector_products[:10] 
+                                       if p and (p.get('id') if isinstance(p, dict) else getattr(p, 'id', None))]
+                suggested_product_ids = [int(pid) for pid in suggested_product_ids if pid is not None]
+                print(f"FINAL SAFETY: Extracted {len(suggested_product_ids)} IDs from backup: {suggested_product_ids}")
+        
+        # CRITICAL: If no results detected with strict filters, don't return products or action
+        # This ensures frontend shows chat message instead of navigating to empty grid
+        if no_results_detected:
+            print("NO RESULTS: Returning empty products array and no action to show chat message")
+            products_to_return = []
+            ids_to_return = []
+            action_to_return = None  # No action = stay in chat, don't navigate
+        else:
+            # CRITICAL: Ensure we return products even if extraction failed
+            products_to_return = vector_products[:10] if len(vector_products) > 0 else []
+            ids_to_return = suggested_product_ids if len(suggested_product_ids) > 0 else (vector_product_ids_backup[:10] if len(vector_product_ids_backup) > 0 else [])
+            action_to_return = final_action if final_action else ('search_results' if len(vector_products) > 0 else None)
+        
+        print(f"RETURNING - products: {len(products_to_return)}, ids: {len(ids_to_return)}, action: {action_to_return}")
+        if len(products_to_return) > 0:
+            first_prod = products_to_return[0]
+            first_id = first_prod.get('id') if isinstance(first_prod, dict) else getattr(first_prod, 'id', 'N/A')
+            print(f"RETURNING - First product ID: {first_id}")
+        if len(ids_to_return) > 0:
+            print(f"RETURNING - First ID in array: {ids_to_return[0]}")
+        
         return jsonify({
             'response': final_response,
-            'suggested_products': vector_products[:10] if len(vector_products) > 0 else [],  # Return up to 10 products
-            'suggested_product_ids': suggested_product_ids,  # Return all IDs (already limited to 10)
-            'action': final_action  # Always set action when products found
+            'suggested_products': products_to_return,  # Return up to 10 products
+            'suggested_product_ids': ids_to_return,  # Return all IDs (already limited to 10)
+            'action': action_to_return  # Always set action when products found
         }), 200
         
     except Exception as e:

@@ -64,6 +64,26 @@
   text-transform: capitalize;
 }
 
+.cart-item-variants {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cart-variant-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cart-variant-selector label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  min-width: 50px;
+}
+
 .cart-item-price {
   font-size: 18px;
   font-weight: 600;

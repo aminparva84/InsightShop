@@ -1,0 +1,19 @@
+.logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-svg {
+  width: 40px;
+  height: 40px;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .logo-svg {
+    width: 32px;
+    height: 32px;
+  }
+}
+

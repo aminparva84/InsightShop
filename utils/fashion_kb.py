@@ -200,6 +200,125 @@ Winter styling is warm and layered:
         }
     },
     
+    "dress_styles": {
+        "necklines": {
+            "scoop": {
+                "description": "Scoop neckline - A rounded, U-shaped neckline that sits below the collarbone. Flattering for most body types, creates a feminine, casual look.",
+                "best_for": "Casual dresses, t-shirts, everyday wear, all body types",
+                "occasions": "Casual, everyday, weekend, relaxed settings"
+            },
+            "v-neck": {
+                "description": "V-neck - A V-shaped neckline that elongates the neck and creates a slimming effect. Versatile and flattering.",
+                "best_for": "Dresses, blouses, t-shirts, professional wear",
+                "occasions": "Business casual, date night, everyday, professional"
+            },
+            "round": {
+                "description": "Round neckline - A classic circular neckline, also called crew neck. Timeless and versatile.",
+                "best_for": "T-shirts, casual dresses, everyday basics",
+                "occasions": "Casual, everyday, relaxed settings"
+            },
+            "boat": {
+                "description": "Boat neckline - A wide, horizontal neckline that extends to the shoulders. Creates a sophisticated, elegant look.",
+                "best_for": "Dresses, blouses, formal wear",
+                "occasions": "Formal events, business, elegant occasions"
+            },
+            "halter": {
+                "description": "Halter neckline - Straps that tie behind the neck, leaving shoulders and back exposed. Modern and stylish.",
+                "best_for": "Dresses, tops, summer wear",
+                "occasions": "Summer, casual, date night, warm weather"
+            },
+            "off-shoulder": {
+                "description": "Off-shoulder - Neckline that sits below the shoulders, exposing them. Romantic and feminine.",
+                "best_for": "Dresses, blouses, special occasions",
+                "occasions": "Date night, parties, summer events, special occasions"
+            },
+            "high-neck": {
+                "description": "High neckline - Covers the neck completely, also called turtleneck or mock neck. Elegant and warm.",
+                "best_for": "Dresses, sweaters, winter wear",
+                "occasions": "Winter, formal, professional, elegant occasions"
+            },
+            "square": {
+                "description": "Square neckline - A straight, horizontal neckline creating a square shape. Classic and structured.",
+                "best_for": "Dresses, blouses, formal wear",
+                "occasions": "Formal events, business, classic occasions"
+            }
+        },
+        "dress_features": {
+            "bow": {
+                "description": "Bow detail - Decorative bow element, often at the neckline, waist, or as a belt. Adds femininity and elegance.",
+                "best_for": "Dresses, blouses, formal wear, feminine styles",
+                "occasions": "Formal events, parties, date night, elegant occasions"
+            },
+            "padding": {
+                "description": "Padded or structured - Built-in padding or structure, often in the bust area or shoulders. Creates shape and definition.",
+                "best_for": "Dresses, blouses, formal wear, structured styles",
+                "occasions": "Formal events, business, occasions requiring structure"
+            },
+            "slit": {
+                "description": "Slit - A vertical opening in the skirt or dress, typically on the side or front. Adds movement and elegance.",
+                "best_for": "Dresses, skirts, formal wear, evening wear",
+                "occasions": "Formal events, parties, date night, evening occasions"
+            },
+            "peplum": {
+                "description": "Peplum - A short overskirt or ruffle attached at the waist. Creates an hourglass silhouette.",
+                "best_for": "Dresses, tops, feminine styles",
+                "occasions": "Date night, parties, feminine occasions"
+            },
+            "wrap": {
+                "description": "Wrap style - Dresses or tops that wrap around the body and tie. Flattering and adjustable fit.",
+                "best_for": "Dresses, blouses, versatile styles",
+                "occasions": "Casual, business casual, date night, versatile"
+            },
+            "a-line": {
+                "description": "A-line - Fitted at the top and flared at the bottom, creating an A shape. Flattering for most body types.",
+                "best_for": "Dresses, skirts, versatile styles",
+                "occasions": "Casual, business casual, formal, versatile"
+            },
+            "bodycon": {
+                "description": "Bodycon - Fitted, body-conscious style that hugs the curves. Modern and bold.",
+                "best_for": "Dresses, evening wear, confident styles",
+                "occasions": "Parties, date night, evening events, bold occasions"
+            },
+            "maxi": {
+                "description": "Maxi - Long, floor-length dress. Elegant and comfortable.",
+                "best_for": "Dresses, summer wear, formal wear",
+                "occasions": "Summer, formal events, parties, elegant occasions"
+            },
+            "midi": {
+                "description": "Midi - Medium-length dress, typically hitting mid-calf. Classic and versatile.",
+                "best_for": "Dresses, versatile styles",
+                "occasions": "Business casual, date night, versatile occasions"
+            },
+            "mini": {
+                "description": "Mini - Short dress, typically above the knee. Modern and youthful.",
+                "best_for": "Dresses, casual wear, party wear",
+                "occasions": "Parties, casual, date night, youthful occasions"
+            }
+        },
+        "men_styles": {
+            "v-neck": {
+                "description": "V-neck - V-shaped neckline for men's shirts and t-shirts. Classic and versatile.",
+                "best_for": "T-shirts, casual shirts, everyday wear",
+                "occasions": "Casual, everyday, relaxed settings"
+            },
+            "crew": {
+                "description": "Crew neck - Round neckline for men's t-shirts and casual wear. Timeless classic.",
+                "best_for": "T-shirts, casual wear, basics",
+                "occasions": "Casual, everyday, relaxed settings"
+            },
+            "henley": {
+                "description": "Henley - Collarless shirt with a placket and 2-5 buttons. Casual and comfortable.",
+                "best_for": "Casual shirts, everyday wear",
+                "occasions": "Casual, weekend, relaxed settings"
+            },
+            "polo": {
+                "description": "Polo - Collared shirt with 2-3 buttons. Smart casual staple.",
+                "best_for": "Casual shirts, business casual",
+                "occasions": "Business casual, casual, versatile"
+            }
+        }
+    },
+    
     "styling_tips": {
         "build_wardrobe": """
 Building a versatile wardrobe:
@@ -231,6 +350,12 @@ Transitioning between seasons:
 
 def get_fashion_knowledge_base_text():
     """Get the full fashion knowledge base as formatted text for AI."""
+    
+    # Format dress styles
+    necklines_text = "\n".join([f"{k.upper().replace('_', '-')} NECKLINE:\n{v['description']}\nBest for: {v['best_for']}\nOccasions: {v['occasions']}" for k, v in FASHION_KNOWLEDGE_BASE["dress_styles"]["necklines"].items()])
+    features_text = "\n".join([f"{k.upper().replace('_', '-')} FEATURE:\n{v['description']}\nBest for: {v['best_for']}\nOccasions: {v['occasions']}" for k, v in FASHION_KNOWLEDGE_BASE["dress_styles"]["dress_features"].items()])
+    men_styles_text = "\n".join([f"{k.upper().replace('_', '-')} STYLE:\n{v['description']}\nBest for: {v['best_for']}\nOccasions: {v['occasions']}" for k, v in FASHION_KNOWLEDGE_BASE["dress_styles"]["men_styles"].items()])
+    
     kb_text = """
 FASHION KNOWLEDGE BASE FOR INSIGHTSHOP AI ASSISTANT
 ===================================================
@@ -247,6 +372,15 @@ OCCASION-APPROPRIATE DRESSING:
 FABRIC GUIDE:
 {fabric_guide}
 
+DRESS STYLES & NECKLINES (WOMEN):
+{necklines}
+
+DRESS FEATURES (WOMEN):
+{features}
+
+MEN'S STYLES:
+{men_styles}
+
 STYLING TIPS:
 {styling_tips}
     """.format(
@@ -254,6 +388,9 @@ STYLING TIPS:
         style_advice=FASHION_KNOWLEDGE_BASE["style_advice"]["fit"] + "\n" + FASHION_KNOWLEDGE_BASE["style_advice"]["layering"] + "\n" + FASHION_KNOWLEDGE_BASE["style_advice"]["proportions"],
         occasions="\n".join([f"{k.upper().replace('_', ' ')}:\n{v}" for k, v in FASHION_KNOWLEDGE_BASE["occasions"].items()]),
         fabric_guide="\n".join([f"{k.upper()}:\n{v['description']}\nBest for: {v['best_for']}\nCharacteristics: {v['characteristics']}" for k, v in FASHION_KNOWLEDGE_BASE["fabric_guide"].items()]),
+        necklines=necklines_text,
+        features=features_text,
+        men_styles=men_styles_text,
         styling_tips=FASHION_KNOWLEDGE_BASE["styling_tips"]["build_wardrobe"] + "\n" + FASHION_KNOWLEDGE_BASE["styling_tips"]["accessories"] + "\n" + FASHION_KNOWLEDGE_BASE["styling_tips"]["seasonal_transitions"]
     )
     return kb_text

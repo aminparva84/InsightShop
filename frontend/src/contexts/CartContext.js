@@ -58,9 +58,12 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const updateCartItem = async (itemId, quantity) => {
+  const updateCartItem = async (itemId, quantity, selectedColor = null, selectedSize = null) => {
     try {
-      await axios.put(`/api/cart/${itemId}`, { quantity });
+      const payload = { quantity };
+      if (selectedColor !== null) payload.selected_color = selectedColor;
+      if (selectedSize !== null) payload.selected_size = selectedSize;
+      await axios.put(`/api/cart/${itemId}`, payload);
       await fetchCart();
       return { success: true };
     } catch (error) {

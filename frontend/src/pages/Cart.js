@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import SizeSelector from '../components/SizeSelector';
+import ColorSwatches from '../components/ColorSwatches';
 import './Cart.css';
 
 const Cart = () => {
@@ -16,7 +18,7 @@ const Cart = () => {
         <div className="container">
           <div className="cart-empty">
             <h2>Your cart is empty</h2>
-            <Link to="/products" className="btn btn-primary">Continue Shopping</Link>
+            <Link to="/" className="btn btn-primary">Continue Shopping</Link>
           </div>
         </div>
       </div>
@@ -28,6 +30,20 @@ const Cart = () => {
       await removeFromCart(itemId);
     } else {
       await updateCartItem(itemId, newQuantity);
+    }
+  };
+
+  const handleSizeChange = async (itemId, newSize) => {
+    const item = cartItems.find(i => i.id === itemId);
+    if (item) {
+      await updateCartItem(itemId, item.quantity, item.selected_color, newSize);
+    }
+  };
+
+  const handleColorChange = async (itemId, newColor) => {
+    const item = cartItems.find(i => i.id === itemId);
+    if (item) {
+      await updateCartItem(itemId, item.quantity, newColor, item.selected_size);
     }
   };
 
@@ -49,8 +65,28 @@ const Cart = () => {
                   <h3>{item.product?.name}</h3>
                   <div className="cart-item-meta">
                     <span>{item.product?.category}</span>
-                    {item.product?.color && <span>{item.product.color}</span>}
-                    {item.product?.size && <span>{item.product.size}</span>}
+                  </div>
+                  <div className="cart-item-variants">
+                    {item.product?.available_colors && item.product.available_colors.length > 0 && (
+                      <div className="cart-variant-selector">
+                        <label>Color:</label>
+                        <ColorSwatches
+                          colors={item.product.available_colors}
+                          selectedColor={item.selected_color || item.product.available_colors[0]}
+                          onColorSelect={(color) => handleColorChange(item.id, color)}
+                        />
+                      </div>
+                    )}
+                    {item.product?.available_sizes && item.product.available_sizes.length > 0 && (
+                      <div className="cart-variant-selector">
+                        <label>Size:</label>
+                        <SizeSelector
+                          sizes={item.product.available_sizes}
+                          selectedSize={item.selected_size || item.product.available_sizes[0]}
+                          onSizeSelect={(size) => handleSizeChange(item.id, size)}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="cart-item-price">${item.product?.price.toFixed(2)}</div>
                 </div>

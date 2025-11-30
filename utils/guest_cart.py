@@ -39,17 +39,20 @@ def add_to_guest_cart(product_id, quantity, selected_color=None, selected_size=N
     return True
 
 def update_guest_cart_item(product_id, quantity, selected_color=None, selected_size=None):
-    """Update guest cart item."""
+    """Update guest cart item. Finds item by product_id and updates all fields."""
     cart = get_guest_cart()
     
+    # Find item by product_id (first match)
     for item in cart:
-        if (item['product_id'] == product_id and 
-            item.get('selected_color') == selected_color and 
-            item.get('selected_size') == selected_size):
+        if item['product_id'] == product_id:
             if quantity <= 0:
                 cart.remove(item)
             else:
                 item['quantity'] = quantity
+                if selected_color is not None:
+                    item['selected_color'] = selected_color
+                if selected_size is not None:
+                    item['selected_size'] = selected_size
             session[GUEST_CART_SESSION_KEY] = cart
             return True
     

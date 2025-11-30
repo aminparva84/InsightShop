@@ -17,6 +17,7 @@ class Product(db.Model):
     available_sizes = db.Column(db.Text, nullable=True)  # JSON array of available sizes
     fabric = db.Column(db.String(100), nullable=True, index=True)  # e.g., "100% Cotton", "Polyester Blend", "Wool"
     clothing_type = db.Column(db.String(100), nullable=True, index=True)  # e.g., "T-Shirt", "Dress", "Jeans", "Suit"
+    dress_style = db.Column(db.String(100), nullable=True, index=True)  # e.g., "scoop", "v-neck", "bow", "padding", "slit"
     occasion = db.Column(db.String(100), nullable=True, index=True)  # e.g., "wedding", "business_formal", "casual", "date_night"
     age_group = db.Column(db.String(50), nullable=True, index=True)  # e.g., "young_adult", "mature", "senior", "all"
     image_url = db.Column(db.String(500), nullable=True)
@@ -79,6 +80,7 @@ class Product(db.Model):
             'available_sizes': available_sizes_list if available_sizes_list else ([self.size] if self.size else []),
             'fabric': self.fabric,
             'clothing_type': self.clothing_type,
+            'dress_style': self.dress_style,
             'occasion': self.occasion,
             'age_group': self.age_group,
             'image_url': self.image_url,
@@ -96,10 +98,11 @@ class Product(db.Model):
         """Convert product to dictionary with full details for AI agent."""
         fabric_info = f", Fabric: {self.fabric}" if self.fabric else ""
         clothing_type_info = f", Type: {self.clothing_type}" if self.clothing_type else ""
+        dress_style_info = f", Style: {self.dress_style}" if self.dress_style else ""
         occasion_info = f", Occasion: {self.occasion}" if self.occasion else ""
         age_group_info = f", Age Group: {self.age_group}" if self.age_group else ""
         return {
             **self.to_dict(),
-            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{occasion_info}{age_group_info}, Price: ${self.price}"
+            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{dress_style_info}{occasion_info}{age_group_info}, Price: ${self.price}"
         }
 

@@ -97,6 +97,14 @@ const FloatingAIAssistant = () => {
     return null;
   }
 
+  // Don't show floating button on Products page when AI Dashboard tab is active
+  // (AI chat is shown inline instead)
+  const isProductsPage = location.pathname === '/products';
+  const isAiDashboardTab = isProductsPage && (new URLSearchParams(location.search).get('tab') === 'ai' || new URLSearchParams(location.search).get('ai_results'));
+  if (isAiDashboardTab) {
+    return null;
+  }
+
   return (
     <>
       <div 

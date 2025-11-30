@@ -2,15 +2,33 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from './ProductCard';
+import { ScoopIcon, BowIcon, PaddingIcon, SlitIcon, getDressStyleIcon, MicrophoneIcon, SpeakerIcon, SpeakerOffIcon, StopIcon } from './DressStyleIcons';
 import './AIChat.css';
 
-const AIChat = ({ onClose, onMinimize }) => {
+const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const initialMessage = "Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!";
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: initialMessage }
-  ]);
+  
+  // Load chat history from localStorage
+  const loadChatHistory = () => {
+    try {
+      const saved = localStorage.getItem('aiChatHistory');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Ensure we have at least the initial message
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    }
+    // Return default initial message
+    return [{ role: 'assistant', content: initialMessage }];
+  };
+  
+  const [messages, setMessages] = useState(loadChatHistory);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState([]);
@@ -37,6 +55,15 @@ const AIChat = ({ onClose, onMinimize }) => {
 
   useEffect(() => {
     scrollToBottom();
+  }, [messages]);
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    try {
+      localStorage.setItem('aiChatHistory', JSON.stringify(messages));
+    } catch (error) {
+      console.error('Error saving chat history:', error);
+    }
   }, [messages]);
 
   // Initialize text-to-speech
@@ -359,13 +386,16 @@ const AIChat = ({ onClose, onMinimize }) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
     
-    // If on products page, switch to AI Dashboard tab when user chats
+    // NOTE: Don't navigate here - let the response handler navigate with ai_results
+    // Only switch tab if we're already on products page and no ai_results exists
+    // This prevents overwriting the ai_results parameter that will be set by the response handler
     if (location.pathname === '/products') {
       const currentParams = new URLSearchParams(window.location.search);
-      if (currentParams.get('tab') !== 'ai') {
-        // Update URL to switch to AI Dashboard tab
+      const hasAiResults = currentParams.get('ai_results');
+      // Only switch tab if no ai_results exists (to avoid interfering with product navigation)
+      if (currentParams.get('tab') !== 'ai' && !hasAiResults) {
         currentParams.set('tab', 'ai');
-        navigate(`/products?${currentParams.toString()}`, { replace: true });
+        navigate(`/products?${currentParams.toString()}`);
       }
     }
 
@@ -415,23 +445,48 @@ const AIChat = ({ onClose, onMinimize }) => {
         });
       }
       
-      // Handle comparison action - always navigate and minimize
+      // Handle comparison action - always navigate and minimize (only if not inline)
       if (response.data.action === 'compare' && response.data.compare_ids) {
         const compareIds = response.data.compare_ids;
         navigate(`/compare?ids=${compareIds.join(',')}`);
-        if (onMinimize) {
-          onMinimize();
-        } else if (onClose) {
-          onClose();
+        if (!isInline) {
+          if (onMinimize) {
+            onMinimize();
+          } else if (onClose) {
+            onClose();
+          }
         }
         return;
       }
       
+      // Log the full response to debug
+      console.log('AI Chat: Full response received:', {
+        action: response.data.action,
+        hasSuggestedProductIds: !!response.data.suggested_product_ids,
+        suggestedProductIdsLength: response.data.suggested_product_ids?.length || 0,
+        suggestedProductIds: response.data.suggested_product_ids,
+        hasSuggestedProducts: !!response.data.suggested_products,
+        suggestedProductsLength: response.data.suggested_products?.length || 0,
+        firstProduct: response.data.suggested_products?.[0],
+        fullResponse: response.data
+      });
+      
       // Detect if this is a product list response
       // Check multiple conditions to ensure we catch all product list scenarios
-      const hasProductIds = response.data.suggested_product_ids && response.data.suggested_product_ids.length > 0;
-      const hasSuggestedProducts = response.data.suggested_products && response.data.suggested_products.length > 0;
+      // IMPORTANT: Check if array exists AND has length > 0
+      const hasProductIds = Array.isArray(response.data.suggested_product_ids) && response.data.suggested_product_ids.length > 0;
+      const hasSuggestedProducts = Array.isArray(response.data.suggested_products) && response.data.suggested_products.length > 0;
       const isSearchResultsAction = response.data.action === 'search_results';
+      
+      // Also check if action is undefined but we have products (backend might have missed setting action)
+      const hasProductsButNoAction = (hasProductIds || hasSuggestedProducts) && !response.data.action;
+      
+      console.log('AI Chat: Detection results:', {
+        hasProductIds,
+        hasSuggestedProducts,
+        isSearchResultsAction,
+        action: response.data.action
+      });
       
       // Debug logging (only log if there's an issue)
       if (!hasProductIds && !hasSuggestedProducts && response.data.action === 'search_results') {
@@ -456,9 +511,28 @@ const AIChat = ({ onClose, onMinimize }) => {
         return; // Don't navigate, just show in chat
       }
       
-      // CRITICAL: Always navigate if we have products and action is search_results
-      // This ensures the grid updates when products are found
-      if (hasProductIds || (hasSuggestedProducts && isSearchResultsAction) || (hasSuggestedProducts && response.data.action === 'search_results')) {
+      // CRITICAL: Only navigate if we have products AND action is search_results
+      // If no products found (especially with strict filters), stay in chat to show the "no results" message
+      // Navigate if:
+      // 1. We have product IDs AND action is search_results, OR
+      // 2. We have suggested products AND action is search_results
+      // IMPORTANT: Don't navigate if action is null/undefined (means no products found)
+      const shouldNavigate = (hasProductIds || hasSuggestedProducts) && 
+                            (response.data.action === 'search_results');
+      
+      console.log('AI Chat: Should navigate?', shouldNavigate, {
+        hasProductIds,
+        hasSuggestedProducts,
+        isSearchResultsAction,
+        action: response.data.action,
+        hasProductsButNoAction,
+        condition1: hasProductIds,
+        condition2: (hasSuggestedProducts && isSearchResultsAction),
+        condition3: (hasSuggestedProducts && response.data.action === 'search_results'),
+        condition4: (hasSuggestedProducts && hasProductsButNoAction)
+      });
+      
+      if (shouldNavigate) {
         let productIds = [];
         
         // First try to use suggested_product_ids
@@ -490,16 +564,84 @@ const AIChat = ({ onClose, onMinimize }) => {
         }
         
         if (productIds && productIds.length > 0) {
-          // Navigate to products page with product IDs and switch to AI Dashboard tab
+          // Check if we're on Home page and have update callback
+          const isHomePage = location.pathname === '/';
+          
+          // Log for debugging
+          console.log('AI Chat: Product IDs extracted:', productIds);
+          console.log('AI Chat: Suggested products from response:', response.data.suggested_products?.map(p => ({ id: p.id, name: p.name, category: p.category })));
+          
+          if (isHomePage && onProductsUpdate) {
+            // Update products on Home page by fetching exact product IDs
+            // This ensures 100% match between chat and grid
+            console.log('AI Chat: Updating products on Home page with IDs:', productIds);
+            console.log('AI Chat: Product IDs count:', productIds.length);
+            console.log('AI Chat: Verifying IDs match suggested products...');
+            
+            // CRITICAL: Always use suggested_product_ids from backend if available
+            // This ensures we get the exact products the AI found
+            if (response.data.suggested_product_ids && response.data.suggested_product_ids.length > 0) {
+              const backendIds = response.data.suggested_product_ids;
+              console.log('AI Chat: Using backend suggested_product_ids:', backendIds);
+              console.log('AI Chat: Verifying these match suggested_products...');
+              
+              // Verify the IDs match the products
+              if (response.data.suggested_products) {
+                const productIdsFromProducts = response.data.suggested_products.map(p => p.id || p).filter(id => id != null);
+                console.log('AI Chat: Product IDs from suggested_products:', productIdsFromProducts);
+                console.log('AI Chat: Categories from suggested_products:', response.data.suggested_products.map(p => ({ id: p.id, category: p.category, name: p.name })));
+              }
+              
+              onProductsUpdate(backendIds);
+            } else if (response.data.suggested_products && response.data.suggested_products.length > 0) {
+              // Fallback: extract IDs from suggested_products
+              const suggestedIds = response.data.suggested_products.map(p => p.id || p).filter(id => id != null);
+              console.log('AI Chat: Using IDs extracted from suggested_products:', suggestedIds);
+              onProductsUpdate(suggestedIds);
+            } else {
+              // Last resort: use extracted IDs
+              console.log('AI Chat: Using extracted product IDs:', productIds);
+              onProductsUpdate(productIds);
+            }
+            
+            // Update AI message
+            const updatedMessage = {
+              role: 'assistant',
+              content: `${response.data.response}\n\nI found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! They're displayed below.`
+            };
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1] = updatedMessage;
+              return newMessages;
+            });
+            
+            // Scroll to products section
+            setTimeout(() => {
+              document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+            return;
+          }
+          
+          // Otherwise, navigate to products page with product IDs and switch to AI Dashboard tab
           const idsParam = productIds.join(',');
           console.log('AI Chat: Navigating to products page with IDs:', productIds);
+          console.log('AI Chat: IDs param:', idsParam);
           console.log('AI Chat: Full URL will be:', `/products?ai_results=${idsParam}&tab=ai`);
-          navigate(`/products?ai_results=${idsParam}&tab=ai`);
+          
+          // Use navigate with state to ensure parameters are preserved
+          const targetUrl = `/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`;
+          console.log('AI Chat: Encoded URL:', targetUrl);
+          navigate(targetUrl, { replace: false });
+          
+          // Verify navigation happened
+          setTimeout(() => {
+            console.log('AI Chat: After navigation, current URL:', window.location.href);
+          }, 100);
           
           // Update AI message to include navigation hint
           const updatedMessage = {
             role: 'assistant',
-            content: `${response.data.response}\n\n✨ I found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! Check the AI Dashboard tab to see them.`
+            content: `${response.data.response}\n\nI found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! Check the AI Dashboard tab to see them.`
           };
           setMessages(prev => {
             const newMessages = [...prev];
@@ -507,14 +649,16 @@ const AIChat = ({ onClose, onMinimize }) => {
             return newMessages;
           });
           
-          // Minimize chat immediately for product lists
-          setTimeout(() => {
-            if (onMinimize) {
-              onMinimize();
-            } else if (onClose) {
-              onClose();
-            }
-          }, 100); // Small delay to ensure navigation happens first
+          // Minimize chat immediately for product lists (only if not inline)
+          if (!isInline) {
+            setTimeout(() => {
+              if (onMinimize) {
+                onMinimize();
+              } else if (onClose) {
+                onClose();
+              }
+            }, 100); // Small delay to ensure navigation happens first
+          }
           return;
         } else if (hasSuggestedProducts && response.data.suggested_products?.length > 0) {
           // Last resort: log detailed error for debugging
@@ -537,14 +681,23 @@ const AIChat = ({ onClose, onMinimize }) => {
       // If 3+ product IDs mentioned, treat as product list
       if (mentionedIds.length >= 3 && !hasProductIds) {
         const idsParam = [...new Set(mentionedIds)].join(',');
-        navigate(`/products?ai_results=${idsParam}&tab=ai`);
+        const targetUrl = `/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`;
+        console.log('AI Chat: Second navigation, URL:', targetUrl);
+        navigate(targetUrl, { replace: false });
+        
+        // Verify navigation happened
         setTimeout(() => {
-          if (onMinimize) {
-            onMinimize();
-          } else if (onClose) {
-            onClose();
-          }
+          console.log('AI Chat: After second navigation, current URL:', window.location.href);
         }, 100);
+        if (!isInline) {
+          setTimeout(() => {
+            if (onMinimize) {
+              onMinimize();
+            } else if (onClose) {
+              onClose();
+            }
+          }, 100);
+        }
         return;
       }
       
@@ -562,15 +715,17 @@ const AIChat = ({ onClose, onMinimize }) => {
   };
 
   return (
-    <div className="ai-chat">
+    <div className={`ai-chat ${isInline ? 'ai-chat-inline' : ''}`}>
       <div className="ai-chat-header">
         <h3>AI Shopping Assistant</h3>
-        <div className="ai-chat-header-buttons">
-          <button onClick={onMinimize || onClose} className="minimize-btn" title="Minimize">
-            −
-          </button>
-          <button onClick={onClose} className="close-btn" title="Close">×</button>
-        </div>
+        {!isInline && (
+          <div className="ai-chat-header-buttons">
+            <button onClick={onMinimize || onClose} className="minimize-btn" title="Minimize">
+              −
+            </button>
+            <button onClick={onClose} className="close-btn" title="Close">×</button>
+          </div>
+        )}
       </div>
 
       <div className="ai-chat-messages">
@@ -618,7 +773,10 @@ const AIChat = ({ onClose, onMinimize }) => {
       {selectedProductIds.length > 0 && (
         <div className="selected-products-info">
           <p><strong>Selected Products:</strong> {selectedProductIds.join(', ')}</p>
-          <p className="help-text">You can ask me to "compare selected items" or "compare product {selectedProductIds[0]} and {selectedProductIds[1]}"</p>
+          <p className="help-text">
+            <strong>What I can do:</strong> Compare products, find similar items, get styling advice, 
+            search by color/size/category/dress style (scoop, bow, padding, slit, v-neck, etc.), or ask "show me blue shirts for women"
+          </p>
         </div>
       )}
 
@@ -637,7 +795,7 @@ const AIChat = ({ onClose, onMinimize }) => {
           title={isListening ? 'Stop listening' : 'Start voice input'}
           disabled={loading}
         >
-          🎤
+          <MicrophoneIcon size={18} />
         </button>
         <div className="voice-controls">
           <button
@@ -647,7 +805,7 @@ const AIChat = ({ onClose, onMinimize }) => {
             title={voiceEnabled ? (isSpeaking ? 'AI is speaking - Click to stop' : 'Voice enabled - Click to disable') : 'Enable AI voice responses'}
             disabled={loading}
           >
-            {isSpeaking ? '🔊' : voiceEnabled ? '🔊' : '🔇'}
+            {isSpeaking ? <SpeakerIcon size={18} /> : voiceEnabled ? <SpeakerIcon size={18} /> : <SpeakerOffIcon size={18} />}
           </button>
           {voiceEnabled && (
             <select
@@ -659,8 +817,8 @@ const AIChat = ({ onClose, onMinimize }) => {
               }}
               title="Select voice gender"
             >
-              <option value="woman">👩 Woman</option>
-              <option value="man">👨 Man</option>
+              <option value="woman">Woman</option>
+              <option value="man">Man</option>
             </select>
           )}
           {isSpeaking && (
@@ -671,7 +829,7 @@ const AIChat = ({ onClose, onMinimize }) => {
               title="Stop speaking"
               style={{ background: '#ef4444', borderColor: '#dc2626' }}
             >
-              ⏹
+              <StopIcon size={18} />
             </button>
           )}
         </div>

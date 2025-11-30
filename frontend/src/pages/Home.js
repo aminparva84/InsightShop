@@ -35,41 +35,93 @@ const Home = () => {
     }
   };
 
+  // Function to update products from AI chat - fetch by exact IDs to ensure 100% match
+  const updateProductsFromAI = async (productIds) => {
+    if (productIds && productIds.length > 0) {
+      try {
+        setLoading(true);
+        console.log('Home: Fetching products by IDs from AI:', productIds);
+        const idsParam = productIds.join(',');
+        const response = await axios.get(`/api/products?ids=${idsParam}`);
+        
+        if (response.data && response.data.products) {
+          console.log('Home: Received products from API:', response.data.products.length);
+          console.log('Home: Product IDs received:', response.data.products.map(p => p.id));
+          console.log('Home: Product details:', response.data.products.map(p => ({ 
+            id: p.id, 
+            name: p.name, 
+            category: p.category, 
+            color: p.color 
+          })));
+          
+          // Verify we got the exact products requested
+          const receivedIds = response.data.products.map(p => p.id).sort();
+          const requestedIds = [...productIds].map(id => parseInt(id)).sort();
+          
+          // Check for missing products
+          const missingIds = requestedIds.filter(id => !receivedIds.includes(id));
+          const extraIds = receivedIds.filter(id => !requestedIds.includes(id));
+          
+          if (missingIds.length > 0) {
+            console.warn('Home: Missing product IDs:', missingIds);
+          }
+          if (extraIds.length > 0) {
+            console.warn('Home: Extra product IDs (not requested):', extraIds);
+          }
+          
+          // Filter to only include requested products and maintain order
+          const productMap = new Map(response.data.products.map(p => [p.id, p]));
+          const orderedProducts = productIds
+            .map(id => parseInt(id))
+            .map(id => productMap.get(id))
+            .filter(p => p != null);
+          
+          console.log('Home: Ordered products count:', orderedProducts.length);
+          console.log('Home: Ordered product IDs:', orderedProducts.map(p => p.id));
+          console.log('Home: Ordered product categories:', orderedProducts.map(p => p.category));
+          
+          if (orderedProducts.length > 0) {
+            setProducts(orderedProducts);
+          } else {
+            console.error('Home: No valid products after filtering!');
+            setProducts([]);
+          }
+        } else {
+          console.error('Home: No products in API response');
+          setProducts([]);
+        }
+      } catch (error) {
+        console.error('Home: Error fetching products by IDs:', error);
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="home">
       {/* Hero Section */}
       <section className="hero">
         <div className="hero-content">
-          <h1 className="hero-title">Welcome to InsightShop</h1>
+          <h1 className="hero-title">Welcome to InsightShop - Get AI Help</h1>
           <p className="hero-subtitle">Discover Fashion That Fits Your Style</p>
-          <div className="hero-buttons">
-            <Link to="/products" className="btn btn-primary">Shop Now</Link>
-            <button 
-              onClick={() => {
-                console.log('AI Chat button clicked');
-                setShowAIChat(true);
-              }} 
-              className="btn btn-secondary"
-              style={{ cursor: 'pointer' }}
-            >
-              🤖 Ask AI Assistant
-            </button>
-          </div>
-          
         </div>
       </section>
 
-            {/* AI Chat Section */}
-            {showAIChat && (
-              <div className="ai-chat-overlay" onClick={() => setShowAIChat(false)}>
-                <div className="ai-chat-container" onClick={(e) => e.stopPropagation()}>
-                  <AIChat 
-                    onClose={() => setShowAIChat(false)} 
-                    onMinimize={() => setShowAIChat(false)}
-                  />
-                </div>
-              </div>
-            )}
+      {/* AI Chat Section - Inline */}
+      <section className="ai-chat-section">
+        <div className="container">
+          <div className="ai-chat-inline-container">
+            <AIChat 
+              onClose={null} 
+              onMinimize={null} 
+              isInline={true}
+              onProductsUpdate={updateProductsFromAI}
+            />
+          </div>
+        </div>
+      </section>
 
       {/* Featured Products */}
       <section className="featured-products">
@@ -81,13 +133,7 @@ const Home = () => {
             <ProductGrid products={products} />
           ) : (
             <div className="no-products-message">
-              <p>No products available at the moment.</p>
-              <Link to="/products" className="btn btn-primary">Browse All Products</Link>
-            </div>
-          )}
-          {products.length > 0 && (
-            <div className="section-footer">
-              <Link to="/products" className="btn btn-outline">View All Products</Link>
+              <p>No products available at the moment. Ask the AI assistant to find products!</p>
             </div>
           )}
         </div>
@@ -98,18 +144,27 @@ const Home = () => {
         <div className="container">
           <h2 className="section-title">Shop by Category</h2>
           <div className="category-grid">
-            <Link to="/products?category=men" className="category-card">
+            <div className="category-card" onClick={() => {
+              // Scroll to AI chat and suggest men's products
+              document.querySelector('.ai-chat-inline-container')?.scrollIntoView({ behavior: 'smooth' });
+            }}>
               <div className="category-icon">👔</div>
               <h3>Men</h3>
-            </Link>
-            <Link to="/products?category=women" className="category-card">
+            </div>
+            <div className="category-card" onClick={() => {
+              // Scroll to AI chat and suggest women's products
+              document.querySelector('.ai-chat-inline-container')?.scrollIntoView({ behavior: 'smooth' });
+            }}>
               <div className="category-icon">👗</div>
               <h3>Women</h3>
-            </Link>
-            <Link to="/products?category=kids" className="category-card">
+            </div>
+            <div className="category-card" onClick={() => {
+              // Scroll to AI chat and suggest kids' products
+              document.querySelector('.ai-chat-inline-container')?.scrollIntoView({ behavior: 'smooth' });
+            }}>
               <div className="category-icon">👶</div>
               <h3>Kids</h3>
-            </Link>
+            </div>
           </div>
         </div>
       </section>

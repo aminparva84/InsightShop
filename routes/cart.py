@@ -168,10 +168,12 @@ def add_to_cart():
 
 @cart_bp.route('/<item_id>', methods=['PUT'])
 def update_cart_item(item_id):
-    """Update cart item quantity (authenticated or guest)."""
+    """Update cart item quantity, color, or size (authenticated or guest)."""
     try:
         data = request.get_json()
         quantity = int(data.get('quantity', 1))
+        selected_color = data.get('selected_color')
+        selected_size = data.get('selected_size')
         
         if quantity < 1:
             return jsonify({'error': 'Quantity must be at least 1'}), 400
@@ -185,8 +187,13 @@ def update_cart_item(item_id):
             if product.stock_quantity < quantity:
                 return jsonify({'error': 'Insufficient stock'}), 400
             
-            update_guest_cart_item(product_id, quantity)
-            return jsonify({'message': 'Cart item updated'}), 200
+            # For guest cart, we need to find the item by product_id
+            # The update function will handle finding and updating the correct item
+            success = update_guest_cart_item(product_id, quantity, selected_color, selected_size)
+            if success:
+                return jsonify({'message': 'Cart item updated'}), 200
+            else:
+                return jsonify({'error': 'Cart item not found'}), 404
         
         # Authenticated user
         auth_header = request.headers.get('Authorization')
@@ -210,6 +217,10 @@ def update_cart_item(item_id):
             return jsonify({'error': 'Insufficient stock'}), 400
         
         cart_item.quantity = quantity
+        if selected_color is not None:
+            cart_item.selected_color = selected_color
+        if selected_size is not None:
+            cart_item.selected_size = selected_size
         db.session.commit()
         
         return jsonify({'message': 'Cart item updated', 'item': cart_item.to_dict()}), 200

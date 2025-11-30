@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductGrid from '../components/ProductGrid';
 import FilterBar from '../components/FilterBar';
+import AIChat from '../components/AIChat';
 import './Products.css';
 
 const Products = () => {
@@ -46,6 +47,9 @@ const Products = () => {
 
   // Sync filters with URL searchParams when URL changes (e.g., AI navigation)
   useEffect(() => {
+    const aiResultsFromUrl = searchParams.get('ai_results') || '';
+    const tabParam = searchParams.get('tab');
+    
     const newFilters = {
       category: searchParams.get('category') || '',
       color: searchParams.get('color') || '',
@@ -54,34 +58,69 @@ const Products = () => {
       minPrice: searchParams.get('minPrice') || '',
       maxPrice: searchParams.get('maxPrice') || '',
       search: searchParams.get('search') || '',
-      ai_results: searchParams.get('ai_results') || ''
+      ai_results: aiResultsFromUrl
     };
     
-    console.log('Products Page: URL changed, new filters:', newFilters);
+    console.log('Products Page: URL changed');
+    console.log('Products Page: All URL params:', Object.fromEntries(searchParams.entries()));
+    console.log('Products Page: ai_results from URL:', aiResultsFromUrl);
+    console.log('Products Page: tab from URL:', tabParam);
+    console.log('Products Page: new filters:', newFilters);
+    
+    // Switch to AI Dashboard tab FIRST if ai_results is in URL or tab=ai
+    // This ensures activeTab is set before fetchProducts runs
+    const shouldBeAiTab = tabParam === 'ai' || aiResultsFromUrl;
+    if (shouldBeAiTab && activeTab !== 'ai') {
+      console.log('Products Page: Switching to AI Dashboard tab');
+      setActiveTab('ai');
+    } else if (tabParam === 'normal' && activeTab !== 'normal' && !aiResultsFromUrl) {
+      setActiveTab('normal');
+    }
     
     // Always update filters when URL changes (especially for AI navigation)
     setFilters(newFilters);
-    
-    // Switch to AI Dashboard tab if ai_results is in URL or tab=ai
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'ai' || newFilters.ai_results) {
-      console.log('Products Page: Switching to AI Dashboard tab');
-      setActiveTab('ai');
-    } else if (tabParam === 'normal') {
-      setActiveTab('normal');
-    }
   }, [searchParams]);
 
+  // Fetch products when filters or activeTab changes
   useEffect(() => {
-    // Always fetch products when filters change (including AI results)
-    // If AI results exist, fetch them regardless of tab
-    if (filters.ai_results || activeTab === 'normal') {
-      fetchProducts();
-    } else if (activeTab === 'ai' && !filters.ai_results) {
+    // Get ai_results from multiple sources to catch it regardless of timing
+    const aiResultsFromUrl = searchParams.get('ai_results') || '';
+    const filtersAiResults = filters.ai_results || '';
+    // Also check window.location as a fallback
+    const urlParams = new URLSearchParams(window.location.search);
+    const aiResultsFromWindow = urlParams.get('ai_results') || '';
+    
+    console.log('Products Page: Fetch effect triggered');
+    console.log('Products Page: ai_results from searchParams:', aiResultsFromUrl);
+    console.log('Products Page: ai_results from filters:', filtersAiResults);
+    console.log('Products Page: ai_results from window.location:', aiResultsFromWindow);
+    console.log('Products Page: activeTab:', activeTab);
+    console.log('Products Page: All searchParams:', Object.fromEntries(searchParams.entries()));
+    console.log('Products Page: Full URL:', window.location.href);
+    
+    // Use any source that has the value (URL, filters, or window.location)
+    const hasAiResults = Boolean(aiResultsFromUrl || filtersAiResults || aiResultsFromWindow);
+    const aiResultsToUse = aiResultsFromUrl || filtersAiResults || aiResultsFromWindow;
+    
+    // Determine current tab from URL to avoid race conditions with state
+    const currentTabFromUrl = searchParams.get('tab') === 'ai' || aiResultsFromUrl ? 'ai' : 'normal';
+    
+    // Always fetch products when:
+    // 1. AI results exist (regardless of tab - we need to fetch them)
+    // 2. We're on normal tab (for regular browsing)
+    if (hasAiResults || activeTab === 'normal') {
+      console.log('Products Page: Triggering fetchProducts, hasAiResults:', hasAiResults, 'aiResultsToUse:', aiResultsToUse, 'activeTab:', activeTab, 'currentTabFromUrl:', currentTabFromUrl);
+      // Use a small timeout to ensure URL params and tab state are fully processed
+      const timeoutId = setTimeout(() => {
+        fetchProducts();
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    } else if (activeTab === 'ai' && !hasAiResults) {
       // For AI Dashboard tab without AI results, just set loading to false
+      console.log('Products Page: AI Dashboard with no results, setting loading to false');
       setLoading(false);
     }
-  }, [filters, activeTab]);
+  }, [searchParams, activeTab, filters.ai_results]); // Include filters.ai_results to catch state updates
 
   const fetchCategories = async () => {
     try {
@@ -147,11 +186,24 @@ const Products = () => {
     try {
       setLoading(true);
       
+      // Get current tab from URL to avoid race conditions with state
+      const currentTab = searchParams.get('tab') === 'ai' || searchParams.get('ai_results') ? 'ai' : 'normal';
+      
       // If AI results are specified, fetch those specific products
-      if (filters.ai_results) {
-        const productIds = filters.ai_results.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id) && id > 0);
+      // Check both URL and filters state to ensure we catch the value
+      const aiResultsFromUrl = searchParams.get('ai_results') || '';
+      const aiResultsFromFilters = filters.ai_results || '';
+      const aiResultsParam = aiResultsFromUrl || aiResultsFromFilters;
+      
+      console.log('Products Page: fetchProducts called');
+      console.log('Products Page: ai_results from URL:', aiResultsFromUrl);
+      console.log('Products Page: ai_results from filters:', aiResultsFromFilters);
+      console.log('Products Page: Using aiResultsParam:', aiResultsParam);
+      if (aiResultsParam) {
+        const productIds = aiResultsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id) && id > 0);
         console.log('Products Page: AI results detected, product IDs:', productIds);
-        console.log('Products Page: Current activeTab:', activeTab);
+        console.log('Products Page: Current activeTab from state:', activeTab);
+        console.log('Products Page: Current tab from URL:', currentTab);
         
         if (productIds.length > 0) {
           // Fetch products by IDs using the ids parameter
@@ -161,20 +213,33 @@ const Products = () => {
             const response = await axios.get(`/api/products?ids=${idsParam}`);
             
             console.log('Products Page: Received products:', response.data.products?.length || 0);
+            console.log('Products Page: Response data:', response.data);
             
             if (response.data.products && response.data.products.length > 0) {
-              // Always set AI products for AI Dashboard tab (regardless of current tab)
+              // ALWAYS set AI products when AI results are fetched
               console.log('Products Page: Setting AI products:', response.data.products.length);
+              console.log('Products Page: Product IDs in response:', response.data.products.map(p => p.id));
+              console.log('Products Page: Current tab when setting:', currentTab, 'activeTab:', activeTab);
+              
+              // CRITICAL: Always set aiProducts when fetching by IDs (this is for AI Dashboard)
               setAiProducts(response.data.products);
-              // Only set for normal tab if we're on normal tab
-              if (activeTab === 'normal') {
+              
+              // Also ensure we're on AI tab if we have AI results
+              const shouldBeAiTab = searchParams.get('tab') === 'ai' || searchParams.get('ai_results');
+              if (shouldBeAiTab && activeTab !== 'ai') {
+                console.log('Products Page: Switching to AI tab after fetching products');
+                setActiveTab('ai');
+              }
+              
+              // Also set for normal tab if we're on normal tab (for backwards compatibility)
+              if (currentTab === 'normal' || activeTab === 'normal') {
                 setAllProducts(response.data.products);
                 setProducts(response.data.products);
               }
             } else {
               console.warn('Products Page: No products returned from API');
               setAiProducts([]);
-              if (activeTab === 'normal') {
+              if (currentTab === 'normal' || activeTab === 'normal') {
                 setAllProducts([]);
                 setProducts([]);
               }
@@ -183,8 +248,9 @@ const Products = () => {
             return;
           } catch (error) {
             console.error('Products Page: Error fetching AI results:', error);
+            console.error('Products Page: Error response:', error.response?.data);
             setAiProducts([]);
-            if (activeTab === 'normal') {
+            if (currentTab === 'normal' || activeTab === 'normal') {
               setAllProducts([]);
               setProducts([]);
             }
@@ -195,7 +261,7 @@ const Products = () => {
           console.warn('Products Page: AI results filter exists but no valid product IDs found');
           // Set empty arrays when AI results are requested but no valid IDs
           setAiProducts([]);
-          if (activeTab === 'normal') {
+          if (currentTab === 'normal' || activeTab === 'normal') {
             setAllProducts([]);
             setProducts([]);
           }
@@ -205,7 +271,7 @@ const Products = () => {
       }
       
       // For normal tab without AI results, clear AI products
-      if (activeTab === 'normal' && !filters.ai_results) {
+      if ((currentTab === 'normal' || activeTab === 'normal') && !aiResultsParam) {
         setAiProducts([]);
       }
       
@@ -289,11 +355,13 @@ const Products = () => {
   const displayProducts = activeTab === 'ai' ? aiProducts : products;
   const displayAllProducts = activeTab === 'ai' ? aiProducts : allProducts;
   
-  // Debug logging
+  // Debug logging - track state changes
   useEffect(() => {
+    console.log('Products Page: State update - activeTab:', activeTab, 'aiProducts:', aiProducts.length, 'displayProducts:', displayProducts.length);
     if (activeTab === 'ai') {
-      console.log('Products Page: AI Dashboard active, aiProducts:', aiProducts.length);
-      console.log('Products Page: displayProducts:', displayProducts.length);
+      console.log('Products Page: AI Dashboard active');
+      console.log('Products Page: aiProducts array:', aiProducts);
+      console.log('Products Page: displayProducts array:', displayProducts);
     }
   }, [activeTab, aiProducts, displayProducts]);
 
@@ -341,6 +409,13 @@ const Products = () => {
               }
             }}
           />
+        )}
+
+        {/* AI Chat - only show on AI Dashboard tab, inline at top */}
+        {activeTab === 'ai' && (
+          <div className="ai-chat-inline-container">
+            <AIChat onClose={null} onMinimize={null} isInline={true} />
+          </div>
         )}
 
         <div className="products-layout">

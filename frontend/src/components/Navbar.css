@@ -35,6 +35,8 @@
   font-size: 32px;
 }
 
+/* Logo styling is handled in Logo.css */
+
 .navbar-links {
   display: flex;
   align-items: center;
@@ -56,10 +58,29 @@
   position: relative;
 }
 
+.cart-icon-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background 0.3s ease;
+}
+
+.cart-icon-link:hover {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.cart-icon-link svg {
+  stroke: #faf0e6;
+  width: 24px;
+  height: 24px;
+}
+
 .cart-badge {
   position: absolute;
-  top: -8px;
-  right: -12px;
+  top: 0;
+  right: 0;
   background: #ef4444;
   color: white;
   border-radius: 50%;
@@ -68,8 +89,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  border: 2px solid #1a2332;
 }
 
 .user-menu {

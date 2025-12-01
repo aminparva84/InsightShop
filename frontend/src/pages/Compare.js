@@ -3,6 +3,8 @@ import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useCart } from '../contexts/CartContext';
 import { useNotification } from '../contexts/NotificationContext';
+import SizeSelector from '../components/SizeSelector';
+import ColorSwatches from '../components/ColorSwatches';
 import './Compare.css';
 
 const Compare = () => {
@@ -11,6 +13,8 @@ const Compare = () => {
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
   const { showSuccess, showError } = useNotification();
+  const [selectedSizes, setSelectedSizes] = useState({}); // { productId: selectedSize }
+  const [selectedColors, setSelectedColors] = useState({}); // { productId: selectedColor }
   const productIds = searchParams.get('ids')?.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)) || [];
 
   useEffect(() => {
@@ -27,7 +31,22 @@ const Compare = () => {
       const response = await axios.post('/api/ai/compare', {
         product_ids: productIds
       });
-      setProducts(response.data.products || []);
+      const fetchedProducts = response.data.products || [];
+      setProducts(fetchedProducts);
+      
+      // Initialize default selections for each product
+      const initialSizes = {};
+      const initialColors = {};
+      fetchedProducts.forEach(product => {
+        if (product.available_sizes && product.available_sizes.length > 0) {
+          initialSizes[product.id] = product.available_sizes[0];
+        }
+        if (product.available_colors && product.available_colors.length > 0) {
+          initialColors[product.id] = product.available_colors[0];
+        }
+      });
+      setSelectedSizes(initialSizes);
+      setSelectedColors(initialColors);
     } catch (error) {
       console.error('Error fetching products for comparison:', error);
     } finally {
@@ -36,12 +55,22 @@ const Compare = () => {
   };
 
   const handleAddToCart = async (productId) => {
-    const result = await addToCart(productId, 1);
+    const selectedColor = selectedColors[productId] || null;
+    const selectedSize = selectedSizes[productId] || null;
+    const result = await addToCart(productId, 1, selectedColor, selectedSize);
     if (result.success) {
       showSuccess('Added to cart!');
     } else {
       showError(result.error || 'Failed to add to cart');
     }
+  };
+
+  const handleSizeChange = (productId, size) => {
+    setSelectedSizes(prev => ({ ...prev, [productId]: size }));
+  };
+
+  const handleColorChange = (productId, color) => {
+    setSelectedColors(prev => ({ ...prev, [productId]: color }));
   };
 
   if (loading) {
@@ -110,9 +139,33 @@ const Compare = () => {
                       />
                       <h3>{product.name}</h3>
                       <div className="product-price">${parseFloat(product.price).toFixed(2)}</div>
+                      
+                      {/* Color Selection */}
+                      {product.available_colors && product.available_colors.length > 0 && (
+                        <div style={{ margin: '8px 0' }}>
+                          <ColorSwatches 
+                            colors={product.available_colors} 
+                            selectedColor={selectedColors[product.id] || product.available_colors[0]}
+                            onColorSelect={(color) => handleColorChange(product.id, color)}
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Size Selection */}
+                      {product.available_sizes && product.available_sizes.length > 0 && (
+                        <div style={{ margin: '8px 0' }}>
+                          <SizeSelector 
+                            sizes={product.available_sizes} 
+                            selectedSize={selectedSizes[product.id] || product.available_sizes[0]}
+                            onSizeSelect={(size) => handleSizeChange(product.id, size)}
+                          />
+                        </div>
+                      )}
+                      
                       <button 
                         onClick={() => handleAddToCart(product.id)}
                         className="btn btn-primary btn-sm"
+                        style={{ marginTop: '12px' }}
                       >
                         Add to Cart
                       </button>

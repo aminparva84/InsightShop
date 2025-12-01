@@ -2,18 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import SizeSelector from '../components/SizeSelector';
 import ColorSwatches from '../components/ColorSwatches';
 import ProductCard from '../components/ProductCard';
+import ConfirmationDialog from '../components/ConfirmationDialog';
 import axios from 'axios';
 import './Cart.css';
 
 const Cart = () => {
   const { cartItems, cartTotal, updateCartItem, removeFromCart } = useCart();
   const { isAuthenticated } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const navigate = useNavigate();
   const [suggestedProducts, setSuggestedProducts] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [confirmationState, setConfirmationState] = useState(null); // { itemId, itemName }
 
   // Fetch suggested products based on cart items
   // IMPORTANT: This hook must be called before any early returns
@@ -65,9 +69,20 @@ const Cart = () => {
 
   const handleQuantityChange = async (itemId, newQuantity) => {
     if (newQuantity < 1) {
-      await removeFromCart(itemId);
+      const item = cartItems.find(i => i.id === itemId);
+      if (item) {
+        await removeFromCart(itemId, item.selected_color, item.selected_size);
+      } else {
+        await removeFromCart(itemId);
+      }
     } else {
-      await updateCartItem(itemId, newQuantity);
+      const item = cartItems.find(i => i.id === itemId);
+      if (item) {
+        // Pass color and size for guest cart items
+        await updateCartItem(itemId, newQuantity, item.selected_color, item.selected_size);
+      } else {
+        await updateCartItem(itemId, newQuantity);
+      }
     }
   };
 
@@ -85,13 +100,34 @@ const Cart = () => {
     }
   };
 
-  const handleRemove = async (itemId) => {
+  const handleRemoveClick = (itemId) => {
     const item = cartItems.find(i => i.id === itemId);
     if (item) {
-      await removeFromCart(itemId, item.selected_color, item.selected_size);
-    } else {
-      await removeFromCart(itemId);
+      const itemName = item.product?.name || 'this item';
+      setConfirmationState({ itemId, itemName, selectedColor: item.selected_color, selectedSize: item.selected_size });
     }
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!confirmationState) return;
+    
+    const { itemId, selectedColor, selectedSize } = confirmationState;
+    setConfirmationState(null);
+    
+    try {
+      const result = await removeFromCart(itemId, selectedColor, selectedSize);
+      if (result.success) {
+        showSuccess('Item removed from cart');
+      } else {
+        showError(result.error || 'Failed to remove item from cart');
+      }
+    } catch (error) {
+      showError('Failed to remove item from cart');
+    }
+  };
+
+  const handleCancelRemove = () => {
+    setConfirmationState(null);
   };
 
   // Guest shopping enabled - no login required
@@ -110,6 +146,15 @@ const Cart = () => {
 
   return (
     <div className="cart-page">
+      {confirmationState && (
+        <ConfirmationDialog
+          message={`Are you sure you want to remove "${confirmationState.itemName}" from your cart?`}
+          onConfirm={handleConfirmRemove}
+          onCancel={handleCancelRemove}
+          confirmText="Remove"
+          cancelText="Cancel"
+        />
+      )}
       <div className="container">
         <h1 className="page-title">Shopping Cart</h1>
 
@@ -162,7 +207,7 @@ const Cart = () => {
                     <button onClick={() => handleQuantityChange(item.id, item.quantity + 1)}>+</button>
                   </div>
                   <div className="cart-item-subtotal">${item.subtotal.toFixed(2)}</div>
-                  <button onClick={() => handleRemove(item.id)} className="btn-remove">Remove</button>
+                  <button onClick={() => handleRemoveClick(item.id)} className="btn-remove">Remove</button>
                 </div>
               </div>
             ))}

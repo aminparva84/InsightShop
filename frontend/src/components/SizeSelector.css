@@ -33,10 +33,14 @@
   justify-content: center;
 }
 
-.size-option:hover:not(:disabled) {
+.size-option:hover:not(:disabled):not(.selected) {
   background: #1a2332;
   color: #faf0e6;
   transform: translateY(-2px);
+}
+
+.size-option.selected:hover {
+  transform: scale(1.05); /* Maintain scale on hover */
 }
 
 .size-option.selected {
@@ -44,6 +48,8 @@
   color: #faf0e6;
   border-color: #d4af37;
   box-shadow: 0 0 0 2px #d4af37;
+  font-weight: 700; /* Make selected size bold */
+  transform: scale(1.05); /* Slightly larger to emphasize selection */
 }
 
 .size-option.out-of-stock {

@@ -41,23 +41,45 @@ def add_to_guest_cart(product_id, quantity, selected_color=None, selected_size=N
     return True
 
 def update_guest_cart_item(product_id, quantity, selected_color=None, selected_size=None):
-    """Update guest cart item. Finds item by product_id and updates all fields."""
+    """Update guest cart item. Finds item by product_id, color, and size, then updates quantity."""
     cart = get_guest_cart()
     
-    # Find item by product_id (first match)
+    # Normalize None values for comparison
+    def normalize_value(val):
+        if val is None or val == '':
+            return None
+        return val
+    
+    normalized_selected_color = normalize_value(selected_color)
+    normalized_selected_size = normalize_value(selected_size)
+    
+    # Find item by product_id AND color/size if provided
     for item in cart:
-        if item['product_id'] == product_id:
-            if quantity <= 0:
-                cart.remove(item)
-            else:
-                item['quantity'] = quantity
-                if selected_color is not None:
-                    item['selected_color'] = selected_color
-                if selected_size is not None:
-                    item['selected_size'] = selected_size
-            session[GUEST_CART_SESSION_KEY] = cart
-            session.modified = True  # Force Flask to save the session
-            return True
+        item_product_id = item.get('product_id')
+        item_color = normalize_value(item.get('selected_color'))
+        item_size = normalize_value(item.get('selected_size'))
+        
+        # Check if product_id matches
+        if item_product_id == product_id:
+            # If color/size are specified, they must match
+            # If not specified, match any item with this product_id
+            color_match = (normalized_selected_color is None) or (item_color == normalized_selected_color)
+            size_match = (normalized_selected_size is None) or (item_size == normalized_selected_size)
+            
+            if color_match and size_match:
+                # Found the matching item
+                if quantity <= 0:
+                    cart.remove(item)
+                else:
+                    item['quantity'] = quantity
+                    # Update color/size if provided
+                    if selected_color is not None:
+                        item['selected_color'] = selected_color
+                    if selected_size is not None:
+                        item['selected_size'] = selected_size
+                session[GUEST_CART_SESSION_KEY] = cart
+                session.modified = True  # Force Flask to save the session
+                return True
     
     return False
 

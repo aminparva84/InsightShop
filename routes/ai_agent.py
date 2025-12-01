@@ -15,12 +15,20 @@ ai_agent_bp = Blueprint('ai_agent', __name__)
 bedrock_runtime = None
 if Config.AWS_REGION:
     try:
-        bedrock_runtime = boto3.client(
-            'bedrock-runtime',
-            region_name=Config.AWS_REGION,
-            aws_access_key_id=Config.AWS_ACCESS_KEY_ID if Config.AWS_ACCESS_KEY_ID else None,
-            aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY if Config.AWS_SECRET_ACCESS_KEY else None
-        )
+        # Try with explicit credentials if provided, otherwise use default credential chain
+        if Config.AWS_ACCESS_KEY_ID and Config.AWS_SECRET_ACCESS_KEY:
+            bedrock_runtime = boto3.client(
+                'bedrock-runtime',
+                region_name=Config.AWS_REGION,
+                aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY
+            )
+        else:
+            # Use default credential chain (AWS CLI credentials)
+            bedrock_runtime = boto3.client(
+                'bedrock-runtime',
+                region_name=Config.AWS_REGION
+            )
     except Exception as e:
         print(f"Warning: Could not initialize Bedrock client: {e}")
 
@@ -29,7 +37,8 @@ polly_client = None
 polly_available = False
 if Config.AWS_REGION:
     try:
-        # Check if credentials are provided
+        # Try to initialize Polly client
+        # First, try with explicit credentials if provided
         if Config.AWS_ACCESS_KEY_ID and Config.AWS_SECRET_ACCESS_KEY:
             polly_client = boto3.client(
                 'polly',
@@ -37,20 +46,30 @@ if Config.AWS_REGION:
                 aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY
             )
-            # Test the client by listing voices (lightweight operation)
-            try:
-                polly_client.describe_voices(MaxItems=1)
-                polly_available = True
-                print("✅ AWS Polly client initialized successfully and verified")
-            except Exception as test_error:
-                print(f"⚠️ AWS Polly client created but test failed: {test_error}")
-                print("   This might indicate missing permissions or incorrect credentials")
         else:
-            print("⚠️ AWS credentials not provided. Polly voice feature will be disabled.")
-            print("   Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env to enable voice")
+            # Fall back to default credential chain (AWS CLI, IAM role, etc.)
+            # This allows using AWS CLI configured credentials
+            polly_client = boto3.client(
+                'polly',
+                region_name=Config.AWS_REGION
+            )
+        
+        # Test the client by listing voices (lightweight operation)
+        try:
+            polly_client.describe_voices(LanguageCode='en-US')
+            polly_available = True
+            print("✅ AWS Polly client initialized successfully and verified")
+            print(f"   Using region: {Config.AWS_REGION}")
+            if not Config.AWS_ACCESS_KEY_ID or not Config.AWS_SECRET_ACCESS_KEY:
+                print("   Using AWS default credential chain (AWS CLI credentials)")
+        except Exception as test_error:
+            print(f"⚠️ AWS Polly client created but test failed: {test_error}")
+            print("   This might indicate missing permissions or incorrect credentials")
+            polly_client = None
     except Exception as e:
         print(f"❌ Error initializing Polly client: {e}")
         print("   Voice feature will be disabled")
+        polly_client = None
 
 def get_all_products_for_ai():
     """Get all products formatted for AI context."""
@@ -886,19 +905,33 @@ def tts_status():
         except Exception as config_error:
             print(f"Warning: Error accessing Config: {config_error}")
         
+        # Check if AWS CLI credentials are available (default credential chain)
+        has_aws_cli_credentials = False
+        if not has_credentials:
+            try:
+                # Try to get credentials from default chain
+                session = boto3.Session()
+                credentials = session.get_credentials()
+                if credentials:
+                    has_aws_cli_credentials = True
+            except:
+                pass
+        
         status = {
             'available': polly_available,
             'client_initialized': polly_client is not None,
             'aws_region': aws_region,
-            'has_credentials': has_credentials
+            'has_credentials': has_credentials,
+            'has_aws_cli_credentials': has_aws_cli_credentials
         }
         
         if polly_client and polly_available:
             try:
-                # Test by getting available voices
-                voices = polly_client.describe_voices(LanguageCode='en-US', MaxItems=5)
+                # Test by getting available voices (limit to first 5 for response size)
+                voices_response = polly_client.describe_voices(LanguageCode='en-US')
+                voices_list = voices_response.get('Voices', [])[:5]  # Limit to first 5
                 status['test_successful'] = True
-                status['available_voices'] = [v['Id'] for v in voices.get('Voices', [])]
+                status['available_voices'] = [v['Id'] for v in voices_list]
             except Exception as e:
                 status['test_successful'] = False
                 status['test_error'] = str(e)
@@ -924,7 +957,7 @@ def text_to_speech():
         if not polly_client or not polly_available:
             error_msg = 'Polly client not available. '
             if not Config.AWS_ACCESS_KEY_ID or not Config.AWS_SECRET_ACCESS_KEY:
-                error_msg += 'Please configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your .env file.'
+                error_msg += 'Please configure AWS credentials via .env file (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) or AWS CLI (aws configure).'
             else:
                 error_msg += 'Please check your AWS credentials and Polly permissions.'
             # Return 503 Service Unavailable instead of 500 for missing service

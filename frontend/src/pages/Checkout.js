@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
+import PaymentIcons from '../components/PaymentIcons';
 import './Checkout.css';
 
 const Checkout = () => {
@@ -12,7 +13,7 @@ const Checkout = () => {
   const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('stripe'); // 'stripe' or 'chase'
+  const [paymentMethod, setPaymentMethod] = useState('stripe'); // 'stripe', 'jpmorgan', or 'chase'
   const [cardData, setCardData] = useState({
     cardNumber: '',
     expiryDate: '',
@@ -50,16 +51,56 @@ const Checkout = () => {
       const orderResponse = await axios.post('/api/orders', formData);
       const order = orderResponse.data.order;
 
-      // Create payment intent
-      const paymentResponse = await axios.post('/api/payments/create-intent', {
-        order_id: order.id
-      });
+      // Process payment based on selected method
+      if (paymentMethod === 'jpmorgan') {
+        // Validate card data for J.P. Morgan
+        if (!cardData.cardNumber || !cardData.expiryDate || !cardData.cvv) {
+          throw new Error('Please fill in all card details');
+        }
 
-      // For now, just confirm the payment (in production, integrate Stripe Elements)
-      if (paymentResponse.data.client_secret) {
-        await axios.post('/api/payments/confirm', {
-          payment_intent_id: paymentResponse.data.payment.payment_intent_id
+        // Parse expiry date (MM/YY format)
+        const [expiryMonth, expiryYear] = cardData.expiryDate.split('/');
+        if (!expiryMonth || !expiryYear) {
+          throw new Error('Please enter a valid expiry date (MM/YY)');
+        }
+
+        // Convert 2-digit year to 4-digit year
+        const fullYear = 2000 + parseInt(expiryYear);
+
+        // Remove spaces from card number
+        const cardNumber = cardData.cardNumber.replace(/\s/g, '');
+
+        // Create J.P. Morgan payment
+        const paymentResponse = await axios.post('/api/payments/jpmorgan/create-payment', {
+          order_id: order.id,
+          card_number: cardNumber,
+          expiry_month: parseInt(expiryMonth),
+          expiry_year: fullYear,
+          capture_method: 'NOW',
+          merchant_company_name: 'InsightShop',
+          merchant_product_name: 'InsightShop Application',
+          merchant_version: '1.0.0'
         });
+
+        // Check if payment was successful
+        if (paymentResponse.data.jpmorgan_response.responseStatus !== 'SUCCESS' || 
+            paymentResponse.data.jpmorgan_response.responseCode !== 'APPROVED') {
+          throw new Error(paymentResponse.data.jpmorgan_response.responseMessage || 'Payment was not approved');
+        }
+
+        showSuccess('Payment processed successfully!');
+      } else {
+        // Stripe payment flow
+        const paymentResponse = await axios.post('/api/payments/create-intent', {
+          order_id: order.id
+        });
+
+        // For now, just confirm the payment (in production, integrate Stripe Elements)
+        if (paymentResponse.data.client_secret) {
+          await axios.post('/api/payments/confirm', {
+            payment_intent_id: paymentResponse.data.payment.payment_intent_id
+          });
+        }
       }
 
       await clearCart();
@@ -209,10 +250,14 @@ const Checkout = () => {
 
             <h3 style={{marginTop: '30px', marginBottom: '20px', color: '#7c3aed'}}>Payment Information</h3>
             
+            <div style={{marginBottom: '24px', padding: '16px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bfdbfe'}}>
+              <PaymentIcons size="medium" showLabel={true} />
+            </div>
+            
             <div className="form-group">
               <label className="form-label">Payment Method *</label>
-              <div style={{display: 'flex', gap: '16px', marginBottom: '20px'}}>
-                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '12px', border: paymentMethod === 'stripe' ? '2px solid #7c3aed' : '2px solid #e5e7eb', borderRadius: '8px', flex: 1}}>
+              <div style={{display: 'flex', gap: '16px', marginBottom: '20px', flexWrap: 'wrap'}}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '12px', border: paymentMethod === 'stripe' ? '2px solid #7c3aed' : '2px solid #e5e7eb', borderRadius: '8px', flex: 1, minWidth: '200px'}}>
                   <input
                     type="radio"
                     name="payment_method"
@@ -223,7 +268,18 @@ const Checkout = () => {
                   />
                   <span>💳 Credit/Debit Card (Stripe)</span>
                 </label>
-                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '12px', border: paymentMethod === 'chase' ? '2px solid #7c3aed' : '2px solid #e5e7eb', borderRadius: '8px', flex: 1, opacity: 0.5}}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '12px', border: paymentMethod === 'jpmorgan' ? '2px solid #7c3aed' : '2px solid #e5e7eb', borderRadius: '8px', flex: 1, minWidth: '200px'}}>
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="jpmorgan"
+                    checked={paymentMethod === 'jpmorgan'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{margin: 0}}
+                  />
+                  <span>🏦 J.P. Morgan Payments</span>
+                </label>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '12px', border: paymentMethod === 'chase' ? '2px solid #7c3aed' : '2px solid #e5e7eb', borderRadius: '8px', flex: 1, minWidth: '200px', opacity: 0.5}}>
                   <input
                     type="radio"
                     name="payment_method"
@@ -238,7 +294,7 @@ const Checkout = () => {
               </div>
             </div>
 
-            {paymentMethod === 'stripe' && (
+            {(paymentMethod === 'stripe' || paymentMethod === 'jpmorgan') && (
               <div style={{background: '#f9fafb', padding: '20px', borderRadius: '8px', marginBottom: '20px'}}>
                 <div className="form-group">
                   <label className="form-label">Cardholder Name *</label>
@@ -302,8 +358,14 @@ const Checkout = () => {
                     />
                   </div>
                 </div>
+                <div style={{marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb'}}>
+                  <PaymentIcons size="small" showLabel={true} />
+                </div>
                 <small style={{color: '#6b7280', fontSize: '12px', display: 'block', marginTop: '8px'}}>
-                  🔒 Your payment information is secure. We use Stripe for secure payment processing.
+                  🔒 Your payment information is secure. 
+                  {paymentMethod === 'stripe' 
+                    ? ' We use Stripe for secure payment processing.'
+                    : ' We use J.P. Morgan Payments for secure payment processing.'}
                 </small>
               </div>
             )}
@@ -317,7 +379,7 @@ const Checkout = () => {
             )}
 
             <button type="submit" disabled={loading || paymentMethod === 'chase'} className="btn btn-primary btn-submit">
-              {loading ? 'Processing...' : 'Complete Order'}
+              {loading ? 'Processing Payment...' : 'Complete Order'}
             </button>
           </form>
 

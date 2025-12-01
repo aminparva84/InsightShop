@@ -4,6 +4,7 @@ from models.cart import CartItem
 from models.product import Product
 from routes.auth import require_auth
 from sqlalchemy.orm import joinedload
+from config import Config
 from utils.guest_cart import (
     get_guest_cart, add_to_guest_cart, update_guest_cart_item,
     remove_from_guest_cart, clear_guest_cart
@@ -180,29 +181,74 @@ def add_to_cart():
 def update_cart_item(item_id):
     """Update cart item quantity, color, or size (authenticated or guest)."""
     try:
+        print(f"PUT /api/cart/{item_id} called")
+        
+        # Check database connection
+        if not db.session:
+            return jsonify({'error': 'Database connection not available'}), 500
+        
         data = request.get_json()
+        if not data:
+            print("No JSON data in request")
+            return jsonify({'error': 'Request body is required'}), 400
+        
         quantity = int(data.get('quantity', 1))
         selected_color = data.get('selected_color')
         selected_size = data.get('selected_size')
+        
+        print(f"Update request - quantity: {quantity}, color: {selected_color}, size: {selected_size}")
         
         if quantity < 1:
             return jsonify({'error': 'Quantity must be at least 1'}), 400
         
         # Check if guest cart item
         if item_id.startswith('guest_'):
-            product_id = int(item_id.replace('guest_', ''))
+            # Parse the unique ID format: guest_{product_id}_{color}_{size}_{index}
+            # Or fallback to old format: guest_{product_id}
+            parts = item_id.replace('guest_', '').split('_')
+            
+            try:
+                # Extract product_id (first part)
+                if len(parts) >= 1:
+                    product_id = int(parts[0])
+                else:
+                    # Fallback: try to parse as single number
+                    product_id = int(item_id.replace('guest_', ''))
+                print(f"Parsed product_id: {product_id} from item_id: {item_id}")
+            except (ValueError, IndexError) as e:
+                print(f"Invalid item ID format: {item_id}, error: {e}")
+                return jsonify({'error': 'Invalid item ID format'}), 400
+            
+            # Use selected_color and selected_size from request body if provided
+            # Otherwise, try to extract from item_id or use None
+            if selected_color is None and len(parts) >= 2:
+                # Try to extract from item_id (parts[1] might be color)
+                # But it's better to rely on request body
+                pass
+            
             product = Product.query.get(product_id)
             if not product:
+                print(f"Product {product_id} not found")
                 return jsonify({'error': 'Product not found'}), 404
             if product.stock_quantity < quantity:
+                print(f"Insufficient stock: requested {quantity}, available {product.stock_quantity}")
                 return jsonify({'error': 'Insufficient stock'}), 400
             
-            # For guest cart, we need to find the item by product_id
+            # For guest cart, we need to find the item by product_id, color, and size
             # The update function will handle finding and updating the correct item
+            print(f"Calling update_guest_cart_item with product_id={product_id}, quantity={quantity}, color={selected_color}, size={selected_size}")
             success = update_guest_cart_item(product_id, quantity, selected_color, selected_size)
             if success:
+                print("Guest cart item updated successfully")
                 return jsonify({'message': 'Cart item updated'}), 200
             else:
+                print("Guest cart item not found")
+                # Debug: show current cart contents
+                from utils.guest_cart import get_guest_cart
+                current_cart = get_guest_cart()
+                print(f"Current cart has {len(current_cart)} items:")
+                for idx, item in enumerate(current_cart):
+                    print(f"  [{idx}] product_id={item.get('product_id')}, color={item.get('selected_color')}, size={item.get('selected_size')}, qty={item.get('quantity')}")
                 return jsonify({'error': 'Cart item not found'}), 404
         
         # Authenticated user
@@ -237,7 +283,11 @@ def update_cart_item(item_id):
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error in update_cart_item for item_id={item_id}: {e}")
+        print(f"Traceback: {error_trace}")
+        return jsonify({'error': str(e), 'traceback': error_trace if Config.DEBUG else None}), 500
 
 @cart_bp.route('/<item_id>', methods=['DELETE'])
 def remove_from_cart(item_id):

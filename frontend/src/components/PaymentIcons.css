@@ -1,0 +1,91 @@
+.payment-icons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.payment-icons-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.payment-icons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.payment-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  cursor: default;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.payment-icon:hover {
+  border-color: #7c3aed;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.15);
+  transform: translateY(-1px);
+}
+
+.payment-icon img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  filter: brightness(0) saturate(100%) invert(0%);
+}
+
+.payment-icon svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.payment-icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+/* Brand-specific styling */
+.visa-icon {
+  border-color: #1434CB;
+}
+
+.mastercard-icon {
+  border-color: #EB001B;
+}
+
+.amex-icon {
+  border-color: #006FCF;
+}
+
+.discover-icon {
+  border-color: #FF6000;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .payment-icons {
+    gap: 8px;
+  }
+  
+  .payment-icon {
+    padding: 4px 6px;
+  }
+  
+  .payment-icons-label {
+    font-size: 11px;
+  }
+}
+

@@ -68,6 +68,14 @@ class Config:
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
     STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
     
+    # J.P. Morgan Payments API Configuration
+    JPMORGAN_ACCESS_TOKEN_URL = os.getenv('JPMORGAN_ACCESS_TOKEN_URL', 'https://id.payments.jpmorgan.com/am/oauth2/alpha/access_token')
+    JPMORGAN_CLIENT_ID = os.getenv('JPMORGAN_CLIENT_ID', '92848822-381a-45ef-a20e-208dcf9efbed')
+    JPMORGAN_CLIENT_SECRET = os.getenv('JPMORGAN_CLIENT_SECRET', '-0oVQVFeiXDW_0SQtaALMH62WVOiWF0Tw_QQV07qMai-oTs-aME5HSWfO9YQeh4tRabRa92eAdQfH4fdnzspsw')
+    JPMORGAN_API_BASE_URL = os.getenv('JPMORGAN_API_BASE_URL', 'https://api-mock.payments.jpmorgan.com/api/v2')
+    JPMORGAN_MERCHANT_ID = os.getenv('JPMORGAN_MERCHANT_ID', '998482157630')
+    JPMORGAN_SCOPE = os.getenv('JPMORGAN_SCOPE', 'jpm:payments:sandbox')
+    
     # S3 Backup Configuration
     S3_BACKUP_BUCKET = os.getenv('S3_BACKUP_BUCKET', 'insightshop-backups')
     INSTANCE_ID = os.getenv('INSTANCE_ID', None)  # For multi-tenant SaaS

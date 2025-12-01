@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -12,6 +12,13 @@ const ProductCard = ({ product, compact = false }) => {
   const { showSuccess, showError } = useNotification();
   const [selectedColor, setSelectedColor] = useState(product.available_colors?.[0] || product.color || null);
   const [selectedSize, setSelectedSize] = useState(product.available_sizes?.[0] || product.size || null);
+  
+  // Debug: Log sizes for troubleshooting (only in development)
+  useEffect(() => {
+    if (product.available_sizes && process.env.NODE_ENV === 'development') {
+      console.log(`Product ${product.id} (${product.name}): available_sizes =`, product.available_sizes, 'length:', product.available_sizes.length);
+    }
+  }, [product.id, product.available_sizes]);
 
   const handleAddToCart = async (e) => {
     e.preventDefault();

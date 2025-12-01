@@ -34,6 +34,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   const [suggestedProducts, setSuggestedProducts] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [isListening, setIsListening] = useState(false);
+  const [usedSpeechInput, setUsedSpeechInput] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     // Load voice preference from localStorage
@@ -370,6 +371,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         const transcript = event.results[0][0].transcript;
         setInput(prev => prev + (prev ? ' ' : '') + transcript);
         setIsListening(false);
+        setUsedSpeechInput(true); // Mark that user used speech input
       };
 
       recognitionRef.current.onerror = (event) => {
@@ -614,13 +616,25 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       setMessages(prev => [...prev, aiMessage]);
       
       // Speak the AI's response if voice is enabled
-      if (voiceEnabled && response.data.response && audioRef.current) {
+      // Auto-enable voice if user used speech input (they clearly want voice interaction)
+      const shouldSpeak = voiceEnabled || usedSpeechInput;
+      if (shouldSpeak && response.data.response && audioRef.current) {
         // Small delay to ensure message is added to state and audio is ready
         setTimeout(() => {
           if (audioRef.current) {
+            // Auto-enable voice if user used speech input (they clearly want voice interaction)
+            if (usedSpeechInput && !voiceEnabled) {
+              setVoiceEnabled(true);
+              localStorage.setItem('aiVoiceEnabled', 'true');
+            }
             speakText(response.data.response);
           }
         }, 300);
+      }
+      
+      // Reset speech input flag after processing
+      if (usedSpeechInput) {
+        setUsedSpeechInput(false);
       }
       
       // Update selected products if new ones are mentioned

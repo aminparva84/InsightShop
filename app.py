@@ -66,6 +66,18 @@ def serve_react(path):
     else:
         return app.send_static_file('index.html')
 
+# Serve product images from static/images directory
+@app.route('/api/images/<filename>')
+def serve_image(filename):
+    """Serve product images from static/images directory."""
+    from flask import send_from_directory
+    static_images_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'images')
+    if os.path.exists(static_images_dir) and os.path.exists(os.path.join(static_images_dir, filename)):
+        return send_from_directory(static_images_dir, filename)
+    else:
+        from flask import abort
+        abort(404)
+
 # Health check endpoint
 @app.route('/api/health')
 def health():

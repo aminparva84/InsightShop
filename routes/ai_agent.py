@@ -3,6 +3,8 @@ from models.database import db
 from models.product import Product
 from utils.vector_db import search_products_vector
 from utils.fashion_kb import get_fashion_knowledge_base_text, get_color_matching_advice, get_fabric_info, get_occasion_advice
+from utils.spelling_tolerance import normalize_clothing_type, normalize_category, normalize_color_spelling
+from utils.fashion_match_rules import find_matching_products, get_match_explanation
 from routes.auth import require_auth
 from config import Config
 import boto3
@@ -58,16 +60,16 @@ if Config.AWS_REGION:
         try:
             polly_client.describe_voices(LanguageCode='en-US')
             polly_available = True
-            print("✅ AWS Polly client initialized successfully and verified")
+            print("[OK] AWS Polly client initialized successfully and verified")
             print(f"   Using region: {Config.AWS_REGION}")
             if not Config.AWS_ACCESS_KEY_ID or not Config.AWS_SECRET_ACCESS_KEY:
                 print("   Using AWS default credential chain (AWS CLI credentials)")
         except Exception as test_error:
-            print(f"⚠️ AWS Polly client created but test failed: {test_error}")
+            print(f"[WARNING] AWS Polly client created but test failed: {test_error}")
             print("   This might indicate missing permissions or incorrect credentials")
             polly_client = None
     except Exception as e:
-        print(f"❌ Error initializing Polly client: {e}")
+        print(f"[ERROR] Error initializing Polly client: {e}")
         print("   Voice feature will be disabled")
         polly_client = None
 
@@ -283,21 +285,27 @@ def chat():
                 detected_age_group = age_group
                 break
         
-        # Extract category from message
-        detected_category = None
-        if 'men' in message or 'man' in message:
-            detected_category = 'men'
-        elif 'women' in message or 'woman' in message or 'ladies' in message:
-            detected_category = 'women'
-        elif 'kids' in message or 'kid' in message or 'children' in message:
-            detected_category = 'kids'
+        # Extract category from message with spelling tolerance
+        detected_category = normalize_category(message)
+        if not detected_category:
+            # Fallback to simple keyword matching
+            if 'men' in message or 'man' in message:
+                detected_category = 'men'
+            elif 'women' in message or 'woman' in message or 'ladies' in message:
+                detected_category = 'women'
+            elif 'kids' in message or 'kid' in message or 'children' in message:
+                detected_category = 'kids'
         
         # Extract color from message early so we can use it in search
-        # Use comprehensive color names
+        # Use comprehensive color names with spelling tolerance
         from utils.color_names import normalize_color_name, ALL_COLOR_NAMES
         detected_color = normalize_color_name(message)
         
-        # If no match found, try basic keywords as fallback
+        # If no match found, try spelling tolerance
+        if not detected_color:
+            detected_color = normalize_color_spelling(message)
+        
+        # If still no match found, try basic keywords as fallback
         if not detected_color:
             color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange', 'navy', 'beige', 'tan']
             for color in color_keywords:
@@ -305,10 +313,12 @@ def chat():
                     detected_color = color
                     break
         
-        # Extract clothing type from message - be more flexible
+        # Extract clothing type from message - be more flexible with spelling tolerance
         detected_clothing_type = None
+        normalized_clothing = normalize_clothing_type(message)
+        
         clothing_type_keywords = {
-            'T-Shirt': ['t-shirt', 'tshirt', 'tee', 't shirt'],
+            'T-Shirt': ['t-shirt', 't-shirts', 'tshirt', 'tshirts', 'tee', 'tees', 't shirt', 't shirts'],
             'Shirt': ['shirt', 'shirts'],  # Match both singular and plural
             'Dress Shirt': ['dress shirt', 'button-down', 'button down'],
             'Polo Shirt': ['polo'],
@@ -323,14 +333,25 @@ def chat():
             'Blazer': ['blazer'],
             'Suit': ['suit']
         }
-        # Check for clothing type - prioritize more specific matches
-        for clothing_type, keywords in clothing_type_keywords.items():
-            if any(keyword in message for keyword in keywords):
-                detected_clothing_type = clothing_type
-                break
+        
+        # Map normalized clothing type to database format
+        if normalized_clothing:
+            if normalized_clothing == 't-shirt':
+                detected_clothing_type = 'T-Shirt'
+            elif normalized_clothing == 'shirt':
+                detected_clothing_type = 'Shirt'
+            elif normalized_clothing in ['dress', 'jeans', 'pants', 'shorts', 'shoes', 'jacket', 'sweater', 'blazer', 'suit', 'polo', 'blouse', 'skirt', 'hoodie']:
+                detected_clothing_type = normalized_clothing.capitalize() if normalized_clothing != 't-shirt' else 'T-Shirt'
+        
+        # Fallback: Check for clothing type - prioritize more specific matches
+        if not detected_clothing_type:
+            for clothing_type, keywords in clothing_type_keywords.items():
+                if any(keyword in message for keyword in keywords):
+                    detected_clothing_type = clothing_type
+                    break
         
         # If "shirt" is mentioned but no specific type detected, use generic "Shirt"
-        if not detected_clothing_type and 'shirt' in message:
+        if not detected_clothing_type and ('shirt' in message or normalized_clothing == 'shirt'):
             detected_clothing_type = 'Shirt'
         
         # Extract dress style/neckline features
@@ -392,10 +413,13 @@ def chat():
                 print(f"DRESS STYLE FILTER: Filtering for {detected_dress_style} style")
             
             if detected_color:
+                # Search in color field, name, description, and available_colors JSON
                 query = query.filter(
                     or_(
                         Product.color.ilike(f'%{detected_color}%'),
-                        Product.name.ilike(f'%{detected_color}%')
+                        Product.name.ilike(f'%{detected_color}%'),
+                        Product.description.ilike(f'%{detected_color}%'),
+                        Product.available_colors.ilike(f'%{detected_color}%')  # Search in JSON array
                     )
                 )
             
@@ -478,32 +502,42 @@ def chat():
             if not vector_products or len(vector_products) == 0:
                 search_query = Product.query.filter_by(is_active=True)
                 
-                # Extract search terms from message
-                if 'women' in message or 'woman' in message or 'ladies' in message:
+                # Extract search terms from message with spelling tolerance
+                detected_category_fallback = normalize_category(message)
+                if detected_category_fallback:
+                    search_query = search_query.filter_by(category=detected_category_fallback)
+                elif 'women' in message or 'woman' in message or 'ladies' in message:
                     search_query = search_query.filter_by(category='women')
                 elif 'men' in message or 'man' in message:
                     search_query = search_query.filter_by(category='men')
                 elif 'kids' in message or 'kid' in message or 'children' in message:
                     search_query = search_query.filter_by(category='kids')
                 
-                # Color search
-                color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange']
-                detected_color = None
-                for color in color_keywords:
-                    if color in message:
-                        detected_color = color
-                        break
+                # Color search with spelling tolerance
+                from utils.color_names import normalize_color_name
+                detected_color = normalize_color_name(message)
+                if not detected_color:
+                    detected_color = normalize_color_spelling(message)
+                if not detected_color:
+                    color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange']
+                    for color in color_keywords:
+                        if color in message:
+                            detected_color = color
+                            break
                 
                 if detected_color:
+                    # Search in color field, name, description, and available_colors JSON
                     search_query = search_query.filter(
                         or_(
                             Product.color.ilike(f'%{detected_color}%'),
-                            Product.name.ilike(f'%{detected_color}%')
+                            Product.name.ilike(f'%{detected_color}%'),
+                            Product.description.ilike(f'%{detected_color}%'),
+                            Product.available_colors.ilike(f'%{detected_color}%')  # Search in JSON array
                         )
                     )
                 
-                # Clothing type search
-                clothing_keywords = ['shirt', 'dress', 'pants', 'jeans', 'shoes', 'jacket', 'sweater', 'blazer', 'suit']
+                # Clothing type search - handle t-shirt specifically
+                clothing_keywords = ['t-shirt', 'tshirt', 'tee', 'shirt', 'dress', 'pants', 'jeans', 'shoes', 'jacket', 'sweater', 'blazer', 'suit']
                 detected_clothing = None
                 for clothing in clothing_keywords:
                     if clothing in message:
@@ -511,12 +545,24 @@ def chat():
                         break
                 
                 if detected_clothing:
-                    search_query = search_query.filter(
-                        or_(
-                            Product.name.ilike(f'%{detected_clothing}%'),
-                            Product.clothing_type.ilike(f'%{detected_clothing}%')
+                    # Special handling for t-shirt variants
+                    if detected_clothing in ['t-shirt', 'tshirt', 'tee']:
+                        search_query = search_query.filter(
+                            or_(
+                                Product.name.ilike('%t-shirt%'),
+                                Product.name.ilike('%tshirt%'),
+                                Product.name.ilike('%tee%'),
+                                Product.clothing_type.ilike('%T-Shirt%'),
+                                Product.clothing_type.ilike('%t-shirt%')
+                            )
                         )
-                    )
+                    else:
+                        search_query = search_query.filter(
+                            or_(
+                                Product.name.ilike(f'%{detected_clothing}%'),
+                                Product.clothing_type.ilike(f'%{detected_clothing}%')
+                            )
+                        )
                 
                 fallback_products = search_query.limit(20).all()
                 if fallback_products:
@@ -635,8 +681,43 @@ We've got {len(all_products)} total products in the store!
 
 Help them out with genuine excitement! When you mention products, ALWAYS include the product ID like "Product #ID: Name - Price" - but do it naturally, not robotically!
 
+FASHION MATCH STYLIST MODE:
+When products are found, you automatically switch to Fashion Match Stylist mode. Your goal is to enhance the customer experience by providing expert, relevant, and visually appealing clothing recommendations immediately after showing search results.
+
+Your personality as Fashion Match Stylist:
+- Helpful, knowledgeable, and encouraging
+- Expert fashion advice with clear explanations
+- Focus on WHY items match (color harmony, style synergy, occasion appropriateness)
+- Create complete outfit suggestions, not just individual items
+
+Format for Fashion Match suggestions:
+1. Acknowledge Search & Transition: "That's a great choice! We found [X] products for you."
+2. Introduce the Match: "But why stop there? Let's turn that [item] into a complete, ready-to-wear look."
+3. Present the Look: Describe the complete outfit, highlighting WHY pieces match
+4. Use clear formatting with bullet points or bold text
+5. Include explanations for each match type
+6. End with a call-to-action
+
+FASHION MATCH STYLIST MODE:
+When products are found, you automatically switch to Fashion Match Stylist mode. Your goal is to enhance the customer experience by providing expert, relevant, and visually appealing clothing recommendations immediately after showing search results.
+
+Your personality as Fashion Match Stylist:
+- Helpful, knowledgeable, and encouraging
+- Expert fashion advice with clear explanations
+- Focus on WHY items match (color harmony, style synergy, occasion appropriateness)
+- Create complete outfit suggestions, not just individual items
+
+Format for Fashion Match suggestions:
+1. Acknowledge Search & Transition: "That's a great choice! We found [X] products for you."
+2. Introduce the Match: "But why stop there? Let's turn that [item] into a complete, ready-to-wear look."
+3. Present the Look: Describe the complete outfit, highlighting WHY pieces match
+4. Use clear formatting with bullet points or bold text
+5. Include explanations for each match type
+6. End with a call-to-action
+
 IMPORTANT (but keep it natural!): 
 - If products were found above, get excited and share them with their product IDs - react like you just found something amazing!
+- Then transition to Fashion Match Stylist mode and suggest complementary items
 - If NO products were found (especially for specific requests), be honest and friendly about it - like "Aw, we don't have those in stock right now, but let me know if you want me to look for something similar!"
 
 Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find cool stuff!"""
@@ -793,11 +874,52 @@ Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find
         if len(ids_to_return) > 0:
             print(f"RETURNING - First ID in array: {ids_to_return[0]}")
         
+        # Add fashion match suggestions if products were found
+        fashion_match_suggestions = None
+        if len(products_to_return) > 0:
+            primary_product = products_to_return[0]
+            primary_name = primary_product.get('name', '')
+            primary_id = primary_product.get('id', '')
+            
+            # Find matching products using fashion match rules
+            fashion_matches = find_matching_products(primary_name, primary_id)
+            
+            if fashion_matches:
+                # Try to find actual products in database that match the suggestions
+                matched_products = []
+                for match in fashion_matches[:4]:  # Top 4 matches
+                    matched_name = match['matched_product']
+                    # Search for products that match the suggested item name
+                    matched_product_query = Product.query.filter(
+                        or_(
+                            Product.name.ilike(f'%{matched_name.split("/")[0]}%'),  # Take first part before /
+                            Product.name.ilike(f'%{matched_name.split()[0]}%')  # Take first word
+                        )
+                    ).filter_by(is_active=True).limit(1).first()
+                    
+                    if matched_product_query:
+                        matched_products.append({
+                            'product': matched_product_query.to_dict(),
+                            'match_type': match['match_type'],
+                            'priority': match['priority'],
+                            'explanation': get_match_explanation(match['match_type'])
+                        })
+                
+                if matched_products:
+                    fashion_match_suggestions = {
+                        'primary_product': {
+                            'id': primary_id,
+                            'name': primary_name
+                        },
+                        'matches': matched_products
+                    }
+        
         return jsonify({
             'response': final_response,
             'suggested_products': products_to_return,  # Return up to 10 products
             'suggested_product_ids': ids_to_return,  # Return all IDs (already limited to 10)
-            'action': action_to_return  # Always set action when products found
+            'action': action_to_return,  # Always set action when products found
+            'fashion_match_suggestions': fashion_match_suggestions  # Fashion Match Stylist suggestions
         }), 200
         
     except Exception as e:

@@ -45,9 +45,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     const saved = localStorage.getItem('aiVoiceGender');
     return saved || 'woman';
   });
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
-  const synthesisRef = useRef(null);
+  const audioRef = useRef(null); // For AWS Polly audio playback
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -66,16 +67,15 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     }
   }, [messages]);
 
-  // Initialize text-to-speech
+  // Initialize audio element for AWS Polly playback
   useEffect(() => {
-    if ('speechSynthesis' in window) {
-      synthesisRef.current = window.speechSynthesis;
-    }
-
+    audioRef.current = new Audio();
+    
     // Cleanup: stop speaking when component unmounts
     return () => {
-      if (synthesisRef.current && synthesisRef.current.speaking) {
-        synthesisRef.current.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
       }
     };
   }, []);
@@ -91,8 +91,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
   // Speak initial greeting when voice is enabled on mount
   useEffect(() => {
-    if (voiceEnabled && synthesisRef.current && messages.length === 1) {
-      // Small delay to ensure voices are loaded
+    if (voiceEnabled && messages.length === 1) {
+      // Small delay to ensure everything is ready
       setTimeout(() => {
         speakText(initialMessage);
       }, 500);
@@ -100,202 +100,103 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   }, []); // Only run on mount
 
   // Function to speak text with natural-sounding voice
-  const speakText = (text) => {
-    if (!voiceEnabled || !synthesisRef.current) return;
-
-    // Stop any ongoing speech
-    if (synthesisRef.current.speaking) {
-      synthesisRef.current.cancel();
+  // Function to speak text using AWS Polly (natural, excited voice)
+  const speakText = async (text) => {
+    if (!voiceEnabled) {
+      console.log('Voice is disabled');
+      return;
     }
-
-    // Enhanced text preprocessing for more natural speech
-    let cleanText = text
-      // Remove product IDs but keep the context
-      .replace(/Product\s*#\d+/gi, '')
-      // Remove URLs
-      .replace(/https?:\/\/[^\s]+/g, '')
-      // Remove markdown formatting
-      .replace(/[*_`]/g, '')
-      // Remove emojis (they don't speak well)
-      .replace(/[^\w\s.,!?;:()\-'"]/g, ' ')
-      // Add pauses for better flow - convert multiple newlines to longer pauses
-      .replace(/\n\n+/g, '. ')
-      // Convert single newlines to short pauses
-      .replace(/\n/g, ', ')
-      // Clean up multiple spaces
-      .replace(/\s+/g, ' ')
-      // Add natural pauses after sentences
-      .replace(/\.\s+/g, '. ')
-      .replace(/\?\s+/g, '? ')
-      .replace(/!\s+/g, '! ')
-      // Ensure proper spacing around punctuation
-      .replace(/\s*([.,!?;:])\s*/g, '$1 ')
-      .trim();
-
-    if (!cleanText) return;
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
     
-    // More natural speech parameters
-    utterance.rate = 0.95; // Slightly slower for more natural speech (was 1.0)
-    utterance.pitch = 1.1; // Slightly higher pitch for more warmth (was 1.0)
-    utterance.volume = 0.9; // Slightly louder (was 0.8)
-    
-    // Get all available voices and prioritize neural/premium voices
-    const voices = synthesisRef.current.getVoices();
-    
-    // Gender-specific voice patterns
-    const femaleVoicePatterns = [
-      /neural.*female|female.*neural/i,
-      /premium.*female|female.*premium/i,
-      /zira/i,           // Microsoft female
-      /samantha/i,       // Apple female
-      /victoria/i,       // Apple female
-      /karen/i,          // Australian female
-      /fiona/i,          // Scottish female
-      /tessa/i,         // South African female
-      /google.*female|female.*google/i,
-      /polly.*joanna|joanna/i,  // Amazon Polly female
-      /polly.*amy|amy/i,
-      /polly.*emma|emma/i
-    ];
-    
-    const maleVoicePatterns = [
-      /neural.*male|male.*neural/i,
-      /premium.*male|male.*premium/i,
-      /david/i,          // Microsoft male
-      /alex/i,           // Apple male
-      /daniel/i,         // British male
-      /thomas/i,         // British male
-      /google.*male|male.*google/i,
-      /polly.*matthew|matthew/i,  // Amazon Polly male
-      /polly.*joey|joey/i,
-      /polly.*justin|justin/i
-    ];
-    
-    // Priority list for natural-sounding voices (neural voices first)
-    const voicePriority = [
-      // Neural/premium voices (most natural)
-      { pattern: /neural/i, priority: 1 },
-      { pattern: /premium/i, priority: 1 },
-      { pattern: /enhanced/i, priority: 1 },
-      // Google voices (usually good quality)
-      { pattern: /google.*english/i, priority: 2 },
-      { pattern: /google/i, priority: 3 },
-      // Microsoft voices
-      { pattern: /microsoft/i, priority: 3 },
-      // Apple voices (Mac/iOS)
-      { pattern: /samantha|alex|victoria|daniel/i, priority: 2 },
-      // Amazon Polly voices (if available)
-      { pattern: /polly/i, priority: 2 },
-      // Other English voices
-      { pattern: /english/i, priority: 4 }
-    ];
-    
-    // Filter voices by gender preference and prioritize American English (en-US)
-    const genderPatterns = voiceGender === 'woman' ? femaleVoicePatterns : maleVoicePatterns;
-    
-    // First, filter for American English voices (en-US) with gender preference
-    const americanGenderVoices = voices.filter(voice => {
-      if (voice.lang !== 'en-US') return false;
-      return genderPatterns.some(pattern => pattern.test(voice.name));
-    });
-    
-    // If no American gender-specific voices, try any American English voice
-    const americanVoices = americanGenderVoices.length > 0 
-      ? americanGenderVoices 
-      : voices.filter(voice => voice.lang === 'en-US');
-    
-    // Fallback to any English voice with gender preference
-    const genderVoices = americanVoices.length > 0 
-      ? americanVoices 
-      : voices.filter(voice => {
-          if (!voice.lang.startsWith('en')) return false;
-          return genderPatterns.some(pattern => pattern.test(voice.name));
-        });
-    
-    // Final fallback to any English voice
-    const scoredVoices = genderVoices.length > 0 
-      ? genderVoices 
-      : (americanVoices.length > 0 
-          ? americanVoices 
-          : voices.filter(voice => voice.lang.startsWith('en')));
-    
-    const sortedVoices = scoredVoices
-      .map(voice => {
-        let score = 999; // Default low priority
-        
-        // Prioritize American English (en-US)
-        if (voice.lang === 'en-US') {
-          score = 0; // Highest priority for American English
-        } else if (voice.lang.startsWith('en-US')) {
-          score = 1; // Second priority for en-US variants
-        } else if (voice.lang.startsWith('en')) {
-          score = 100; // Lower priority for other English variants
-        }
-        
-        // Then apply voice quality priority
-        for (const { pattern, priority } of voicePriority) {
-          if (pattern.test(voice.name)) {
-            score += priority; // Add to existing score
-          }
-        }
-        return { voice, score };
-      })
-      .sort((a, b) => a.score - b.score);
-    
-    // Use the best available voice matching gender preference and American accent
-    const selectedVoice = sortedVoices.length > 0 ? sortedVoices[0].voice : null;
-    
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-      // Ensure American English is set
-      utterance.lang = 'en-US';
-    } else {
-      // Fallback: set to American English
-      utterance.lang = 'en-US';
-      // Try to find any American English voice
-      const anyAmericanVoice = voices.find(voice => voice.lang === 'en-US');
-      if (anyAmericanVoice) {
-        utterance.voice = anyAmericanVoice;
-      }
-    }
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-    };
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-    };
-
-    utterance.onerror = (event) => {
-      console.error('Speech synthesis error:', event.error);
-      setIsSpeaking(false);
-    };
-
-    // Add a small delay to ensure voices are loaded (especially on first use)
-    if (voices.length === 0) {
-      // Wait for voices to load
-      const checkVoices = setInterval(() => {
-        const availableVoices = synthesisRef.current.getVoices();
-        if (availableVoices.length > 0) {
-          clearInterval(checkVoices);
-          // Re-run with voices now available
-          speakText(text);
-        }
-      }, 100);
-      setTimeout(() => clearInterval(checkVoices), 2000); // Timeout after 2 seconds
+    if (!audioRef.current) {
+      console.error('Audio ref not initialized');
       return;
     }
 
-    synthesisRef.current.speak(utterance);
+    // Stop any ongoing speech
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    try {
+      console.log('Calling TTS API with text length:', text.length);
+      setIsSpeaking(true);
+      
+      // Call backend to get audio from AWS Polly
+      const response = await axios.post('/api/ai/text-to-speech', {
+        text: text,
+        voice_gender: voiceGender
+      }, {
+        responseType: 'json'
+      });
+
+      console.log('TTS API response received:', response.data ? 'Has data' : 'No data', response.data?.format);
+
+      if (response.data && response.data.audio) {
+        // Convert base64 to blob URL
+        const audioData = response.data.audio;
+        const binaryString = atob(audioData);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(blob);
+
+        console.log('Audio blob created, URL:', audioUrl.substring(0, 50) + '...');
+
+        // Play audio
+        audioRef.current.src = audioUrl;
+        audioRef.current.volume = 0.95;
+        
+        audioRef.current.onended = () => {
+          console.log('Audio playback ended');
+          setIsSpeaking(false);
+          URL.revokeObjectURL(audioUrl); // Clean up
+        };
+
+        audioRef.current.onerror = (error) => {
+          console.error('Audio playback error:', error);
+          setIsSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        audioRef.current.onplay = () => {
+          console.log('Audio playback started');
+        };
+
+        try {
+          await audioRef.current.play();
+          console.log('Audio play() called successfully');
+        } catch (playError) {
+          console.error('Error playing audio:', playError);
+          setIsSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        }
+      } else {
+        console.error('No audio data received from API');
+        setIsSpeaking(false);
+      }
+    } catch (error) {
+      console.error('Error generating speech:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      setIsSpeaking(false);
+      // Fallback: show error but don't break the UI
+      if (error.response?.data?.error) {
+        console.error('TTS Error:', error.response.data.error);
+      }
+    }
   };
 
   // Stop speaking
   const stopSpeaking = () => {
-    if (synthesisRef.current && synthesisRef.current.speaking) {
-      synthesisRef.current.cancel();
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
       setIsSpeaking(false);
     }
   };
@@ -306,6 +207,13 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       stopSpeaking();
     }
     setVoiceEnabled(prev => !prev);
+  };
+
+  // Clear chat history
+  const handleClearHistory = () => {
+    setMessages([{ role: 'assistant', content: initialMessage }]);
+    localStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
+    setShowClearConfirm(false);
   };
 
   // Initialize speech recognition
@@ -333,36 +241,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       };
     }
 
-    // Load voices for text-to-speech (some browsers need this)
-    if ('speechSynthesis' in window) {
-      const loadVoices = () => {
-        // Voices are loaded asynchronously, so we call this when they're ready
-        if (synthesisRef.current) {
-          const voices = synthesisRef.current.getVoices();
-          // Only log in development
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Available voices:', voices.length);
-            const neuralVoices = voices.filter(v => /neural|premium|enhanced/i.test(v.name));
-            if (neuralVoices.length > 0) {
-              console.log('Neural/Premium voices found:', neuralVoices.map(v => v.name));
-            }
-          }
-        }
-      };
-      loadVoices();
-      if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-      }
-      // Also try loading voices after a short delay (some browsers need this)
-      setTimeout(loadVoices, 500);
-    }
-
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
-      if (synthesisRef.current && synthesisRef.current.speaking) {
-        synthesisRef.current.cancel();
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
       }
     };
   }, []);
@@ -426,11 +310,13 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       setMessages(prev => [...prev, aiMessage]);
       
       // Speak the AI's response if voice is enabled
-      if (voiceEnabled && response.data.response) {
-        // Small delay to ensure message is added to state
+      if (voiceEnabled && response.data.response && audioRef.current) {
+        // Small delay to ensure message is added to state and audio is ready
         setTimeout(() => {
-          speakText(response.data.response);
-        }, 100);
+          if (audioRef.current) {
+            speakText(response.data.response);
+          }
+        }, 300);
       }
       
       // Update selected products if new ones are mentioned
@@ -720,6 +606,23 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         <h3>AI Shopping Assistant</h3>
         {!isInline && (
           <div className="ai-chat-header-buttons">
+            <button 
+              onClick={() => setShowClearConfirm(true)} 
+              className="clear-btn" 
+              title="Clear chat history"
+              style={{ 
+                background: 'rgba(255, 255, 255, 0.1)', 
+                color: '#faf0e6', 
+                fontSize: '14px', 
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                cursor: 'pointer',
+                marginRight: '8px'
+              }}
+            >
+              Clear
+            </button>
             <button onClick={onMinimize || onClose} className="minimize-btn" title="Minimize">
               −
             </button>
@@ -837,6 +740,60 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           Send
         </button>
       </form>
+      
+      {/* Clear History Confirmation Modal */}
+      {showClearConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '24px',
+            borderRadius: '12px',
+            maxWidth: '400px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ marginTop: 0 }}>Clear Chat History?</h3>
+            <p>Are you sure you want to clear all chat messages? This action cannot be undone.</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#e5e7eb',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearHistory}
+                style={{
+                  padding: '8px 16px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

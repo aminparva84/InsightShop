@@ -24,6 +24,20 @@ if Config.AWS_REGION:
     except Exception as e:
         print(f"Warning: Could not initialize Bedrock client: {e}")
 
+# Initialize Polly client for text-to-speech
+polly_client = None
+if Config.AWS_REGION:
+    try:
+        polly_client = boto3.client(
+            'polly',
+            region_name=Config.AWS_REGION,
+            aws_access_key_id=Config.AWS_ACCESS_KEY_ID if Config.AWS_ACCESS_KEY_ID else None,
+            aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY if Config.AWS_SECRET_ACCESS_KEY else None
+        )
+        print("AWS Polly client initialized successfully")
+    except Exception as e:
+        print(f"Warning: Could not initialize Polly client: {e}")
+
 def get_all_products_for_ai():
     """Get all products formatted for AI context."""
     products = Product.query.filter_by(is_active=True).all()
@@ -91,9 +105,13 @@ Even without Bedrock, I can still help you browse products and use the search fe
     
     try:
         if system_prompt is None:
-            system_prompt = """You are a helpful shopping assistant for an online clothing store. 
-            You can help customers find products, compare items, and make recommendations.
-            Be friendly, helpful, and concise in your responses."""
+            system_prompt = """You're an INCREDIBLY excited, friendly shopping assistant who absolutely LOVES helping people find amazing clothes! Talk like you're texting your best friend who just discovered something awesome and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely THRILLED!
+
+Show REAL excitement when you find great products - react like "OMG, wait till you see this!" or "This is SO perfect for you!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
+
+You're NOT a robot or corporate assistant - you're someone who gets genuinely PUMPED about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
+
+Keep it super conversational, warm, helpful, real, and EXCITED - like you're sharing amazing finds with your best friend!"""
         
         # Prepare the message for Claude
         messages = [
@@ -507,41 +525,51 @@ def chat():
         fashion_kb = get_fashion_knowledge_base_text()
         
         # Build system prompt with product context and fashion knowledge
-        system_prompt = f"""You are a knowledgeable, friendly, and conversational fashion shopping assistant for InsightShop, an online clothing store.
+        system_prompt = f"""Hey! You're a SUPER excited fashion-loving shopping assistant at InsightShop who gets genuinely PUMPED about helping people find awesome clothes! Talk like you're texting your best friend who just found something incredible and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely thrilled about everything!
+
+Show REAL excitement when you find great products - react like "OMG, this is perfect!" or "Wait, you're gonna LOVE this!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
+
+You're NOT some corporate robot or formal assistant - you're someone who gets genuinely PUMPED and actually cares about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
 
 FASHION KNOWLEDGE BASE:
 {fashion_kb}
 
 PRODUCT DATABASE:
-You have access to {len(all_products)} products in the store. Here are some sample products with their details:
+You've got access to {len(all_products)} products in the store! Here are some examples:
 {json.dumps(all_products[:20], indent=2)}
 
-IMPORTANT GUIDELINES:
-1. When showing products, ALWAYS include the product ID number: "Product #ID: Name - $Price"
-2. Be conversational and provide DETAILED information about each product including:
-   - Fabric/material composition and its properties
-   - Color matching suggestions
-   - Style advice and how to wear it
-   - Occasion appropriateness
-   - Care instructions when relevant
-3. When discussing colors, reference the color matching guide from the knowledge base
-4. When discussing fabrics, explain their properties, care, and best uses
-5. When customers ask about occasions, provide specific styling advice
-6. Be enthusiastic but professional - like a knowledgeable friend helping with fashion choices
+Here's how to be awesome at this:
+
+1. When you show products, always include the product ID: "Product #ID: Name - $Price"
+2. Get detailed and real with your product info - talk about:
+   - What it's made of and why that matters (like "100% cotton is super breathable, perfect for those hot summer days")
+   - Colors that work together (be specific!)
+   - How to actually wear it (give real examples)
+   - When to wear it (casual hangouts, work, dates, etc.)
+   - How to take care of it (if it matters)
+   - What makes the brand cool
+   - Other stuff from that brand or similar items that would work
+3. When talking colors, use that color matching guide and give specific combos
+4. When talking fabrics, explain what they're actually like - not just what they are, but how they feel and what they're good for
+5. When someone asks about occasions, give real styling advice with actual examples
+6. Be genuinely excited - like you're helping a friend pick out something amazing
 
 EXAMPLE RESPONSES:
-Instead of: "Here's a blue shirt for $25"
-Say: "I found Product #123: Blue T-Shirt for Men - $25.00. This is made from 100% premium cotton, which means it's breathable and perfect for everyday wear. The blue color pairs beautifully with navy, white, gray, and beige - you could wear it with navy chinos for a classic look, or with white jeans for a fresh summer style. It's versatile enough for casual outings, weekend wear, or even a relaxed business casual look when paired with a blazer."
+Don't say: "Here's a blue shirt for $25"
+Say: "OMG, wait till you see this! I found something seriously awesome! Product #123: Blue T-Shirt for Men by Nike - $25.00. This thing is made from 100% premium cotton, so it's super breathable and soft - honestly perfect for everyday wear! Nike's known for quality stuff that lasts, and this is no exception. The blue color looks absolutely amazing with navy, white, gray, or beige - you could totally rock it with navy chinos for a classic vibe, or throw it on with white jeans for a fresh summer look! It's so versatile - great for just hanging out, weekend stuff, or even a relaxed work look if you pair it with a blazer. Plus, it's machine washable and will keep its shape and color. I also found some other Nike stuff that would go great with this - wanna see them?!"
 
-You can help customers:
-- Find products by category, color, size, price, or fabric
-- Compare products by ID or selected items
-- Get styling advice and color matching suggestions
-- Learn about fabrics and their properties
-- Get occasion-appropriate recommendations
-- Answer detailed questions about products
+You can help people with:
+- Finding stuff by category, color, size, price, fabric, or brand
+- Comparing products by ID or what they've picked
+- Getting styling tips and color combo ideas
+- Learning about fabrics and what they're actually like
+- Getting recommendations for specific occasions
+- Finding stuff from brands like Nike, Adidas, Zara, H&M, etc.
+- Discovering related products that would work together
+- Finding similar items from the same brand
+- Answering questions about products
 
-Be friendly, detailed, and helpful. Share your fashion knowledge generously!"""
+Just be real, be helpful, be EXCITED, and share what you know with genuine enthusiasm! Show your excitement - it's contagious!"""
         
         # Build the full prompt with context
         recent_products_text = ""
@@ -572,16 +600,18 @@ Be friendly, detailed, and helpful. Share your fashion knowledge generously!"""
         else:
             recent_products_text = "\nNo products found matching the customer's specific criteria. You may suggest similar products or ask for clarification."
         
-        full_prompt = f"""Customer message: {message}
+        full_prompt = f"""Customer just asked: {message}
 
-Available products in store: {len(all_products)} total products.
+We've got {len(all_products)} total products in the store!
 {recent_products_text}
 
-Please help the customer with their request. When mentioning products, ALWAYS include the product ID number like "Product #ID: Name - Price".
+Help them out with genuine excitement! When you mention products, ALWAYS include the product ID like "Product #ID: Name - Price" - but do it naturally, not robotically!
 
-IMPORTANT: 
-- If products were found above, you MUST mention them and their product IDs.
-- If NO products were found (especially for specific category/clothing type requests), you MUST tell the customer we don't have those items. Be honest and don't show unrelated products."""
+IMPORTANT (but keep it natural!): 
+- If products were found above, get excited and share them with their product IDs - react like you just found something amazing!
+- If NO products were found (especially for specific requests), be honest and friendly about it - like "Aw, we don't have those in stock right now, but let me know if you want me to look for something similar!"
+
+Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find cool stuff!"""
         
         # CRITICAL: Create a backup copy of products BEFORE Bedrock call
         # This ensures we never lose the products even if something goes wrong
@@ -830,4 +860,86 @@ def compare_products():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@ai_agent_bp.route('/text-to-speech', methods=['POST'])
+def text_to_speech():
+    """Convert text to speech using AWS Polly with natural, excited voices."""
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        voice_gender = data.get('voice_gender', 'woman')  # 'woman' or 'man'
+        
+        if not text:
+            return jsonify({'error': 'Text is required'}), 400
+        
+        if not polly_client:
+            return jsonify({'error': 'Polly client not initialized. Please configure AWS credentials.'}), 500
+        
+        # Clean text for better speech
+        import re
+        import html
+        clean_text = text
+        # Remove product IDs but keep context
+        clean_text = re.sub(r'Product\s*#\d+', '', clean_text, flags=re.IGNORECASE)
+        # Remove URLs
+        clean_text = re.sub(r'https?://[^\s]+', '', clean_text)
+        # Remove markdown
+        clean_text = clean_text.replace('*', '').replace('_', '').replace('`', '')
+        # Remove emojis and special characters (keep basic punctuation)
+        clean_text = re.sub(r"[^\w\s.,!?;:()\-'\"]", ' ', clean_text)
+        # Clean up spacing
+        clean_text = ' '.join(clean_text.split())
+        
+        if not clean_text:
+            return jsonify({'error': 'No valid text to convert'}), 400
+        
+        # Select voice based on gender preference
+        # Using neural voices for natural, excited tone
+        if voice_gender == 'woman':
+            # Joanna - natural, friendly, can express excitement well
+            voice_id = 'Joanna'  # Neural voice, great for excited tone
+        else:
+            # Matthew - natural, friendly male voice
+            voice_id = 'Matthew'  # Neural voice, great for excited tone
+        
+        # Escape XML/SSML special characters
+        escaped_text = html.escape(clean_text)
+        
+        # Use SSML to add excitement and natural intonation
+        # Adjust speed and pitch for excitement
+        excitement_level = (text.count('!') + text.count('OMG') + text.count('wow') + 
+                          text.count('awesome') + text.count('amazing')) > 0
+        
+        if excitement_level:
+            # More excited: slightly faster, higher pitch
+            ssml_text = f'<speak><prosody rate="105%" pitch="+5%">{escaped_text}</prosody></speak>'
+        else:
+            # Normal conversational tone
+            ssml_text = f'<speak><prosody rate="100%" pitch="+2%">{escaped_text}</prosody></speak>'
+        
+        # Call Polly with neural engine for best quality
+        response = polly_client.synthesize_speech(
+            Text=ssml_text,
+            OutputFormat='mp3',
+            VoiceId=voice_id,
+            Engine='neural',  # Use neural engine for natural, expressive speech
+            TextType='ssml'  # We're using SSML for prosody control
+        )
+        
+        # Get audio stream
+        audio_stream = response['AudioStream'].read()
+        
+        # Return as base64 encoded audio
+        import base64
+        audio_base64 = base64.b64encode(audio_stream).decode('utf-8')
+        
+        return jsonify({
+            'audio': audio_base64,
+            'format': 'mp3',
+            'voice': voice_id
+        })
+        
+    except Exception as e:
+        print(f"Error in text-to-speech: {e}")
+        return jsonify({'error': f'Failed to generate speech: {str(e)}'}), 500
 

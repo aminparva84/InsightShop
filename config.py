@@ -67,4 +67,8 @@ class Config:
     # Payment Configuration (Stripe or similar)
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
     STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
+    
+    # S3 Backup Configuration
+    S3_BACKUP_BUCKET = os.getenv('S3_BACKUP_BUCKET', 'insightshop-backups')
+    INSTANCE_ID = os.getenv('INSTANCE_ID', None)  # For multi-tenant SaaS
 

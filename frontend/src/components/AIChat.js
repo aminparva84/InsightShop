@@ -126,8 +126,21 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Function to speak text with natural-sounding voice
   // Function to speak text using AWS Polly (natural, excited voice)
   const speakText = async (text) => {
-    if (!voiceEnabled || !pollyAvailable || !audioRef.current) {
-      return; // Silently return if voice is disabled, unavailable, or audio not initialized
+    console.log('speakText called:', { voiceEnabled, pollyAvailable, hasAudioRef: !!audioRef.current, textLength: text?.length });
+    
+    if (!voiceEnabled) {
+      console.log('Voice is disabled');
+      return;
+    }
+    
+    if (!pollyAvailable) {
+      console.log('Polly is not available');
+      return;
+    }
+    
+    if (!audioRef.current) {
+      console.log('Audio ref is not initialized');
+      return;
     }
 
     // Stop any ongoing speech
@@ -138,6 +151,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
     try {
       setIsSpeaking(true);
+      console.log('Calling TTS API with text length:', text.length);
       
       // Call backend to get audio from AWS Polly
       const response = await axios.post('/api/ai/text-to-speech', {
@@ -146,6 +160,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       }, {
         responseType: 'json'
       });
+      
+      console.log('TTS API response received:', { hasAudio: !!response.data?.audio, format: response.data?.format });
 
       if (response.data && response.data.audio) {
         // Convert base64 to blob URL
@@ -183,23 +199,45 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         };
 
         const handleCanPlay = async () => {
+          console.log('Audio canplay event fired, readyState:', audioRef.current?.readyState);
           try {
             // Play audio - user has already interacted (sent message), so this should work
+            console.log('Attempting to play audio...');
+            console.log('Audio state before play:', {
+              paused: audioRef.current?.paused,
+              readyState: audioRef.current?.readyState,
+              src: audioRef.current?.src?.substring(0, 100)
+            });
+            
             const playPromise = audioRef.current.play();
             if (playPromise !== undefined) {
               await playPromise;
+              console.log('✅ Audio play promise resolved successfully - audio should be playing now');
+              setIsSpeaking(true); // Ensure speaking state is set
             }
           } catch (playError) {
-            // Silently handle autoplay errors - they're expected in some browsers
-            if (playError.name !== 'NotAllowedError' && playError.name !== 'AbortError') {
-              console.error('Error playing audio:', playError);
-            }
+            // Log all errors for debugging
+            console.error('❌ Error playing audio in canplay handler:', playError);
+            console.error('Error details:', {
+              name: playError.name,
+              message: playError.message,
+              readyState: audioRef.current?.readyState,
+              paused: audioRef.current?.paused,
+              src: audioRef.current?.src?.substring(0, 50)
+            });
             
-            setIsSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-            audioRef.current?.removeEventListener('canplay', handleCanPlay);
-            audioRef.current?.removeEventListener('ended', handleEnded);
-            audioRef.current?.removeEventListener('error', handleError);
+            // Try one more time after a short delay
+            setTimeout(async () => {
+              try {
+                console.log('Retrying audio play after error...');
+                await audioRef.current.play();
+                console.log('✅ Retry successful');
+              } catch (retryError) {
+                console.error('❌ Retry also failed:', retryError);
+                setIsSpeaking(false);
+                URL.revokeObjectURL(audioUrl);
+              }
+            }, 200);
           }
         };
 
@@ -217,6 +255,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         audioRef.current.volume = 0.95;
         audioRef.current.preload = 'auto';
         
+        console.log('Audio source set, loading...');
+        
         // Load the audio
         audioRef.current.load();
         
@@ -229,13 +269,33 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           }
         };
         
-        playTimeout = setTimeout(async () => {
-          cleanup();
-          if (audioRef.current && audioRef.current.readyState >= 2 && audioRef.current.paused) {
+        // Also try playing immediately if ready
+        const tryPlayImmediate = async () => {
+          if (audioRef.current && audioRef.current.readyState >= 4) {
+            console.log('Audio is ready (HAVE_ENOUGH_DATA), attempting immediate play');
             try {
               await audioRef.current.play();
+              console.log('Immediate play successful');
+              cleanup();
             } catch (playError) {
-              // Silently handle fallback errors
+              console.log('Immediate play failed, will wait for canplay:', playError.name);
+            }
+          }
+        };
+        
+        // Try immediate play
+        tryPlayImmediate();
+        
+        playTimeout = setTimeout(async () => {
+          cleanup();
+          console.log('Fallback timeout fired, readyState:', audioRef.current?.readyState);
+          if (audioRef.current && audioRef.current.readyState >= 2 && audioRef.current.paused) {
+            try {
+              console.log('Attempting fallback play...');
+              await audioRef.current.play();
+              console.log('Fallback play successful');
+            } catch (playError) {
+              console.error('Fallback play error:', playError);
               setIsSpeaking(false);
               URL.revokeObjectURL(audioUrl);
               audioRef.current?.removeEventListener('ended', handleEnded);
@@ -243,18 +303,30 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               audioRef.current?.removeEventListener('canplay', handleCanPlay);
             }
           }
-        }, 500);
+        }, 1000); // Increased timeout to 1 second
         
         // Cleanup timeout if audio starts playing before timeout
-        audioRef.current.addEventListener('play', cleanup);
+        audioRef.current.addEventListener('play', () => {
+          console.log('Audio play event fired');
+          cleanup();
+        });
       } else {
-        // No audio data - silently fail
+        // No audio data
+        console.error('No audio data in response:', response.data);
         setIsSpeaking(false);
       }
     } catch (error) {
       setIsSpeaking(false);
-      // Silently handle TTS errors - voice is optional
-      // Only log if it's a real error (not service unavailable)
+      // Log all TTS errors for debugging
+      console.error('TTS Error:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        error: error.response?.data?.error || error.message,
+        serviceUnavailable: error.response?.status === 503
+      });
+      
+      // Show user-friendly message if it's not a service unavailable error
       if (error.response?.status && error.response.status !== 503) {
         console.error('TTS Error:', error.response?.data?.error || error.message);
       }

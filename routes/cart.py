@@ -195,8 +195,10 @@ def update_cart_item(item_id):
         quantity = int(data.get('quantity', 1))
         selected_color = data.get('selected_color')
         selected_size = data.get('selected_size')
+        old_color = data.get('old_color')  # For finding the item to update
+        old_size = data.get('old_size')    # For finding the item to update
         
-        print(f"Update request - quantity: {quantity}, color: {selected_color}, size: {selected_size}")
+        print(f"Update request - quantity: {quantity}, color: {selected_color}, size: {selected_size}, old_color: {old_color}, old_size: {old_size}")
         
         if quantity < 1:
             return jsonify({'error': 'Quantity must be at least 1'}), 400
@@ -236,8 +238,8 @@ def update_cart_item(item_id):
             
             # For guest cart, we need to find the item by product_id, color, and size
             # The update function will handle finding and updating the correct item
-            print(f"Calling update_guest_cart_item with product_id={product_id}, quantity={quantity}, color={selected_color}, size={selected_size}")
-            success = update_guest_cart_item(product_id, quantity, selected_color, selected_size)
+            print(f"Calling update_guest_cart_item with product_id={product_id}, quantity={quantity}, color={selected_color}, size={selected_size}, old_color={old_color}, old_size={old_size}")
+            success = update_guest_cart_item(product_id, quantity, selected_color, selected_size, old_color, old_size)
             if success:
                 print("Guest cart item updated successfully")
                 return jsonify({'message': 'Cart item updated'}), 200

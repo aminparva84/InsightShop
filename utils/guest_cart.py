@@ -40,8 +40,8 @@ def add_to_guest_cart(product_id, quantity, selected_color=None, selected_size=N
     session.modified = True  # Force Flask to save the session
     return True
 
-def update_guest_cart_item(product_id, quantity, selected_color=None, selected_size=None):
-    """Update guest cart item. Finds item by product_id, color, and size, then updates quantity."""
+def update_guest_cart_item(product_id, quantity, selected_color=None, selected_size=None, old_color=None, old_size=None):
+    """Update guest cart item. Finds item by product_id and old color/size, then updates to new color/size."""
     cart = get_guest_cart()
     
     # Normalize None values for comparison
@@ -50,10 +50,28 @@ def update_guest_cart_item(product_id, quantity, selected_color=None, selected_s
             return None
         return val
     
-    normalized_selected_color = normalize_value(selected_color)
-    normalized_selected_size = normalize_value(selected_size)
+    # Use old_color/old_size to find the item, or use selected_color/selected_size if old not provided
+    search_color = normalize_value(old_color) if old_color is not None else normalize_value(selected_color)
+    search_size = normalize_value(old_size) if old_size is not None else normalize_value(selected_size)
     
-    # Find item by product_id AND color/size if provided
+    new_color = normalize_value(selected_color)
+    new_size = normalize_value(selected_size)
+    
+    # First, check if an item with the NEW color/size already exists
+    existing_item = None
+    for item in cart:
+        item_product_id = item.get('product_id')
+        item_color = normalize_value(item.get('selected_color'))
+        item_size = normalize_value(item.get('selected_size'))
+        
+        if (item_product_id == product_id and 
+            item_color == new_color and 
+            item_size == new_size):
+            existing_item = item
+            break
+    
+    # Find the item to update (by old color/size or current color/size)
+    item_to_update = None
     for item in cart:
         item_product_id = item.get('product_id')
         item_color = normalize_value(item.get('selected_color'))
@@ -61,25 +79,35 @@ def update_guest_cart_item(product_id, quantity, selected_color=None, selected_s
         
         # Check if product_id matches
         if item_product_id == product_id:
-            # If color/size are specified, they must match
-            # If not specified, match any item with this product_id
-            color_match = (normalized_selected_color is None) or (item_color == normalized_selected_color)
-            size_match = (normalized_selected_size is None) or (item_size == normalized_selected_size)
+            # Match by old color/size if provided, otherwise by current color/size
+            color_match = (search_color is None) or (item_color == search_color)
+            size_match = (search_size is None) or (item_size == search_size)
             
             if color_match and size_match:
-                # Found the matching item
-                if quantity <= 0:
-                    cart.remove(item)
-                else:
-                    item['quantity'] = quantity
-                    # Update color/size if provided
-                    if selected_color is not None:
-                        item['selected_color'] = selected_color
-                    if selected_size is not None:
-                        item['selected_size'] = selected_size
-                session[GUEST_CART_SESSION_KEY] = cart
-                session.modified = True  # Force Flask to save the session
-                return True
+                item_to_update = item
+                break
+    
+    if item_to_update:
+        # If we're changing to a variant that already exists, merge quantities
+        if existing_item and existing_item != item_to_update:
+            # Merge: add quantity to existing item, remove old item
+            existing_item['quantity'] = existing_item.get('quantity', 0) + quantity
+            cart.remove(item_to_update)
+        else:
+            # Update the item
+            if quantity <= 0:
+                cart.remove(item_to_update)
+            else:
+                item_to_update['quantity'] = quantity
+                # Update color/size if provided and different
+                if selected_color is not None:
+                    item_to_update['selected_color'] = selected_color
+                if selected_size is not None:
+                    item_to_update['selected_size'] = selected_size
+        
+        session[GUEST_CART_SESSION_KEY] = cart
+        session.modified = True  # Force Flask to save the session
+        return True
     
     return False
 

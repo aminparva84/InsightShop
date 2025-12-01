@@ -4,6 +4,7 @@ from .product import Product
 from .cart import CartItem
 from .order import Order, OrderItem
 from .payment import Payment
+from .payment_log import PaymentLog
 
-__all__ = ['db', 'init_db', 'User', 'Product', 'CartItem', 'Order', 'OrderItem', 'Payment']
+__all__ = ['db', 'init_db', 'User', 'Product', 'CartItem', 'Order', 'OrderItem', 'Payment', 'PaymentLog']
 

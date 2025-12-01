@@ -203,6 +203,21 @@
 .category-icon {
   font-size: 64px;
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a2332;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.category-card:hover .category-icon {
+  color: #2c3e50;
+  transform: scale(1.1);
+}
+
+.category-icon svg {
+  width: 64px;
+  height: 64px;
 }
 
 .category-card h3 {

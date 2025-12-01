@@ -2,6 +2,8 @@
 from flask import Blueprint, request, jsonify
 from models.database import db
 from models.user import User
+from models.payment_log import PaymentLog
+from models.order import Order
 from routes.auth import require_auth
 from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
 from functools import wraps
@@ -233,5 +235,104 @@ def toggle_admin(user_id):
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/payment-logs', methods=['GET'])
+@require_admin
+def get_payment_logs():
+    """Get all payment logs (admin only)."""
+    try:
+        # Get query parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        status = request.args.get('status', None)
+        payment_method = request.args.get('payment_method', None)
+        user_id = request.args.get('user_id', None, type=int)
+        
+        # Build query
+        query = PaymentLog.query
+        
+        if status:
+            query = query.filter_by(status=status)
+        if payment_method:
+            query = query.filter_by(payment_method=payment_method)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        
+        # Get total count
+        total = query.count()
+        
+        # Paginate
+        logs = query.order_by(PaymentLog.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        # Get related orders and users for additional context
+        logs_data = []
+        for log in logs.items:
+            log_dict = log.to_dict()
+            if log.order_id:
+                order = Order.query.get(log.order_id)
+                if order:
+                    log_dict['order'] = {
+                        'id': order.id,
+                        'order_number': order.order_number,
+                        'total': float(order.total),
+                        'status': order.status
+                    }
+            if log.user_id:
+                user = User.query.get(log.user_id)
+                if user:
+                    log_dict['user'] = {
+                        'id': user.id,
+                        'email': user.email
+                    }
+            logs_data.append(log_dict)
+        
+        return jsonify({
+            'success': True,
+            'payment_logs': logs_data,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'pages': logs.pages
+            },
+            'summary': {
+                'total_logs': total,
+                'completed': PaymentLog.query.filter_by(status='completed').count(),
+                'failed': PaymentLog.query.filter_by(status='failed').count(),
+                'pending': PaymentLog.query.filter_by(status='pending').count()
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/payment-logs/<int:log_id>', methods=['GET'])
+@require_admin
+def get_payment_log_detail(log_id):
+    """Get detailed information about a specific payment log."""
+    try:
+        log = PaymentLog.query.get_or_404(log_id)
+        log_dict = log.to_dict()
+        
+        # Add related information
+        if log.order_id:
+            order = Order.query.get(log.order_id)
+            if order:
+                log_dict['order'] = order.to_dict()
+        
+        if log.user_id:
+            user = User.query.get(log.user_id)
+            if user:
+                log_dict['user'] = user.to_dict()
+        
+        return jsonify({
+            'success': True,
+            'payment_log': log_dict
+        }), 200
+        
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 

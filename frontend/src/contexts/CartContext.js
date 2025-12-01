@@ -63,11 +63,13 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const updateCartItem = async (itemId, quantity, selectedColor = null, selectedSize = null) => {
+  const updateCartItem = async (itemId, quantity, selectedColor = null, selectedSize = null, oldColor = null, oldSize = null) => {
     try {
       const payload = { quantity };
       if (selectedColor !== null) payload.selected_color = selectedColor;
       if (selectedSize !== null) payload.selected_size = selectedSize;
+      if (oldColor !== null) payload.old_color = oldColor;
+      if (oldSize !== null) payload.old_size = oldSize;
       await axios.put(`/api/cart/${itemId}`, payload);
       await fetchCart();
       return { success: true };

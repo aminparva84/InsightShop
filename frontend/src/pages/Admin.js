@@ -12,6 +12,8 @@ const Admin = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('colors');
   const [users, setUsers] = useState([]);
+  const [paymentLogs, setPaymentLogs] = useState([]);
+  const [paymentLogsLoading, setPaymentLogsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
@@ -23,7 +25,10 @@ const Admin = () => {
 
     loadFashionKB();
     loadUsers();
-  }, [user, navigate]);
+    if (activeTab === 'payment-logs') {
+      loadPaymentLogs();
+    }
+  }, [user, navigate, activeTab]);
 
   const loadFashionKB = async () => {
     try {
@@ -136,6 +141,24 @@ const Admin = () => {
     }
   };
 
+  const loadPaymentLogs = async () => {
+    setPaymentLogsLoading(true);
+    try {
+      const response = await axios.get('/api/admin/payment-logs', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { per_page: 100 }
+      });
+      if (response.data.success) {
+        setPaymentLogs(response.data.payment_logs || []);
+      }
+    } catch (error) {
+      console.error('Error loading payment logs:', error);
+      setMessage({ type: 'error', text: 'Failed to load payment logs' });
+    } finally {
+      setPaymentLogsLoading(false);
+    }
+  };
+
   const handleToggleAdmin = async (userId, currentStatus) => {
     try {
       const response = await axios.put(`/api/admin/users/${userId}/admin`, {
@@ -185,6 +208,15 @@ const Admin = () => {
             onClick={() => setActiveTab('users')}
           >
             User Management
+          </button>
+          <button
+            className={activeTab === 'payment-logs' ? 'active' : ''}
+            onClick={() => {
+              setActiveTab('payment-logs');
+              loadPaymentLogs();
+            }}
+          >
+            Payment Logs
           </button>
         </div>
 
@@ -272,6 +304,70 @@ const Admin = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'payment-logs' && (
+          <div className="admin-section">
+            <h2>Payment Logs</h2>
+            <p style={{color: '#6b7280', marginBottom: '24px'}}>
+              All payment attempts (successful and failed) are logged here for monitoring and auditing purposes.
+            </p>
+            
+            {paymentLogsLoading ? (
+              <div>Loading payment logs...</div>
+            ) : (
+              <div className="payment-logs-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date/Time</th>
+                      <th>User</th>
+                      <th>Order ID</th>
+                      <th>Method</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Transaction ID</th>
+                      <th>Card Info</th>
+                      <th>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentLogs.length > 0 ? (
+                      paymentLogs.map(log => (
+                        <tr key={log.id}>
+                          <td>{new Date(log.created_at).toLocaleString()}</td>
+                          <td>{log.user?.email || 'Guest'}</td>
+                          <td>{log.order_id || '-'}</td>
+                          <td>{log.payment_method.toUpperCase()}</td>
+                          <td>${log.amount.toFixed(2)} {log.currency}</td>
+                          <td>
+                            <span className={`payment-status ${log.status}`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td style={{fontSize: '11px'}}>
+                            {log.external_transaction_id || log.transaction_id || '-'}
+                          </td>
+                          <td>
+                            {log.card_last4 ? `****${log.card_last4} ${log.card_brand || ''}` : '-'}
+                          </td>
+                          <td style={{color: '#dc2626', fontSize: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                            {log.error_message || '-'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="9" style={{textAlign: 'center', padding: '40px'}}>
+                          No payment logs found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

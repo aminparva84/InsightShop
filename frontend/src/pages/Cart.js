@@ -89,14 +89,40 @@ const Cart = () => {
   const handleSizeChange = async (itemId, newSize) => {
     const item = cartItems.find(i => i.id === itemId);
     if (item) {
-      await updateCartItem(itemId, item.quantity, item.selected_color, newSize);
+      // Pass old size in the request so backend can find the correct item
+      const result = await updateCartItem(
+        itemId, 
+        item.quantity, 
+        item.selected_color, 
+        newSize,
+        item.selected_color,  // old color (same)
+        item.selected_size     // old size (to find the item)
+      );
+      if (!result.success) {
+        showError(result.error || 'Failed to update size');
+      } else {
+        showSuccess('Size updated');
+      }
     }
   };
 
   const handleColorChange = async (itemId, newColor) => {
     const item = cartItems.find(i => i.id === itemId);
     if (item) {
-      await updateCartItem(itemId, item.quantity, newColor, item.selected_size);
+      // Pass old color in the request so backend can find the correct item
+      const result = await updateCartItem(
+        itemId, 
+        item.quantity, 
+        newColor, 
+        item.selected_size,
+        item.selected_color,  // old color (to find the item)
+        item.selected_size    // old size (same)
+      );
+      if (!result.success) {
+        showError(result.error || 'Failed to update color');
+      } else {
+        showSuccess('Color updated');
+      }
     }
   };
 

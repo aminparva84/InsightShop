@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { FaUserTie, FaUser, FaChild } from 'react-icons/fa';
 import AIChat from '../components/AIChat';
 import ProductGrid from '../components/ProductGrid';
 import './Home.css';
@@ -113,21 +114,27 @@ const Home = () => {
               // Scroll to AI chat and suggest men's products
               document.querySelector('.ai-chat-inline-container')?.scrollIntoView({ behavior: 'smooth' });
             }}>
-              <div className="category-icon">👔</div>
+              <div className="category-icon">
+                <FaUserTie />
+              </div>
               <h3>Men</h3>
             </div>
             <div className="category-card" onClick={() => {
               // Scroll to AI chat and suggest women's products
               document.querySelector('.ai-chat-inline-container')?.scrollIntoView({ behavior: 'smooth' });
             }}>
-              <div className="category-icon">👗</div>
+              <div className="category-icon">
+                <FaUser />
+              </div>
               <h3>Women</h3>
             </div>
             <div className="category-card" onClick={() => {
               // Scroll to AI chat and suggest kids' products
               document.querySelector('.ai-chat-inline-container')?.scrollIntoView({ behavior: 'smooth' });
             }}>
-              <div className="category-icon">👶</div>
+              <div className="category-icon">
+                <FaChild />
+              </div>
               <h3>Kids</h3>
             </div>
           </div>

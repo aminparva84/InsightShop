@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from models.database import db
 from models.order import Order
 from models.payment import Payment
+from models.payment_log import PaymentLog
 from routes.auth import require_auth
 
 members_bp = Blueprint('members', __name__)
@@ -26,7 +27,7 @@ def get_member_orders():
 @members_bp.route('/payments', methods=['GET'])
 @require_auth
 def get_member_payments():
-    """Get all payments for the current user."""
+    """Get all payments and payment logs for the current user."""
     try:
         user = request.current_user
         
@@ -37,6 +38,9 @@ def get_member_payments():
         # Get all payments for those orders
         payments = Payment.query.filter(Payment.order_id.in_(order_ids)).order_by(Payment.created_at.desc()).all()
         
+        # Get all payment logs for this user (includes all attempts, successful or not)
+        payment_logs = PaymentLog.query.filter_by(user_id=user.id).order_by(PaymentLog.created_at.desc()).all()
+        
         # Group payments by order
         payments_by_order = {}
         for payment in payments:
@@ -46,8 +50,10 @@ def get_member_payments():
         
         return jsonify({
             'payments': [payment.to_dict() for payment in payments],
+            'payment_logs': [log.to_dict() for log in payment_logs],  # All payment attempts
             'payments_by_order': payments_by_order,
             'total_payments': len(payments),
+            'total_attempts': len(payment_logs),
             'total_spent': sum(float(p.amount) for p in payments if p.status == 'completed')
         }), 200
         

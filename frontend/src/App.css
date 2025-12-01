@@ -4,6 +4,12 @@
   flex-direction: column;
 }
 
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Utility classes */
 .container {
   max-width: 1200px;

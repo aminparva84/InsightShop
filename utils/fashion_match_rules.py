@@ -1,5 +1,7 @@
 """Fashion Match Rules - Product matching for complete outfit suggestions."""
 
+from utils.seasonal_events import get_current_season, get_upcoming_holidays
+
 # Fashion matching rules: Primary Product -> Matched Product -> Match Type -> Priority
 # Priority: 1 = High priority (essential matches), 2 = Secondary (nice-to-have)
 FASHION_MATCH_RULES = [
@@ -65,6 +67,7 @@ MATCH_KEYWORDS = {
 def find_matching_products(primary_product_name, primary_product_id=None):
     """
     Find matching products for a given primary product.
+    Considers current season and upcoming holidays for seasonal recommendations.
     
     Args:
         primary_product_name: Name of the primary product
@@ -76,24 +79,102 @@ def find_matching_products(primary_product_name, primary_product_id=None):
     matches = []
     primary_lower = primary_product_name.lower()
     
+    # Get current season and upcoming holidays for seasonal context
+    current_season = get_current_season()
+    upcoming_holidays = get_upcoming_holidays(days_ahead=30)
+    
     # Find exact or partial matches in rules
     for rule in FASHION_MATCH_RULES:
         if rule["primary"].lower() in primary_lower or primary_lower in rule["primary"].lower():
-            matches.append({
+            match_entry = {
                 "matched_product": rule["matched"],
                 "match_type": rule["match_type"],
                 "priority": rule["priority"]
-            })
+            }
+            
+            # Boost priority if match is seasonal-appropriate
+            if is_seasonally_appropriate(rule["matched"], current_season):
+                match_entry["priority"] = max(1, match_entry["priority"] - 0.5)  # Boost priority
+            
+            matches.append(match_entry)
     
     # If no exact matches, try keyword-based matching
     if not matches:
         matches = find_matches_by_keywords(primary_product_name)
+    
+    # Add seasonal recommendations if relevant
+    seasonal_matches = get_seasonal_matches(primary_product_name, current_season, upcoming_holidays)
+    matches.extend(seasonal_matches)
     
     # Sort by priority (1 = high priority first)
     matches.sort(key=lambda x: x["priority"])
     
     # Return top 3-4 matches
     return matches[:4]
+
+def is_seasonally_appropriate(product_name, season):
+    """Check if a product is appropriate for the current season."""
+    product_lower = product_name.lower()
+    
+    seasonal_keywords = {
+        'spring': ['light', 'pastel', 'floral', 'cardigan', 'rain', 'jacket'],
+        'summer': ['sundress', 'shorts', 'sandals', 'tank', 'swim', 'light', 'breathable'],
+        'fall': ['sweater', 'boots', 'jacket', 'scarf', 'warm', 'layering'],
+        'winter': ['coat', 'wool', 'warm', 'boots', 'gloves', 'hat', 'scarf', 'sweater']
+    }
+    
+    keywords = seasonal_keywords.get(season, [])
+    return any(keyword in product_lower for keyword in keywords)
+
+def get_seasonal_matches(primary_product_name, current_season, upcoming_holidays):
+    """Get seasonal-specific matching suggestions."""
+    matches = []
+    primary_lower = primary_product_name.lower()
+    
+    # Seasonal recommendations based on current season
+    seasonal_suggestions = {
+        'spring': [
+            {"matched_product": "Light Cardigan", "match_type": "Seasonal", "priority": 1.5},
+            {"matched_product": "Pastel Accessories", "match_type": "Seasonal", "priority": 2},
+        ],
+        'summer': [
+            {"matched_product": "Sandals", "match_type": "Seasonal", "priority": 1.5},
+            {"matched_product": "Sun Hat", "match_type": "Seasonal", "priority": 2},
+            {"matched_product": "Lightweight Scarf", "match_type": "Seasonal", "priority": 2},
+        ],
+        'fall': [
+            {"matched_product": "Boots", "match_type": "Seasonal", "priority": 1.5},
+            {"matched_product": "Scarf", "match_type": "Seasonal", "priority": 2},
+            {"matched_product": "Jacket", "match_type": "Seasonal", "priority": 1.5},
+        ],
+        'winter': [
+            {"matched_product": "Warm Coat", "match_type": "Seasonal", "priority": 1},
+            {"matched_product": "Wool Scarf", "match_type": "Seasonal", "priority": 1.5},
+            {"matched_product": "Gloves", "match_type": "Seasonal", "priority": 2},
+        ]
+    }
+    
+    # Add seasonal suggestions if primary product matches season
+    if is_seasonally_appropriate(primary_product_name, current_season):
+        matches.extend(seasonal_suggestions.get(current_season, []))
+    
+    # Holiday-specific suggestions
+    for holiday in upcoming_holidays[:2]:  # Top 2 upcoming holidays
+        holiday_type = holiday.get('type', '')
+        if holiday_type == 'romantic' and 'dress' in primary_lower or 'blouse' in primary_lower:
+            matches.append({
+                "matched_product": "Elegant Heels",
+                "match_type": "Holiday Special",
+                "priority": 1.5
+            })
+        elif holiday_type == 'celebration' and ('dress' in primary_lower or 'suit' in primary_lower):
+            matches.append({
+                "matched_product": "Festive Accessories",
+                "match_type": "Holiday Special",
+                "priority": 2
+            })
+    
+    return matches
 
 def find_matches_by_keywords(product_name):
     """Find matches based on product type keywords."""

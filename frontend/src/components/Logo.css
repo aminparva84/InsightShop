@@ -11,10 +11,30 @@
   object-fit: contain;
 }
 
+.logo-image.logo-small {
+  width: 24px;
+  height: 24px;
+}
+
+.logo-image.logo-large {
+  width: 80px;
+  height: 80px;
+}
+
 @media (max-width: 768px) {
   .logo-image {
     width: 32px;
     height: 32px;
+  }
+  
+  .logo-image.logo-small {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .logo-image.logo-large {
+    width: 60px;
+    height: 60px;
   }
 }
 

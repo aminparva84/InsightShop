@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import Logo from '../components/Logo';
+import LoadingSpinner from '../components/LoadingSpinner';
 import './OrderConfirmation.css';
 
 const OrderConfirmation = () => {
@@ -39,7 +41,7 @@ const OrderConfirmation = () => {
   };
 
   if (loading) {
-    return <div className="spinner"></div>;
+    return <LoadingSpinner message="Loading order details..." />;
   }
 
   if (!order) {
@@ -57,6 +59,7 @@ const OrderConfirmation = () => {
     <div className="order-confirmation-page">
       <div className="container">
         <div className="confirmation-header">
+          <Logo size="large" />
           <div className="success-icon">✓</div>
           <h1>Order Confirmed!</h1>
           <p>Thank you for your purchase</p>

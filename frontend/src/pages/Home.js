@@ -4,6 +4,7 @@ import axios from 'axios';
 import { FaUserTie, FaUser, FaChild } from 'react-icons/fa';
 import AIChat from '../components/AIChat';
 import ProductGrid from '../components/ProductGrid';
+import Logo from '../components/Logo';
 import './Home.css';
 
 const Home = () => {
@@ -70,6 +71,7 @@ const Home = () => {
       {/* Hero Section */}
       <section className="hero">
         <div className="hero-content">
+          <Logo size="large" />
           <h1 className="hero-title">Welcome to InsightShop - Get AI Help</h1>
           <p className="hero-subtitle">Discover Fashion That Fits Your Style</p>
         </div>

@@ -1,14 +1,16 @@
 import React from 'react';
-import logoImage from '../Gemini_Generated_Image_wlisx4wlisx4wlis.png';
+import logoImage from '../logo.png';
 import './Logo.css';
 
-const Logo = () => {
+const Logo = ({ size = 'default', className = '' }) => {
+  const sizeClass = size === 'small' ? 'logo-small' : size === 'large' ? 'logo-large' : '';
+  
   return (
-    <div className="logo-container">
+    <div className={`logo-container ${className}`}>
       <img 
         src={logoImage}
         alt="InsightShop Logo"
-        className="logo-image"
+        className={`logo-image ${sizeClass}`}
       />
     </div>
   );

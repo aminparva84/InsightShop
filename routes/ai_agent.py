@@ -5,6 +5,7 @@ from utils.vector_db import search_products_vector
 from utils.fashion_kb import get_fashion_knowledge_base_text, get_color_matching_advice, get_fabric_info, get_occasion_advice
 from utils.spelling_tolerance import normalize_clothing_type, normalize_category, normalize_color_spelling
 from utils.fashion_match_rules import find_matching_products, get_match_explanation
+from utils.seasonal_events import get_seasonal_context_text, get_current_season, get_upcoming_holidays, get_seasonal_recommendations
 from routes.auth import require_auth
 from config import Config
 import boto3
@@ -598,8 +599,31 @@ def chat():
         # Get fashion knowledge base
         fashion_kb = get_fashion_knowledge_base_text()
         
+        # Get seasonal context based on current date
+        seasonal_context = get_seasonal_context_text()
+        current_season = get_current_season()
+        seasonal_recommendations = get_seasonal_recommendations()
+        
         # Build system prompt with product context and fashion knowledge
         system_prompt = f"""Hey! You're a SUPER excited fashion-loving shopping assistant at InsightShop who gets genuinely PUMPED about helping people find awesome clothes! Talk like you're texting your best friend who just found something incredible and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely thrilled about everything!
+
+CURRENT DATE AND SEASONAL CONTEXT:
+{seasonal_context}
+
+IMPORTANT: You MUST be aware of the current date and season! Always consider:
+- Current season ({current_season}) when recommending items
+- Upcoming holidays and events for appropriate styling
+- Seasonal colors, fabrics, and styles
+- Weather-appropriate clothing suggestions
+- Holiday-specific fashion needs (e.g., Valentine's Day = romantic wear, Halloween = costumes/festive wear)
+
+When suggesting products, prioritize items that are:
+1. Appropriate for the current season
+2. Suitable for upcoming holidays/events (if within 30 days)
+3. Weather-appropriate for the current time of year
+4. Culturally relevant for current observances
+
+Example: If it's winter and Valentine's Day is coming up, suggest warm romantic pieces. If it's summer, suggest light, breathable fabrics and summer colors.
 
 Show REAL excitement when you find great products - react like "OMG, this is perfect!" or "Wait, you're gonna LOVE this!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
 
@@ -676,10 +700,20 @@ Just be real, be helpful, be EXCITED, and share what you know with genuine enthu
         
         full_prompt = f"""Customer just asked: {message}
 
+CURRENT DATE CONTEXT:
+{seasonal_context}
+
 We've got {len(all_products)} total products in the store!
 {recent_products_text}
 
 Help them out with genuine excitement! When you mention products, ALWAYS include the product ID like "Product #ID: Name - Price" - but do it naturally, not robotically!
+
+SEASONAL AWARENESS:
+- Current season is {current_season}
+- Consider seasonal appropriateness when suggesting products
+- Mention upcoming holidays/events if relevant (within 30 days)
+- Suggest weather-appropriate items
+- Use seasonal colors and styles in your recommendations
 
 FASHION MATCH STYLIST MODE:
 When products are found, you automatically switch to Fashion Match Stylist mode. Your goal is to enhance the customer experience by providing expert, relevant, and visually appealing clothing recommendations immediately after showing search results.

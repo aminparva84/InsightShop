@@ -11,6 +11,7 @@ class User(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     is_verified = db.Column(db.Boolean, default=False, nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False, index=True)  # Admin role
     verification_token = db.Column(db.String(255), nullable=True)
     verification_token_expires = db.Column(db.DateTime, nullable=True)
     reset_token = db.Column(db.String(255), nullable=True)
@@ -71,6 +72,7 @@ class User(db.Model):
             'first_name': self.first_name,
             'last_name': self.last_name,
             'is_verified': self.is_verified,
+            'is_admin': self.is_admin,
             'profile_picture': self.profile_picture,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

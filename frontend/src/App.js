@@ -15,6 +15,7 @@ import Activation from './pages/Activation';
 import Members from './pages/Members';
 import OrderConfirmation from './pages/OrderConfirmation';
 import Compare from './pages/Compare';
+import Admin from './pages/Admin';
 import './App.css';
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
                 <Route path="/members" element={<Members />} />
                 <Route path="/order-confirmation" element={<OrderConfirmation />} />
                 <Route path="/compare" element={<Compare />} />
+                <Route path="/admin" element={<Admin />} />
               </Routes>
             </div>
           </Router>

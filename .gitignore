@@ -52,3 +52,9 @@ Thumbs.db
 # Docker
 .dockerignore
 
+# Generated images and assets
+generated_images/
+*.png
+!frontend/public/*.png
+!frontend/src/components/*.png
+

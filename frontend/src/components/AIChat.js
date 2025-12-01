@@ -45,10 +45,14 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     const saved = localStorage.getItem('aiVoiceGender');
     return saved || 'woman';
   });
+  const [pollyAvailable, setPollyAvailable] = useState(true); // Assume available by default
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const audioRef = useRef(null); // For AWS Polly audio playback
+  const fileInputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -70,6 +74,29 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Initialize audio element for AWS Polly playback
   useEffect(() => {
     audioRef.current = new Audio();
+    
+    // Check Polly status on mount
+    const checkPollyStatus = async () => {
+      try {
+        const response = await axios.get('/api/ai/text-to-speech/status');
+        if (response.data) {
+          setPollyAvailable(response.data.available || false);
+          if (!response.data.available) {
+            console.warn('AWS Polly not available:', response.data);
+            if (!response.data.has_credentials) {
+              console.warn('AWS credentials not configured. Voice feature requires AWS Polly setup.');
+              console.warn('Add to .env: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY');
+            }
+          } else {
+            console.log('✅ AWS Polly is available and ready');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking Polly status:', error);
+        setPollyAvailable(false);
+      }
+    };
+    checkPollyStatus();
     
     // Cleanup: stop speaking when component unmounts
     return () => {
@@ -104,6 +131,11 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   const speakText = async (text) => {
     if (!voiceEnabled) {
       console.log('Voice is disabled');
+      return;
+    }
+    
+    if (!pollyAvailable) {
+      console.warn('AWS Polly is not available. Voice playback disabled.');
       return;
     }
     
@@ -145,34 +177,109 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
         console.log('Audio blob created, URL:', audioUrl.substring(0, 50) + '...');
 
-        // Play audio
-        audioRef.current.src = audioUrl;
-        audioRef.current.volume = 0.95;
-        
-        audioRef.current.onended = () => {
+        // Set up event handlers first
+        const handleEnded = () => {
           console.log('Audio playback ended');
           setIsSpeaking(false);
-          URL.revokeObjectURL(audioUrl); // Clean up
+          URL.revokeObjectURL(audioUrl);
+          // Remove listeners
+          audioRef.current.removeEventListener('ended', handleEnded);
+          audioRef.current.removeEventListener('error', handleError);
         };
 
-        audioRef.current.onerror = (error) => {
+        const handleError = (error) => {
           console.error('Audio playback error:', error);
+          console.error('Audio error details:', {
+            error: audioRef.current?.error,
+            code: audioRef.current?.error?.code,
+            message: audioRef.current?.error?.message,
+            readyState: audioRef.current?.readyState
+          });
           setIsSpeaking(false);
           URL.revokeObjectURL(audioUrl);
+          // Remove listeners
+          audioRef.current?.removeEventListener('ended', handleEnded);
+          audioRef.current?.removeEventListener('error', handleError);
         };
 
-        audioRef.current.onplay = () => {
-          console.log('Audio playback started');
+        const handleCanPlay = async () => {
+          console.log('Audio can play, attempting to play...');
+          try {
+            // Play audio - user has already interacted (sent message), so this should work
+            const playPromise = audioRef.current.play();
+            if (playPromise !== undefined) {
+              await playPromise;
+              console.log('Audio play() called successfully');
+            }
+          } catch (playError) {
+            console.error('Error playing audio:', playError);
+            console.error('Play error details:', {
+              name: playError.name,
+              message: playError.message
+            });
+            
+            // If autoplay is blocked, user needs to interact
+            if (playError.name === 'NotAllowedError') {
+              console.warn('Autoplay blocked. Click the voice button to enable audio playback.');
+            }
+            
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            audioRef.current?.removeEventListener('canplay', handleCanPlay);
+            audioRef.current?.removeEventListener('ended', handleEnded);
+            audioRef.current?.removeEventListener('error', handleError);
+          }
         };
 
-        try {
-          await audioRef.current.play();
-          console.log('Audio play() called successfully');
-        } catch (playError) {
-          console.error('Error playing audio:', playError);
-          setIsSpeaking(false);
-          URL.revokeObjectURL(audioUrl);
-        }
+        // Clear previous source
+        audioRef.current.src = '';
+        audioRef.current.load();
+        
+        // Add event listeners
+        audioRef.current.addEventListener('ended', handleEnded);
+        audioRef.current.addEventListener('error', handleError);
+        audioRef.current.addEventListener('canplay', handleCanPlay);
+        
+        // Set new source and properties
+        audioRef.current.src = audioUrl;
+        audioRef.current.volume = 0.95;
+        audioRef.current.preload = 'auto';
+        
+        // Load the audio
+        audioRef.current.load();
+        
+        // Fallback: try playing after a short delay if canplay doesn't fire
+        let playTimeout;
+        const cleanup = () => {
+          if (playTimeout) {
+            clearTimeout(playTimeout);
+            playTimeout = null;
+          }
+        };
+        
+        playTimeout = setTimeout(async () => {
+          cleanup();
+          if (audioRef.current && audioRef.current.readyState >= 2 && audioRef.current.paused) {
+            console.log('Fallback: Attempting to play audio after delay');
+            try {
+              const playPromise = audioRef.current.play();
+              if (playPromise !== undefined) {
+                await playPromise;
+                console.log('Audio play() called successfully (fallback)');
+              }
+            } catch (playError) {
+              console.error('Error playing audio (fallback):', playError);
+              setIsSpeaking(false);
+              URL.revokeObjectURL(audioUrl);
+              audioRef.current?.removeEventListener('ended', handleEnded);
+              audioRef.current?.removeEventListener('error', handleError);
+              audioRef.current?.removeEventListener('canplay', handleCanPlay);
+            }
+          }
+        }, 500);
+        
+        // Cleanup timeout if audio starts playing before timeout
+        audioRef.current.addEventListener('play', cleanup);
       } else {
         console.error('No audio data received from API');
         setIsSpeaking(false);
@@ -188,6 +295,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       // Fallback: show error but don't break the UI
       if (error.response?.data?.error) {
         console.error('TTS Error:', error.response.data.error);
+        // Show user-friendly error message
+        if (error.response.data.error.includes('Polly client not initialized')) {
+          console.warn('AWS Polly not configured. Voice feature requires AWS credentials.');
+        }
       }
     }
   };
@@ -263,6 +374,169 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     } else {
       recognitionRef.current.start();
       setIsListening(true);
+    }
+  };
+
+  // Handle image upload
+  const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please upload a valid image file (PNG, JPG, GIF, or WEBP)');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image is too large. Maximum size is 10MB');
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await axios.post('/api/ai/upload-image', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.data.success) {
+        setUploadedImage({
+          data: response.data.image_data,
+          format: response.data.image_format,
+          filename: file.name
+        });
+
+        // Add user message showing image was uploaded
+        const imageMessage = {
+          role: 'user',
+          content: `[Image uploaded: ${file.name}]`,
+          image: response.data.image_data
+        };
+        setMessages(prev => [...prev, imageMessage]);
+
+        // Add AI response with analysis and metadata
+        const aiResponse = {
+          role: 'assistant',
+          content: response.data.message || response.data.metadata_sentence || 'Image analyzed successfully!',
+          similarProducts: response.data.similar_products || []
+        };
+        setMessages(prev => [...prev, aiResponse]);
+
+        // Update selected products if similar products found
+        if (response.data.similar_product_ids && response.data.similar_product_ids.length > 0) {
+          setSelectedProductIds(prev => {
+            const combined = [...new Set([...prev, ...response.data.similar_product_ids])];
+            return combined;
+          });
+        }
+
+        // If we have similar products, navigate to show them
+        if (response.data.similar_products && response.data.similar_products.length > 0) {
+          const productIds = response.data.similar_product_ids || response.data.similar_products.map(p => p.id);
+          
+          // Navigate to products page with similar products
+          if (location.pathname === '/' && onProductsUpdate) {
+            // Update products on Home page
+            onProductsUpdate(productIds);
+            
+            // Update message to mention products are shown
+            const updatedMessage = {
+              role: 'assistant',
+              content: `${response.data.message}\n\nCheck out the similar products I found below!`
+            };
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1] = updatedMessage;
+              return newMessages;
+            });
+            
+            // Scroll to products
+            setTimeout(() => {
+              document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+          } else {
+            // Navigate to products page
+            const idsParam = productIds.join(',');
+            navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+            
+            // Minimize chat if not inline
+            if (!isInline) {
+              setTimeout(() => {
+                if (onMinimize) {
+                  onMinimize();
+                } else if (onClose) {
+                  onClose();
+                }
+              }, 100);
+            }
+          }
+        }
+
+        // Speak the response if voice is enabled
+        if (voiceEnabled && audioRef.current) {
+          setTimeout(() => {
+            if (audioRef.current) {
+              speakText(aiResponse.content);
+            }
+          }, 300);
+        }
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert(error.response?.data?.error || 'Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Analyze uploaded image
+  const analyzeUploadedImage = async (query = 'What is this item and what would match it?') => {
+    if (!uploadedImage) {
+      alert('Please upload an image first');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await axios.post('/api/ai/analyze-image', {
+        image_data: uploadedImage.data,
+        query: query
+      });
+
+      if (response.data.success) {
+        const analysisMessage = {
+          role: 'assistant',
+          content: response.data.analysis
+        };
+        setMessages(prev => [...prev, analysisMessage]);
+
+        // Speak the response if voice is enabled
+        if (voiceEnabled && audioRef.current) {
+          setTimeout(() => {
+            if (audioRef.current) {
+              speakText(response.data.analysis);
+            }
+          }, 300);
+        }
+      }
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      alert(error.response?.data?.error || 'Failed to analyze image. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -604,37 +878,43 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     <div className={`ai-chat ${isInline ? 'ai-chat-inline' : ''}`}>
       <div className="ai-chat-header">
         <h3>AI Shopping Assistant</h3>
-        {!isInline && (
-          <div className="ai-chat-header-buttons">
-            <button 
-              onClick={() => setShowClearConfirm(true)} 
-              className="clear-btn" 
-              title="Clear chat history"
-              style={{ 
-                background: 'rgba(255, 255, 255, 0.1)', 
-                color: '#faf0e6', 
-                fontSize: '14px', 
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                cursor: 'pointer',
-                marginRight: '8px'
-              }}
-            >
-              Clear
-            </button>
-            <button onClick={onMinimize || onClose} className="minimize-btn" title="Minimize">
-              −
-            </button>
-            <button onClick={onClose} className="close-btn" title="Close">×</button>
-          </div>
-        )}
+        <div className="ai-chat-header-buttons">
+          <button 
+            onClick={() => setShowClearConfirm(true)} 
+            className="clear-btn" 
+            title="Clear chat history"
+          >
+            Clear
+          </button>
+          {!isInline && (
+            <>
+              <button onClick={onMinimize || onClose} className="minimize-btn" title="Minimize">
+                −
+              </button>
+              <button onClick={onClose} className="close-btn" title="Close">×</button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="ai-chat-messages">
         {messages.map((msg, idx) => (
           <div key={idx} className={`message ${msg.role}`}>
             <div className="message-content">
+              {msg.image && (
+                <div style={{ marginBottom: '10px' }}>
+                  <img 
+                    src={`data:image/${msg.image.includes('data:') ? '' : 'jpeg;base64,'}${msg.image}`}
+                    alt="Uploaded"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '200px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.2)'
+                    }}
+                  />
+                </div>
+              )}
               {msg.content.split('\n').map((line, lineIdx) => {
                 // Highlight product IDs in the format "Product #ID:"
                 const parts = line.split(/(Product\s*#\d+)/gi);
@@ -656,6 +936,56 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                   </React.Fragment>
                 );
               })}
+              {msg.similarProducts && msg.similarProducts.length > 0 && (
+                <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <p style={{ marginBottom: '10px', fontWeight: 'bold' }}>Similar Products:</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px' }}>
+                    {msg.similarProducts.slice(0, 4).map((product) => (
+                      <div 
+                        key={product.id} 
+                        onClick={() => navigate(`/products?id=${product.id}`)}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '8px',
+                          background: 'rgba(255,255,255,0.05)',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
+                        {product.image_url && (
+                          <img 
+                            src={product.image_url} 
+                            alt={product.name}
+                            style={{
+                              width: '100%',
+                              height: '80px',
+                              objectFit: 'cover',
+                              borderRadius: '4px',
+                              marginBottom: '5px'
+                            }}
+                          />
+                        )}
+                        <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{product.name}</div>
+                        <div style={{ fontSize: '11px', color: '#fbbf24' }}>${parseFloat(product.price).toFixed(2)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {msg.similarProducts.length > 4 && (
+                    <p style={{ marginTop: '10px', fontSize: '12px', fontStyle: 'italic' }}>
+                      And {msg.similarProducts.length - 4} more... Click to see all!
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -685,6 +1015,27 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
       <form onSubmit={handleSend} className="ai-chat-input">
         <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+          onChange={handleImageUpload}
+          style={{ display: 'none' }}
+          disabled={loading || uploadingImage}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="voice-btn"
+          title="Upload image"
+          disabled={loading || uploadingImage}
+          style={{ 
+            background: uploadingImage ? '#6b7280' : 'rgba(255, 255, 255, 0.1)',
+            cursor: uploadingImage ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {uploadingImage ? '⏳' : '📷'}
+        </button>
+        <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -704,9 +1055,15 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           <button
             type="button"
             onClick={toggleVoice}
-            className={`voice-btn ${voiceEnabled ? 'speaking-enabled' : ''} ${isSpeaking ? 'speaking' : ''}`}
-            title={voiceEnabled ? (isSpeaking ? 'AI is speaking - Click to stop' : 'Voice enabled - Click to disable') : 'Enable AI voice responses'}
-            disabled={loading}
+            className={`voice-btn ${voiceEnabled ? 'speaking-enabled' : ''} ${isSpeaking ? 'speaking' : ''} ${!pollyAvailable ? 'polly-unavailable' : ''}`}
+            title={
+              !pollyAvailable 
+                ? 'AWS Polly not configured - Set AWS credentials in .env to enable voice' 
+                : voiceEnabled 
+                  ? (isSpeaking ? 'AI is speaking - Click to stop' : 'Voice enabled - Click to disable') 
+                  : 'Enable AI voice responses'
+            }
+            disabled={loading || !pollyAvailable}
           >
             {isSpeaking ? <SpeakerIcon size={18} /> : voiceEnabled ? <SpeakerIcon size={18} /> : <SpeakerOffIcon size={18} />}
           </button>

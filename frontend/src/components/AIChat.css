@@ -63,6 +63,46 @@
   transform: scale(1.1);
 }
 
+.clear-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #faf0e6;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-right: 8px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: #d4af37;
+  transform: scale(1.05);
+}
+
+.clear-btn:active {
+  transform: scale(0.95);
+}
+
+.voice-btn.polly-unavailable {
+  opacity: 0.5;
+  cursor: not-allowed;
+  position: relative;
+}
+
+.voice-btn.polly-unavailable::after {
+  content: '⚠️';
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  font-size: 10px;
+}
+
 .ai-chat-messages {
   flex: 1;
   overflow-y: auto;

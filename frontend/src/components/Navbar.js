@@ -36,6 +36,9 @@ const Navbar = () => {
           {isAuthenticated ? (
             <>
               <Link to="/members" className="nav-link">My Account</Link>
+              {user?.is_admin && (
+                <Link to="/admin" className="nav-link">Admin</Link>
+              )}
               <div className="user-menu">
                 <span className="user-name">{user?.first_name}</span>
                 <button onClick={handleLogout} className="btn-logout">Logout</button>

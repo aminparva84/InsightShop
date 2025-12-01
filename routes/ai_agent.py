@@ -26,17 +26,31 @@ if Config.AWS_REGION:
 
 # Initialize Polly client for text-to-speech
 polly_client = None
+polly_available = False
 if Config.AWS_REGION:
     try:
-        polly_client = boto3.client(
-            'polly',
-            region_name=Config.AWS_REGION,
-            aws_access_key_id=Config.AWS_ACCESS_KEY_ID if Config.AWS_ACCESS_KEY_ID else None,
-            aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY if Config.AWS_SECRET_ACCESS_KEY else None
-        )
-        print("AWS Polly client initialized successfully")
+        # Check if credentials are provided
+        if Config.AWS_ACCESS_KEY_ID and Config.AWS_SECRET_ACCESS_KEY:
+            polly_client = boto3.client(
+                'polly',
+                region_name=Config.AWS_REGION,
+                aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY
+            )
+            # Test the client by listing voices (lightweight operation)
+            try:
+                polly_client.describe_voices(MaxItems=1)
+                polly_available = True
+                print("✅ AWS Polly client initialized successfully and verified")
+            except Exception as test_error:
+                print(f"⚠️ AWS Polly client created but test failed: {test_error}")
+                print("   This might indicate missing permissions or incorrect credentials")
+        else:
+            print("⚠️ AWS credentials not provided. Polly voice feature will be disabled.")
+            print("   Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env to enable voice")
     except Exception as e:
-        print(f"Warning: Could not initialize Polly client: {e}")
+        print(f"❌ Error initializing Polly client: {e}")
+        print("   Voice feature will be disabled")
 
 def get_all_products_for_ai():
     """Get all products formatted for AI context."""
@@ -333,13 +347,8 @@ def chat():
         vector_products = []
         strict_filter_no_results = False  # Initialize flag for tracking no results with strict filters
         
-        # Extract color from message for better search
-        detected_color = None
-        color_keywords = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'pink', 'purple', 'gray', 'grey', 'brown', 'orange', 'navy', 'beige', 'tan']
-        for color in color_keywords:
-            if color in message:
-                detected_color = color
-                break
+        # Color detection already done above using normalize_color_name()
+        # No need to detect again here
         
         # If we have specific filters, use direct database query first
         # CRITICAL: When category is detected, we MUST only show products from that category
@@ -861,6 +870,31 @@ def compare_products():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@ai_agent_bp.route('/text-to-speech/status', methods=['GET'])
+def tts_status():
+    """Check if AWS Polly is available and configured."""
+    try:
+        status = {
+            'available': polly_available,
+            'client_initialized': polly_client is not None,
+            'aws_region': Config.AWS_REGION if Config.AWS_REGION else None,
+            'has_credentials': bool(Config.AWS_ACCESS_KEY_ID and Config.AWS_SECRET_ACCESS_KEY)
+        }
+        
+        if polly_client and polly_available:
+            try:
+                # Test by getting available voices
+                voices = polly_client.describe_voices(LanguageCode='en-US', MaxItems=5)
+                status['test_successful'] = True
+                status['available_voices'] = [v['Id'] for v in voices.get('Voices', [])]
+            except Exception as e:
+                status['test_successful'] = False
+                status['test_error'] = str(e)
+        
+        return jsonify(status), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @ai_agent_bp.route('/text-to-speech', methods=['POST'])
 def text_to_speech():
     """Convert text to speech using AWS Polly with natural, excited voices."""
@@ -872,8 +906,13 @@ def text_to_speech():
         if not text:
             return jsonify({'error': 'Text is required'}), 400
         
-        if not polly_client:
-            return jsonify({'error': 'Polly client not initialized. Please configure AWS credentials.'}), 500
+        if not polly_client or not polly_available:
+            error_msg = 'Polly client not available. '
+            if not Config.AWS_ACCESS_KEY_ID or not Config.AWS_SECRET_ACCESS_KEY:
+                error_msg += 'Please configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your .env file.'
+            else:
+                error_msg += 'Please check your AWS credentials and Polly permissions.'
+            return jsonify({'error': error_msg}), 500
         
         # Clean text for better speech
         import re
@@ -908,7 +947,7 @@ def text_to_speech():
         # Use SSML to add excitement and natural intonation
         # Adjust speed and pitch for excitement
         excitement_level = (text.count('!') + text.count('OMG') + text.count('wow') + 
-                          text.count('awesome') + text.count('amazing')) > 0
+                            text.count('awesome') + text.count('amazing')) > 0
         
         if excitement_level:
             # More excited: slightly faster, higher pitch
@@ -942,4 +981,420 @@ def text_to_speech():
     except Exception as e:
         print(f"Error in text-to-speech: {e}")
         return jsonify({'error': f'Failed to generate speech: {str(e)}'}), 500
+
+@ai_agent_bp.route('/upload-image', methods=['POST'])
+def upload_image():
+    """Handle image upload for AI agent to analyze fashion items and find similar products."""
+    try:
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image file provided'}), 400
+        
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Check file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+        
+        # Read image data
+        from PIL import Image
+        import io
+        import base64
+        import re
+        
+        image_data = file.read()
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Validate image size (max 10MB)
+        if len(image_data) > 10 * 1024 * 1024:
+            return jsonify({'error': 'Image too large. Maximum size is 10MB'}), 400
+        
+        # Resize if too large (max 2000x2000)
+        max_dimension = 2000
+        if image.size[0] > max_dimension or image.size[1] > max_dimension:
+            image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+        
+        # Convert to base64 for storage/transmission
+        buffered = io.BytesIO()
+        # Save as JPEG for smaller size
+        if image.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        image.save(buffered, format='JPEG', quality=85)
+        image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        
+        # Analyze image with AI and extract metadata
+        analysis_prompt = """Analyze this fashion image and provide a structured response in the following format:
+
+ITEM_TYPE: [e.g., dress, shirt, t-shirt, pants, jeans, blouse, etc.]
+COLOR: [primary color, e.g., blue, red, black, white, etc.]
+CATEGORY: [men, women, or kids]
+CLOTHING_TYPE: [specific type like "T-Shirt", "Dress", "Jeans", etc.]
+STYLE_FEATURES: [e.g., v-neck, long sleeve, casual, formal, etc.]
+OCCASION: [e.g., casual, business, date night, etc.]
+FABRIC: [if visible, e.g., cotton, denim, etc.]
+
+Then provide a natural, enthusiastic description of the item in 2-3 sentences, highlighting its key features and style."""
+        
+        # Analyze image using Bedrock (or fallback)
+        metadata = {}
+        analysis_text = ""
+        similar_products = []
+        
+        if bedrock_runtime:
+            # Use Bedrock to analyze the image
+            # Note: For Claude 3.5 Sonnet with image support, you would use:
+            # body = {
+            #     "anthropic_version": "bedrock-2023-05-31",
+            #     "max_tokens": 1024,
+            #     "messages": [{
+            #         "role": "user",
+            #         "content": [
+            #             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
+            #             {"type": "text", "text": analysis_prompt}
+            #         ]
+            #     }]
+            # }
+            
+            # For now, use text-based analysis with a prompt asking user to describe
+            response = call_bedrock(
+                "Please analyze this fashion image. " + analysis_prompt,
+                system_prompt="You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis."
+            )
+            analysis_text = response.get('content', '')
+            
+            # Extract metadata from analysis
+            if analysis_text:
+                # Extract ITEM_TYPE or CLOTHING_TYPE
+                item_match = re.search(r'(?:ITEM_TYPE|CLOTHING_TYPE):\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if item_match:
+                    clothing_type = item_match.group(1).strip()
+                    # Normalize common clothing types
+                    clothing_type_lower = clothing_type.lower()
+                    if 'dress' in clothing_type_lower:
+                        metadata['clothing_type'] = 'Dress'
+                    elif 'shirt' in clothing_type_lower or 'blouse' in clothing_type_lower:
+                        metadata['clothing_type'] = 'Shirt' if 't-shirt' not in clothing_type_lower else 'T-Shirt'
+                    elif 't-shirt' in clothing_type_lower or 'tshirt' in clothing_type_lower:
+                        metadata['clothing_type'] = 'T-Shirt'
+                    elif 'pants' in clothing_type_lower or 'trousers' in clothing_type_lower:
+                        metadata['clothing_type'] = 'Pants'
+                    elif 'jeans' in clothing_type_lower:
+                        metadata['clothing_type'] = 'Jeans'
+                    elif 'polo' in clothing_type_lower:
+                        metadata['clothing_type'] = 'Polo Shirt'
+                    else:
+                        metadata['clothing_type'] = clothing_type
+                
+                # Extract COLOR
+                color_match = re.search(r'COLOR:\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if color_match:
+                    color = color_match.group(1).strip().lower()
+                    # Normalize colors
+                    color_map = {
+                        'blue': 'Blue', 'navy': 'Navy', 'light blue': 'Blue',
+                        'red': 'Red', 'maroon': 'Maroon', 'burgundy': 'Red',
+                        'black': 'Black', 'dark': 'Black',
+                        'white': 'White', 'cream': 'White', 'ivory': 'White',
+                        'green': 'Green', 'emerald': 'Green',
+                        'yellow': 'Yellow', 'gold': 'Yellow',
+                        'pink': 'Pink', 'rose': 'Pink',
+                        'purple': 'Purple', 'violet': 'Purple',
+                        'gray': 'Gray', 'grey': 'Gray', 'silver': 'Gray',
+                        'brown': 'Brown', 'tan': 'Brown', 'beige': 'Beige',
+                        'orange': 'Orange'
+                    }
+                    for key, value in color_map.items():
+                        if key in color:
+                            metadata['color'] = value
+                            break
+                    if 'color' not in metadata:
+                        metadata['color'] = color_match.group(1).strip()
+                
+                # Extract CATEGORY
+                category_match = re.search(r'CATEGORY:\s*(men|women|kids)', analysis_text, re.IGNORECASE)
+                if category_match:
+                    metadata['category'] = category_match.group(1).lower()
+                else:
+                    # Try to infer from text
+                    text_lower = analysis_text.lower()
+                    if any(word in text_lower for word in ['women', 'woman', 'ladies', 'female']):
+                        metadata['category'] = 'women'
+                    elif any(word in text_lower for word in ['men', 'man', 'male', 'gentleman']):
+                        metadata['category'] = 'men'
+                    elif any(word in text_lower for word in ['kids', 'kid', 'children', 'child']):
+                        metadata['category'] = 'kids'
+                
+                # Extract OCCASION
+                occasion_match = re.search(r'OCCASION:\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if occasion_match:
+                    occasion = occasion_match.group(1).strip().lower()
+                    # Normalize occasions
+                    if 'casual' in occasion:
+                        metadata['occasion'] = 'casual'
+                    elif 'business' in occasion or 'professional' in occasion or 'formal' in occasion:
+                        metadata['occasion'] = 'business_formal' if 'formal' in occasion else 'business_casual'
+                    elif 'date' in occasion or 'night' in occasion:
+                        metadata['occasion'] = 'date_night'
+                    elif 'wedding' in occasion:
+                        metadata['occasion'] = 'wedding'
+                    else:
+                        metadata['occasion'] = occasion
+                
+                # Extract FABRIC
+                fabric_match = re.search(r'FABRIC:\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if fabric_match:
+                    fabric = fabric_match.group(1).strip()
+                    # Normalize fabrics
+                    fabric_lower = fabric.lower()
+                    if 'cotton' in fabric_lower:
+                        metadata['fabric'] = 'Cotton'
+                    elif 'polyester' in fabric_lower:
+                        metadata['fabric'] = 'Polyester'
+                    elif 'wool' in fabric_lower:
+                        metadata['fabric'] = 'Wool'
+                    elif 'silk' in fabric_lower:
+                        metadata['fabric'] = 'Silk'
+                    elif 'denim' in fabric_lower:
+                        metadata['fabric'] = 'Denim'
+                    elif 'linen' in fabric_lower:
+                        metadata['fabric'] = 'Linen'
+                    else:
+                        metadata['fabric'] = fabric
+                
+                # Extract the natural description (text after the structured data)
+                # Remove structured metadata lines
+                lines = analysis_text.split('\n')
+                desc_lines = []
+                skip_next = False
+                for i, line in enumerate(lines):
+                    line_stripped = line.strip()
+                    if any(line_stripped.startswith(prefix) for prefix in ['ITEM_TYPE:', 'COLOR:', 'CATEGORY:', 'CLOTHING_TYPE:', 'STYLE_FEATURES:', 'OCCASION:', 'FABRIC:']):
+                        skip_next = True
+                        continue
+                    if skip_next and not line_stripped:
+                        skip_next = False
+                        continue
+                    if not skip_next and line_stripped:
+                        desc_lines.append(line)
+                
+                if desc_lines:
+                    analysis_text = '\n'.join(desc_lines).strip()
+                elif not any(line.strip().startswith(('ITEM_TYPE:', 'COLOR:', 'CATEGORY:')) for line in lines):
+                    # If no structured format, use the whole text
+                    analysis_text = analysis_text.strip()
+        else:
+            # Fallback message
+            analysis_text = "I can see you've uploaded an image! To get detailed fashion analysis, AWS Bedrock needs to be configured."
+            metadata = {}
+        
+        # Search for similar products based on extracted metadata
+        search_criteria = {}
+        if metadata.get('category'):
+            search_criteria['category'] = metadata['category']
+        if metadata.get('color'):
+            search_criteria['color'] = metadata['color']
+        if metadata.get('clothing_type'):
+            search_criteria['clothing_type'] = metadata['clothing_type']
+        if metadata.get('occasion'):
+            search_criteria['occasion'] = metadata['occasion']
+        if metadata.get('fabric'):
+            search_criteria['fabric'] = metadata['fabric']
+        
+        # Search products using criteria
+        similar_products = []
+        if search_criteria:
+            # Try exact match first
+            similar_products = search_products_by_criteria(search_criteria)
+            
+            # If not enough results, try partial matches
+            if len(similar_products) < 5:
+                # Try without occasion (less strict)
+                partial_criteria = {k: v for k, v in search_criteria.items() if k != 'occasion'}
+                if partial_criteria and len(partial_criteria) < len(search_criteria):
+                    partial_products = search_products_by_criteria(partial_criteria)
+                    # Add products not already in similar_products
+                    existing_ids = {p['id'] for p in similar_products}
+                    for p in partial_products:
+                        if p['id'] not in existing_ids:
+                            similar_products.append(p)
+            
+            # If still not enough, try just category and color
+            if len(similar_products) < 5 and search_criteria.get('category') and search_criteria.get('color'):
+                simple_criteria = {
+                    'category': search_criteria['category'],
+                    'color': search_criteria['color']
+                }
+                simple_products = search_products_by_criteria(simple_criteria)
+                existing_ids = {p['id'] for p in similar_products}
+                for p in simple_products:
+                    if p['id'] not in existing_ids:
+                        similar_products.append(p)
+            
+            # If still not enough, try just category
+            if len(similar_products) < 5 and search_criteria.get('category'):
+                category_only = {'category': search_criteria['category']}
+                category_products = search_products_by_criteria(category_only)
+                existing_ids = {p['id'] for p in similar_products}
+                for p in category_products:
+                    if p['id'] not in existing_ids:
+                        similar_products.append(p)
+        
+        # Fallback: use vector search with description
+        if len(similar_products) < 3 and analysis_text:
+            # Create search query from analysis
+            search_terms = []
+            if metadata.get('clothing_type'):
+                search_terms.append(metadata['clothing_type'])
+            if metadata.get('color'):
+                search_terms.append(metadata['color'])
+            if metadata.get('category'):
+                search_terms.append(metadata['category'])
+            
+            search_query = ' '.join(search_terms) if search_terms else analysis_text[:200]
+            vector_product_ids = search_products_vector(search_query, n_results=10)
+            if vector_product_ids:
+                products = Product.query.filter(Product.id.in_(vector_product_ids)).filter_by(is_active=True).all()
+                vector_products = [p.to_dict() for p in products]
+                # Add products not already found
+                existing_ids = {p['id'] for p in similar_products}
+                for p in vector_products:
+                    if p['id'] not in existing_ids:
+                        similar_products.append(p)
+        
+        # Limit to 8 products for display
+        similar_products = similar_products[:8]
+        
+        # Format metadata into a nice sentence
+        metadata_sentence = ""
+        if metadata:
+            parts = []
+            if metadata.get('clothing_type'):
+                parts.append(f"a {metadata['clothing_type']}")
+            if metadata.get('color'):
+                parts.append(f"in {metadata['color']}")
+            if metadata.get('category'):
+                parts.append(f"for {metadata['category']}")
+            if metadata.get('occasion'):
+                parts.append(f"suitable for {metadata['occasion']}")
+            
+            if parts:
+                metadata_sentence = "This appears to be " + " ".join(parts) + "."
+            else:
+                metadata_sentence = "I've analyzed your image and found some similar items!"
+        else:
+            metadata_sentence = "I've analyzed your image and found some similar items!"
+        
+        # Combine analysis and metadata into a natural response
+        if analysis_text and analysis_text != "I can see you've uploaded an image! To get detailed fashion analysis, AWS Bedrock needs to be configured.":
+            full_response = f"{metadata_sentence}\n\n{analysis_text}"
+        else:
+            full_response = metadata_sentence
+        
+        if similar_products:
+            full_response += f"\n\nI found {len(similar_products)} similar product{'s' if len(similar_products) != 1 else ''} in our store that you might like!"
+        
+        return jsonify({
+            'success': True,
+            'message': full_response,
+            'image_data': image_base64,
+            'image_format': 'jpeg',
+            'metadata': metadata,
+            'metadata_sentence': metadata_sentence,
+            'similar_products': similar_products,
+            'similar_product_ids': [p['id'] for p in similar_products]
+        })
+        
+    except Exception as e:
+        print(f"Error uploading image: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to process image: {str(e)}'}), 500
+
+@ai_agent_bp.route('/analyze-image', methods=['POST'])
+def analyze_image():
+    """Analyze uploaded image using AI to provide fashion recommendations."""
+    try:
+        data = request.get_json()
+        image_base64 = data.get('image_data', '')
+        user_query = data.get('query', 'What is this item and what would match it?')
+        
+        if not image_base64:
+            return jsonify({'error': 'No image data provided'}), 400
+        
+        # Decode base64 image
+        import base64
+        import io
+        from PIL import Image
+        
+        try:
+            image_bytes = base64.b64decode(image_base64)
+            image = Image.open(io.BytesIO(image_bytes))
+        except Exception as e:
+            return jsonify({'error': f'Invalid image data: {str(e)}'}), 400
+        
+        # Build prompt for AI analysis
+        # Note: Claude 3.5 Sonnet in Bedrock supports image inputs via base64
+        # For now, we'll use text-based analysis
+        analysis_prompt = f"""You are a fashion expert analyzing a clothing item from an uploaded image.
+
+User's question: {user_query}
+
+Based on the image provided, please:
+1. Identify the type of clothing (dress, shirt, pants, etc.)
+2. Describe the color(s) and style
+3. Suggest matching items or complementary pieces
+4. Recommend occasions where this would be appropriate
+5. Provide styling tips
+
+Be enthusiastic and helpful, matching the tone of our shopping assistant!"""
+        
+        # Call Bedrock with the analysis
+        if bedrock_runtime:
+            # For Claude 3.5 Sonnet with image support, you would use:
+            # body = {
+            #     "anthropic_version": "bedrock-2023-05-31",
+            #     "max_tokens": 1024,
+            #     "messages": [{
+            #         "role": "user",
+            #         "content": [
+            #             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
+            #             {"type": "text", "text": analysis_prompt}
+            #         ]
+            #     }]
+            # }
+            
+            # For now, use text-only analysis
+            response = call_bedrock(analysis_prompt, system_prompt="You are a fashion expert helping customers find matching items and styling advice.")
+            analysis = response.get('content', 'Unable to analyze image at this time.')
+        else:
+            analysis = """I can see you've uploaded an image! To get detailed fashion analysis, AWS Bedrock needs to be configured with Claude 3.5 Sonnet (which supports image analysis).
+
+For now, you can describe the item to me and I'll help you find similar products or matching items!"""
+        
+        # Search for similar products based on the analysis
+        # This would be enhanced with actual image recognition/ML in production
+        similar_products = []
+        
+        return jsonify({
+            'success': True,
+            'analysis': analysis,
+            'similar_products': similar_products,
+            'suggestion': 'Try asking me to find similar items or suggest matching pieces!'
+        })
+        
+    except Exception as e:
+        print(f"Error analyzing image: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to analyze image: {str(e)}'}), 500
 

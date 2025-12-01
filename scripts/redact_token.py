@@ -3,7 +3,7 @@
 import os
 import sys
 
-TOKEN_TO_REPLACE = "YOUR_TOKEN_HERE"
+TOKEN_TO_REPLACE = "YOUR_ACTUAL_TOKEN_HERE"
 REPLACEMENT = 'os.getenv("HUGGINGFACE_API_TOKEN", "YOUR_TOKEN_HERE")'
 
 files_to_check = [

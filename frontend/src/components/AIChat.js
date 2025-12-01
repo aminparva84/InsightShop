@@ -75,24 +75,21 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   useEffect(() => {
     audioRef.current = new Audio();
     
-    // Check Polly status on mount
+    // Check Polly status on mount (only once, silently)
     const checkPollyStatus = async () => {
       try {
         const response = await axios.get('/api/ai/text-to-speech/status');
         if (response.data) {
           setPollyAvailable(response.data.available || false);
-          if (!response.data.available) {
-            console.warn('AWS Polly not available:', response.data);
-            if (!response.data.has_credentials) {
-              console.warn('AWS credentials not configured. Voice feature requires AWS Polly setup.');
-              console.warn('Add to .env: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY');
-            }
-          } else {
+          if (!response.data.available && !response.data.has_credentials) {
+            // Only log once as info, not warning
+            console.info('Voice feature disabled: AWS credentials not configured. Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env to enable.');
+          } else if (response.data.available) {
             console.log('✅ AWS Polly is available and ready');
           }
         }
       } catch (error) {
-        console.error('Error checking Polly status:', error);
+        // Silently handle errors - voice is optional
         setPollyAvailable(false);
       }
     };
@@ -129,19 +126,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Function to speak text with natural-sounding voice
   // Function to speak text using AWS Polly (natural, excited voice)
   const speakText = async (text) => {
-    if (!voiceEnabled) {
-      console.log('Voice is disabled');
-      return;
-    }
-    
-    if (!pollyAvailable) {
-      console.warn('AWS Polly is not available. Voice playback disabled.');
-      return;
-    }
-    
-    if (!audioRef.current) {
-      console.error('Audio ref not initialized');
-      return;
+    if (!voiceEnabled || !pollyAvailable || !audioRef.current) {
+      return; // Silently return if voice is disabled, unavailable, or audio not initialized
     }
 
     // Stop any ongoing speech
@@ -151,7 +137,6 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     }
 
     try {
-      console.log('Calling TTS API with text length:', text.length);
       setIsSpeaking(true);
       
       // Call backend to get audio from AWS Polly
@@ -161,8 +146,6 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       }, {
         responseType: 'json'
       });
-
-      console.log('TTS API response received:', response.data ? 'Has data' : 'No data', response.data?.format);
 
       if (response.data && response.data.audio) {
         // Convert base64 to blob URL
@@ -175,11 +158,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         const blob = new Blob([bytes], { type: 'audio/mpeg' });
         const audioUrl = URL.createObjectURL(blob);
 
-        console.log('Audio blob created, URL:', audioUrl.substring(0, 50) + '...');
-
         // Set up event handlers first
         const handleEnded = () => {
-          console.log('Audio playback ended');
           setIsSpeaking(false);
           URL.revokeObjectURL(audioUrl);
           // Remove listeners
@@ -203,24 +183,16 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         };
 
         const handleCanPlay = async () => {
-          console.log('Audio can play, attempting to play...');
           try {
             // Play audio - user has already interacted (sent message), so this should work
             const playPromise = audioRef.current.play();
             if (playPromise !== undefined) {
               await playPromise;
-              console.log('Audio play() called successfully');
             }
           } catch (playError) {
-            console.error('Error playing audio:', playError);
-            console.error('Play error details:', {
-              name: playError.name,
-              message: playError.message
-            });
-            
-            // If autoplay is blocked, user needs to interact
-            if (playError.name === 'NotAllowedError') {
-              console.warn('Autoplay blocked. Click the voice button to enable audio playback.');
+            // Silently handle autoplay errors - they're expected in some browsers
+            if (playError.name !== 'NotAllowedError' && playError.name !== 'AbortError') {
+              console.error('Error playing audio:', playError);
             }
             
             setIsSpeaking(false);
@@ -260,15 +232,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         playTimeout = setTimeout(async () => {
           cleanup();
           if (audioRef.current && audioRef.current.readyState >= 2 && audioRef.current.paused) {
-            console.log('Fallback: Attempting to play audio after delay');
             try {
-              const playPromise = audioRef.current.play();
-              if (playPromise !== undefined) {
-                await playPromise;
-                console.log('Audio play() called successfully (fallback)');
-              }
+              await audioRef.current.play();
             } catch (playError) {
-              console.error('Error playing audio (fallback):', playError);
+              // Silently handle fallback errors
               setIsSpeaking(false);
               URL.revokeObjectURL(audioUrl);
               audioRef.current?.removeEventListener('ended', handleEnded);
@@ -281,24 +248,15 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         // Cleanup timeout if audio starts playing before timeout
         audioRef.current.addEventListener('play', cleanup);
       } else {
-        console.error('No audio data received from API');
+        // No audio data - silently fail
         setIsSpeaking(false);
       }
     } catch (error) {
-      console.error('Error generating speech:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
       setIsSpeaking(false);
-      // Fallback: show error but don't break the UI
-      if (error.response?.data?.error) {
-        console.error('TTS Error:', error.response.data.error);
-        // Show user-friendly error message
-        if (error.response.data.error.includes('Polly client not initialized')) {
-          console.warn('AWS Polly not configured. Voice feature requires AWS credentials.');
-        }
+      // Silently handle TTS errors - voice is optional
+      // Only log if it's a real error (not service unavailable)
+      if (error.response?.status && error.response.status !== 503) {
+        console.error('TTS Error:', error.response?.data?.error || error.message);
       }
     }
   };
@@ -641,17 +599,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       // Also check if action is undefined but we have products (backend might have missed setting action)
       const hasProductsButNoAction = (hasProductIds || hasSuggestedProducts) && !response.data.action;
       
-      console.log('AI Chat: Detection results:', {
-        hasProductIds,
-        hasSuggestedProducts,
-        isSearchResultsAction,
-        action: response.data.action
-      });
-      
-      // Debug logging (only log if there's an issue)
-      if (!hasProductIds && !hasSuggestedProducts && response.data.action === 'search_results') {
-        console.warn('AI Response - action is search_results but no products found');
-      }
+      // Process AI response
       
       // If user wants to see products in chat, format them as text list
       if (wantsToSeeInChat && hasSuggestedProducts && response.data.suggested_products.length > 0) {
@@ -728,7 +676,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           const isHomePage = location.pathname === '/';
           
           // Log for debugging
-          console.log('AI Chat: Product IDs extracted:', productIds);
+          // Extract product IDs from response
           console.log('AI Chat: Suggested products from response:', response.data.suggested_products?.map(p => ({ id: p.id, name: p.name, category: p.category })));
           
           if (isHomePage && onProductsUpdate) {
@@ -745,22 +693,13 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               console.log('AI Chat: Using backend suggested_product_ids:', backendIds);
               console.log('AI Chat: Verifying these match suggested_products...');
               
-              // Verify the IDs match the products
-              if (response.data.suggested_products) {
-                const productIdsFromProducts = response.data.suggested_products.map(p => p.id || p).filter(id => id != null);
-                console.log('AI Chat: Product IDs from suggested_products:', productIdsFromProducts);
-                console.log('AI Chat: Categories from suggested_products:', response.data.suggested_products.map(p => ({ id: p.id, category: p.category, name: p.name })));
-              }
-              
               onProductsUpdate(backendIds);
             } else if (response.data.suggested_products && response.data.suggested_products.length > 0) {
               // Fallback: extract IDs from suggested_products
               const suggestedIds = response.data.suggested_products.map(p => p.id || p).filter(id => id != null);
-              console.log('AI Chat: Using IDs extracted from suggested_products:', suggestedIds);
               onProductsUpdate(suggestedIds);
             } else {
               // Last resort: use extracted IDs
-              console.log('AI Chat: Using extracted product IDs:', productIds);
               onProductsUpdate(productIds);
             }
             

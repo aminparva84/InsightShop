@@ -1,29 +1,67 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import SizeSelector from '../components/SizeSelector';
 import ColorSwatches from '../components/ColorSwatches';
+import ProductCard from '../components/ProductCard';
+import axios from 'axios';
 import './Cart.css';
 
 const Cart = () => {
   const { cartItems, cartTotal, updateCartItem, removeFromCart } = useCart();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [suggestedProducts, setSuggestedProducts] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
-  // Guest shopping enabled - no login required
-  if (cartItems.length === 0) {
-    return (
-      <div className="cart-page">
-        <div className="container">
-          <div className="cart-empty">
-            <h2>Your cart is empty</h2>
-            <Link to="/" className="btn btn-primary">Continue Shopping</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Fetch suggested products based on cart items
+  // IMPORTANT: This hook must be called before any early returns
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (cartItems.length === 0) {
+        setSuggestedProducts([]);
+        return;
+      }
+
+      try {
+        setLoadingSuggestions(true);
+        // Get categories and colors from cart items
+        const categories = [...new Set(cartItems.map(item => item.product?.category).filter(Boolean))];
+        const colors = [...new Set(cartItems.map(item => item.product?.color || item.selected_color).filter(Boolean))];
+        
+        // Build query params
+        const params = new URLSearchParams();
+        if (categories.length > 0) {
+          params.append('category', categories[0]); // Use first category
+        }
+        if (colors.length > 0) {
+          params.append('color', colors[0]); // Use first color
+        }
+        params.append('per_page', '8');
+
+        // Exclude products already in cart
+        const cartProductIds = cartItems.map(item => item.product_id || item.product?.id).filter(Boolean);
+        if (cartProductIds.length > 0) {
+          // Fetch all products and filter out cart items
+          const response = await axios.get(`/api/products?${params.toString()}`);
+          const allProducts = response.data.products || [];
+          const filtered = allProducts.filter(p => !cartProductIds.includes(p.id));
+          setSuggestedProducts(filtered.slice(0, 8));
+        } else {
+          const response = await axios.get(`/api/products?${params.toString()}`);
+          setSuggestedProducts((response.data.products || []).slice(0, 8));
+        }
+      } catch (error) {
+        console.error('Error fetching suggestions:', error);
+        setSuggestedProducts([]);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    };
+
+    fetchSuggestions();
+  }, [cartItems]);
 
   const handleQuantityChange = async (itemId, newQuantity) => {
     if (newQuantity < 1) {
@@ -47,6 +85,29 @@ const Cart = () => {
     }
   };
 
+  const handleRemove = async (itemId) => {
+    const item = cartItems.find(i => i.id === itemId);
+    if (item) {
+      await removeFromCart(itemId, item.selected_color, item.selected_size);
+    } else {
+      await removeFromCart(itemId);
+    }
+  };
+
+  // Guest shopping enabled - no login required
+  if (cartItems.length === 0) {
+    return (
+      <div className="cart-page">
+        <div className="container">
+          <div className="cart-empty">
+            <h2>Your cart is empty</h2>
+            <Link to="/" className="btn btn-primary">Continue Shopping</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="cart-page">
       <div className="container">
@@ -60,6 +121,10 @@ const Cart = () => {
                   src={item.product?.image_url || 'https://via.placeholder.com/150x150?text=Product'}
                   alt={item.product?.name}
                   className="cart-item-image"
+                  onError={(e) => {
+                    e.target.src = 'https://via.placeholder.com/150x150?text=Product';
+                    e.target.onerror = null; // Prevent infinite loop
+                  }}
                 />
                 <div className="cart-item-info">
                   <h3>{item.product?.name}</h3>
@@ -97,7 +162,7 @@ const Cart = () => {
                     <button onClick={() => handleQuantityChange(item.id, item.quantity + 1)}>+</button>
                   </div>
                   <div className="cart-item-subtotal">${item.subtotal.toFixed(2)}</div>
-                  <button onClick={() => removeFromCart(item.id)} className="btn-remove">Remove</button>
+                  <button onClick={() => handleRemove(item.id)} className="btn-remove">Remove</button>
                 </div>
               </div>
             ))}
@@ -126,6 +191,22 @@ const Cart = () => {
             </Link>
           </div>
         </div>
+
+        {/* Suggested Products Section */}
+        {suggestedProducts.length > 0 && (
+          <div className="cart-suggestions">
+            <h2 className="section-title">You Might Also Like</h2>
+            {loadingSuggestions ? (
+              <div className="spinner"></div>
+            ) : (
+              <div className="suggestions-grid">
+                {suggestedProducts.map(product => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

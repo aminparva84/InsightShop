@@ -103,6 +103,10 @@ const Compare = () => {
                         src={product.image_url || 'https://via.placeholder.com/150'} 
                         alt={product.name}
                         className="compare-product-image"
+                        onError={(e) => {
+                          e.target.src = 'https://via.placeholder.com/150?text=Product';
+                          e.target.onerror = null; // Prevent infinite loop
+                        }}
                       />
                       <h3>{product.name}</h3>
                       <div className="product-price">${parseFloat(product.price).toFixed(2)}</div>

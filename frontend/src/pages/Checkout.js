@@ -12,6 +12,13 @@ const Checkout = () => {
   const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('stripe'); // 'stripe' or 'chase'
+  const [cardData, setCardData] = useState({
+    cardNumber: '',
+    expiryDate: '',
+    cvv: '',
+    cardholderName: ''
+  });
   const [formData, setFormData] = useState({
     email: '',
     shipping_name: '',
@@ -200,7 +207,116 @@ const Checkout = () => {
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="btn btn-primary btn-submit">
+            <h3 style={{marginTop: '30px', marginBottom: '20px', color: '#7c3aed'}}>Payment Information</h3>
+            
+            <div className="form-group">
+              <label className="form-label">Payment Method *</label>
+              <div style={{display: 'flex', gap: '16px', marginBottom: '20px'}}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '12px', border: paymentMethod === 'stripe' ? '2px solid #7c3aed' : '2px solid #e5e7eb', borderRadius: '8px', flex: 1}}>
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="stripe"
+                    checked={paymentMethod === 'stripe'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{margin: 0}}
+                  />
+                  <span>💳 Credit/Debit Card (Stripe)</span>
+                </label>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '12px', border: paymentMethod === 'chase' ? '2px solid #7c3aed' : '2px solid #e5e7eb', borderRadius: '8px', flex: 1, opacity: 0.5}}>
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="chase"
+                    checked={paymentMethod === 'chase'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    disabled
+                    style={{margin: 0}}
+                  />
+                  <span>🏦 Chase Payment (Coming Soon)</span>
+                </label>
+              </div>
+            </div>
+
+            {paymentMethod === 'stripe' && (
+              <div style={{background: '#f9fafb', padding: '20px', borderRadius: '8px', marginBottom: '20px'}}>
+                <div className="form-group">
+                  <label className="form-label">Cardholder Name *</label>
+                  <input
+                    type="text"
+                    value={cardData.cardholderName}
+                    onChange={(e) => setCardData({...cardData, cardholderName: e.target.value})}
+                    required
+                    className="form-input"
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Card Number *</label>
+                  <input
+                    type="text"
+                    value={cardData.cardNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
+                      const formatted = value.match(/.{1,4}/g)?.join(' ') || value;
+                      setCardData({...cardData, cardNumber: formatted});
+                    }}
+                    maxLength={19}
+                    required
+                    className="form-input"
+                    placeholder="1234 5678 9012 3456"
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Expiry Date *</label>
+                    <input
+                      type="text"
+                      value={cardData.expiryDate}
+                      onChange={(e) => {
+                        let value = e.target.value.replace(/\D/g, '');
+                        if (value.length >= 2) {
+                          value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                        }
+                        setCardData({...cardData, expiryDate: value});
+                      }}
+                      maxLength={5}
+                      required
+                      className="form-input"
+                      placeholder="MM/YY"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">CVV *</label>
+                    <input
+                      type="text"
+                      value={cardData.cvv}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                        setCardData({...cardData, cvv: value});
+                      }}
+                      maxLength={4}
+                      required
+                      className="form-input"
+                      placeholder="123"
+                    />
+                  </div>
+                </div>
+                <small style={{color: '#6b7280', fontSize: '12px', display: 'block', marginTop: '8px'}}>
+                  🔒 Your payment information is secure. We use Stripe for secure payment processing.
+                </small>
+              </div>
+            )}
+
+            {paymentMethod === 'chase' && (
+              <div style={{background: '#fef3c7', padding: '20px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center'}}>
+                <p style={{color: '#92400e', margin: 0}}>
+                  ⚠️ Chase Payment integration is coming soon. Please use Stripe for now.
+                </p>
+              </div>
+            )}
+
+            <button type="submit" disabled={loading || paymentMethod === 'chase'} className="btn btn-primary btn-submit">
               {loading ? 'Processing...' : 'Complete Order'}
             </button>
           </form>

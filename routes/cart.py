@@ -15,6 +15,9 @@ cart_bp = Blueprint('cart', __name__)
 def get_cart():
     """Get cart items (authenticated or guest)."""
     try:
+        # Check database connection
+        if not db.session:
+            return jsonify({'error': 'Database connection not available'}), 500
         # Check if user is authenticated
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -41,13 +44,20 @@ def get_cart():
         items = []
         total = 0.0
         
-        for cart_item in guest_cart:
+        for index, cart_item in enumerate(guest_cart):
             product = Product.query.get(cart_item['product_id'])
             if product and product.is_active:
                 item_total = float(product.price) * cart_item['quantity']
                 total += item_total
+                
+                # Create unique ID that includes product_id, color, size, and index
+                # This ensures each cart item has a unique identifier
+                color_part = cart_item.get('selected_color') or 'none'
+                size_part = cart_item.get('selected_size') or 'none'
+                unique_id = f"guest_{cart_item['product_id']}_{color_part}_{size_part}_{index}"
+                
                 items.append({
-                    'id': f"guest_{cart_item['product_id']}",
+                    'id': unique_id,
                     'product_id': cart_item['product_id'],
                     'product': product.to_dict(),
                     'quantity': cart_item['quantity'],
@@ -233,16 +243,86 @@ def update_cart_item(item_id):
 def remove_from_cart(item_id):
     """Remove item from cart (authenticated or guest)."""
     try:
+        print(f"DELETE /api/cart/{item_id} called")
+        
         # Check if guest cart item
         if item_id.startswith('guest_'):
-            product_id = int(item_id.replace('guest_', ''))
-            remove_from_guest_cart(product_id)
-            return jsonify({'message': 'Item removed from cart'}), 200
+            # Parse the unique ID format: guest_{product_id}_{color}_{size}_{index}
+            # Or fallback to old format: guest_{product_id}
+            parts = item_id.replace('guest_', '').split('_')
+            
+            try:
+                # Try to parse new format with color/size/index
+                if len(parts) >= 1:
+                    # Extract product_id (first part)
+                    product_id = int(parts[0])
+                else:
+                    # Fallback: try to parse as single number
+                    product_id = int(item_id.replace('guest_', ''))
+            except (ValueError, IndexError):
+                print(f"Invalid item ID format: {item_id}")
+                return jsonify({'error': 'Invalid item ID format'}), 400
+            
+            # Get selected_color and selected_size from request body (more reliable)
+            # Flask needs request.get_json(force=True) for DELETE requests sometimes
+            try:
+                # Try multiple methods to get JSON data from DELETE request
+                if request.is_json:
+                    data = request.get_json() or {}
+                else:
+                    data = request.get_json(force=True, silent=True) or {}
+            except Exception as e:
+                print(f"Error parsing JSON from DELETE request: {e}")
+                data = {}
+            
+            selected_color = data.get('selected_color')
+            selected_size = data.get('selected_size')
+            
+            print(f"DELETE Request - Item ID: {item_id}")
+            print(f"DELETE Request - Product ID: {product_id}")
+            print(f"DELETE Request - Color: {selected_color}")
+            print(f"DELETE Request - Size: {selected_size}")
+            print(f"DELETE Request - Request data: {data}")
+            print(f"DELETE Request - Request content type: {request.content_type}")
+            
+            # Debug: Show current cart before removal
+            from utils.guest_cart import get_guest_cart
+            current_cart = get_guest_cart()
+            print(f"Current cart before removal ({len(current_cart)} items):")
+            for idx, item in enumerate(current_cart):
+                print(f"  [{idx}] product_id={item.get('product_id')}, color={item.get('selected_color')}, size={item.get('selected_size')}, qty={item.get('quantity')}")
+            
+            # Remove from guest cart (function handles color/size matching)
+            result = remove_from_guest_cart(product_id, selected_color, selected_size)
+            print(f"Guest cart removal result: {result}")
+            
+            if not result:
+                print(f"WARNING: No item found to remove with product_id={product_id}, color={selected_color}, size={selected_size}")
+                # Still return success to avoid breaking the UI, but log the issue
+            
+            # Verify removal by checking cart
+            remaining_cart = get_guest_cart()
+            print(f"Remaining items in guest cart: {len(remaining_cart)}")
+            print(f"Cart contents after removal: {remaining_cart}")
+            
+            return jsonify({'message': 'Item removed from cart', 'removed': result}), 200
         
         # Authenticated user
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Authentication required'}), 401
+            # For guest users, try to remove from guest cart if item_id is numeric
+            try:
+                product_id = int(item_id)
+                try:
+                    data = request.get_json(force=True, silent=True) or {}
+                except:
+                    data = {}
+                selected_color = data.get('selected_color')
+                selected_size = data.get('selected_size')
+                remove_from_guest_cart(product_id, selected_color, selected_size)
+                return jsonify({'message': 'Item removed from cart'}), 200
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Authentication required'}), 401
         
         from routes.auth import verify_jwt_token
         token = auth_header[7:]
@@ -263,6 +343,9 @@ def remove_from_cart(item_id):
         
     except Exception as e:
         db.session.rollback()
+        import traceback
+        print(f"Error in remove_from_cart: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @cart_bp.route('/clear', methods=['DELETE'])

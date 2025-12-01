@@ -16,18 +16,35 @@ except ImportError:
     stripe = None
 
 @payments_bp.route('/create-intent', methods=['POST'])
-@require_auth
 def create_payment_intent():
-    """Create a Stripe payment intent."""
+    """Create a Stripe payment intent (works for authenticated and guest users)."""
     try:
-        user = request.current_user
         data = request.get_json()
         
         order_id = data.get('order_id')
         if not order_id:
             return jsonify({'error': 'Order ID is required'}), 400
         
-        order = Order.query.filter_by(id=order_id, user_id=user.id).first_or_404()
+        # Check if user is authenticated
+        user = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                from routes.auth import verify_jwt_token
+                token = auth_header[7:]
+                payload = verify_jwt_token(token)
+                if payload:
+                    from models.user import User
+                    user = User.query.get(payload['user_id'])
+            except:
+                pass
+        
+        # Get order - for authenticated users, verify ownership; for guests, allow by order_id
+        if user:
+            order = Order.query.filter_by(id=order_id, user_id=user.id).first_or_404()
+        else:
+            # Guest order - verify by order_id only (in production, add email verification)
+            order = Order.query.filter_by(id=order_id).first_or_404()
         
         if order.status != 'pending':
             return jsonify({'error': 'Order is not pending payment'}), 400
@@ -85,11 +102,9 @@ def create_payment_intent():
         return jsonify({'error': str(e)}), 500
 
 @payments_bp.route('/confirm', methods=['POST'])
-@require_auth
 def confirm_payment():
-    """Confirm a payment."""
+    """Confirm a payment (works for authenticated and guest users)."""
     try:
-        user = request.current_user
         data = request.get_json()
         
         payment_id = data.get('payment_id')
@@ -98,6 +113,20 @@ def confirm_payment():
         if not payment_id and not payment_intent_id:
             return jsonify({'error': 'Payment ID or Payment Intent ID is required'}), 400
         
+        # Check if user is authenticated
+        user = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                from routes.auth import verify_jwt_token
+                token = auth_header[7:]
+                payload = verify_jwt_token(token)
+                if payload:
+                    from models.user import User
+                    user = User.query.get(payload['user_id'])
+            except:
+                pass
+        
         if payment_intent_id:
             payment = Payment.query.filter_by(payment_intent_id=payment_intent_id).first_or_404()
         else:
@@ -105,7 +134,8 @@ def confirm_payment():
         
         order = Order.query.get_or_404(payment.order_id)
         
-        if order.user_id != user.id:
+        # Verify ownership for authenticated users
+        if user and order.user_id and order.user_id != user.id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         if not Config.STRIPE_SECRET_KEY or stripe is None:

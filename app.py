@@ -15,17 +15,23 @@ app.config['SECRET_KEY'] = Config.SECRET_KEY  # Required for session
 app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = Config.JWT_EXPIRATION
 
+# Session configuration for guest cart
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site cookies
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+
 # Initialize database (only if not in test mode and not already initialized)
 if not app.config.get('TESTING') and not hasattr(app, '_db_initialized'):
     init_db(app)
     app._db_initialized = True
 
-# Enable CORS for React frontend
+# Enable CORS for React frontend with credentials support for sessions
 CORS(app, resources={
     r"/api/*": {
         "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True  # Allow cookies/sessions
     }
 })
 

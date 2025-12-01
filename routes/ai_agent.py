@@ -874,11 +874,23 @@ def compare_products():
 def tts_status():
     """Check if AWS Polly is available and configured."""
     try:
+        # Safely get Config values with defaults
+        aws_region = None
+        has_credentials = False
+        try:
+            aws_region = Config.AWS_REGION if hasattr(Config, 'AWS_REGION') and Config.AWS_REGION else None
+            has_credentials = bool(
+                hasattr(Config, 'AWS_ACCESS_KEY_ID') and Config.AWS_ACCESS_KEY_ID and
+                hasattr(Config, 'AWS_SECRET_ACCESS_KEY') and Config.AWS_SECRET_ACCESS_KEY
+            )
+        except Exception as config_error:
+            print(f"Warning: Error accessing Config: {config_error}")
+        
         status = {
             'available': polly_available,
             'client_initialized': polly_client is not None,
-            'aws_region': Config.AWS_REGION if Config.AWS_REGION else None,
-            'has_credentials': bool(Config.AWS_ACCESS_KEY_ID and Config.AWS_SECRET_ACCESS_KEY)
+            'aws_region': aws_region,
+            'has_credentials': has_credentials
         }
         
         if polly_client and polly_available:
@@ -893,7 +905,10 @@ def tts_status():
         
         return jsonify(status), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error in tts_status: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'available': False}), 500
 
 @ai_agent_bp.route('/text-to-speech', methods=['POST'])
 def text_to_speech():
@@ -912,7 +927,8 @@ def text_to_speech():
                 error_msg += 'Please configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your .env file.'
             else:
                 error_msg += 'Please check your AWS credentials and Polly permissions.'
-            return jsonify({'error': error_msg}), 500
+            # Return 503 Service Unavailable instead of 500 for missing service
+            return jsonify({'error': error_msg, 'service_unavailable': True}), 503
         
         # Clean text for better speech
         import re

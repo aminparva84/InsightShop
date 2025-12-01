@@ -26,6 +26,7 @@ def add_to_guest_cart(product_id, quantity, selected_color=None, selected_size=N
             item.get('selected_size') == selected_size):
             item['quantity'] += quantity
             session[GUEST_CART_SESSION_KEY] = cart
+            session.modified = True  # Force Flask to save the session
             return True
     
     # Add new item
@@ -36,6 +37,7 @@ def add_to_guest_cart(product_id, quantity, selected_color=None, selected_size=N
         'selected_size': selected_size
     })
     session[GUEST_CART_SESSION_KEY] = cart
+    session.modified = True  # Force Flask to save the session
     return True
 
 def update_guest_cart_item(product_id, quantity, selected_color=None, selected_size=None):
@@ -54,24 +56,58 @@ def update_guest_cart_item(product_id, quantity, selected_color=None, selected_s
                 if selected_size is not None:
                     item['selected_size'] = selected_size
             session[GUEST_CART_SESSION_KEY] = cart
+            session.modified = True  # Force Flask to save the session
             return True
     
     return False
 
 def remove_from_guest_cart(product_id, selected_color=None, selected_size=None):
-    """Remove item from guest cart."""
+    """Remove ONE item from guest cart that matches the criteria."""
     cart = get_guest_cart()
-    cart = [item for item in cart if not (
-        item['product_id'] == product_id and 
-        item.get('selected_color') == selected_color and 
-        item.get('selected_size') == selected_size
-    )]
-    session[GUEST_CART_SESSION_KEY] = cart
-    return True
+    original_count = len(cart)
+    
+    # Normalize None values for comparison (handle both None and empty string)
+    def normalize_value(val):
+        if val is None or val == '':
+            return None
+        return val
+    
+    normalized_selected_color = normalize_value(selected_color)
+    normalized_selected_size = normalize_value(selected_size)
+    
+    # Find and remove the FIRST matching item (remove only one, not all)
+    removed = False
+    for i, item in enumerate(cart):
+        item_product_id = item.get('product_id')
+        item_color = normalize_value(item.get('selected_color'))
+        item_size = normalize_value(item.get('selected_size'))
+        
+        # Check if this item matches
+        product_match = item_product_id == product_id
+        
+        if product_match:
+            # If color/size are specified, they must match
+            # If not specified, match any item with this product_id
+            color_match = (normalized_selected_color is None) or (item_color == normalized_selected_color)
+            size_match = (normalized_selected_size is None) or (item_size == normalized_selected_size)
+            
+            if color_match and size_match:
+                # Remove this item (only the first match)
+                cart.pop(i)
+                removed = True
+                break
+    
+    # Update session and mark as modified to ensure Flask saves it
+    if removed:
+        session[GUEST_CART_SESSION_KEY] = cart
+        session.modified = True  # Force Flask to save the session
+    
+    return removed
 
 def clear_guest_cart():
     """Clear guest cart."""
     if GUEST_CART_SESSION_KEY in session:
         del session[GUEST_CART_SESSION_KEY]
+        session.modified = True  # Force Flask to save the session
     return True
 

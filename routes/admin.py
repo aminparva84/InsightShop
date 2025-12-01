@@ -4,6 +4,7 @@ from models.database import db
 from models.user import User
 from routes.auth import require_auth
 from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
+from functools import wraps
 import json
 import os
 
@@ -11,6 +12,7 @@ admin_bp = Blueprint('admin', __name__)
 
 def require_admin(f):
     """Decorator to require admin authentication."""
+    @wraps(f)
     @require_auth
     def decorated_function(*args, **kwargs):
         user = request.current_user

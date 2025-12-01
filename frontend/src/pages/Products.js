@@ -44,6 +44,34 @@ const Products = () => {
     fetchFabrics();
     fetchPriceRange();
   }, []);
+  
+  // Fetch products on initial load (only once on mount)
+  useEffect(() => {
+    // Initial load - fetch all products for normal tab
+    const fetchInitialProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get('/api/products');
+        if (response.data && response.data.products) {
+          setProducts(response.data.products);
+          setAllProducts(response.data.products);
+          console.log('Products Page: Initial load - fetched', response.data.products.length, 'products');
+        }
+      } catch (error) {
+        console.error('Error fetching initial products:', error);
+        setProducts([]);
+        setAllProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    // Only fetch on initial mount if no AI results in URL
+    const hasAiResults = searchParams.get('ai_results');
+    if (!hasAiResults) {
+      fetchInitialProducts();
+    }
+  }, []); // Only run once on mount
 
   // Sync filters with URL searchParams when URL changes (e.g., AI navigation)
   useEffect(() => {
@@ -108,6 +136,7 @@ const Products = () => {
     // Always fetch products when:
     // 1. AI results exist (regardless of tab - we need to fetch them)
     // 2. We're on normal tab (for regular browsing)
+    // 3. Filters change (for filtering)
     if (hasAiResults || activeTab === 'normal') {
       console.log('Products Page: Triggering fetchProducts, hasAiResults:', hasAiResults, 'aiResultsToUse:', aiResultsToUse, 'activeTab:', activeTab, 'currentTabFromUrl:', currentTabFromUrl);
       // Use a small timeout to ensure URL params and tab state are fully processed
@@ -120,7 +149,7 @@ const Products = () => {
       console.log('Products Page: AI Dashboard with no results, setting loading to false');
       setLoading(false);
     }
-  }, [searchParams, activeTab, filters.ai_results]); // Include filters.ai_results to catch state updates
+  }, [searchParams, activeTab, filters.ai_results, filters.category, filters.color, filters.size, filters.fabric, filters.minPrice, filters.maxPrice, filters.search]); // Include all filter changes
 
   const fetchCategories = async () => {
     try {

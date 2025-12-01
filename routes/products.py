@@ -10,6 +10,9 @@ products_bp = Blueprint('products', __name__)
 def get_products():
     """Get all products with optional filters."""
     try:
+        # Check database connection
+        if not db.session:
+            return jsonify({'error': 'Database connection not available'}), 500
         category = request.args.get('category', '')
         color = request.args.get('color', '')
         search = request.args.get('search', '')

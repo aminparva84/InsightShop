@@ -559,6 +559,309 @@ def delete_product(product_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+# ==================== ORDER MANAGEMENT ROUTES ====================
+
+@admin_bp.route('/orders', methods=['GET'])
+@require_admin
+def list_orders():
+    """List all orders (admin only)."""
+    try:
+        from sqlalchemy import or_
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        status = request.args.get('status', None)
+        user_id = request.args.get('user_id', None, type=int)
+        search = request.args.get('search', None)
+        
+        query = Order.query
+        
+        if status:
+            query = query.filter_by(status=status)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        if search:
+            query = query.filter(
+                or_(
+                    Order.order_number.ilike(f'%{search}%'),
+                    Order.shipping_name.ilike(f'%{search}%'),
+                    Order.guest_email.ilike(f'%{search}%')
+                )
+            )
+        
+        pagination = query.order_by(Order.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        return jsonify({
+            'success': True,
+            'orders': [order.to_dict() for order in pagination.items],
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': pagination.total,
+                'pages': pagination.pages
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/orders/<int:order_id>', methods=['GET'])
+@require_admin
+def get_order_admin(order_id):
+    """Get a single order (admin only)."""
+    try:
+        order = Order.query.get_or_404(order_id)
+        return jsonify({
+            'success': True,
+            'order': order.to_dict()
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/orders/<int:order_id>/status', methods=['PUT'])
+@require_admin
+def update_order_status(order_id):
+    """Update order status (admin only)."""
+    try:
+        order = Order.query.get_or_404(order_id)
+        data = request.get_json()
+        
+        new_status = data.get('status')
+        if not new_status:
+            return jsonify({'error': 'Status is required'}), 400
+        
+        valid_statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
+        if new_status not in valid_statuses:
+            return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
+        
+        order.status = new_status
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Order status updated to {new_status}',
+            'order': order.to_dict()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# ==================== ENHANCED USER MANAGEMENT ROUTES ====================
+
+@admin_bp.route('/users/<int:user_id>', methods=['GET'])
+@require_admin
+def get_user_details(user_id):
+    """Get user details (admin only)."""
+    try:
+        user = User.query.get_or_404(user_id)
+        user_dict = user.to_dict()
+        
+        # Add additional admin info
+        from models.order import Order
+        from models.cart import CartItem
+        user_dict['order_count'] = Order.query.filter_by(user_id=user_id).count()
+        user_dict['cart_item_count'] = CartItem.query.filter_by(user_id=user_id).count()
+        
+        return jsonify({
+            'success': True,
+            'user': user_dict
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@require_admin
+def delete_user(user_id):
+    """Delete a user (admin only)."""
+    try:
+        user = User.query.get_or_404(user_id)
+        
+        # Prevent deleting superadmin
+        if user.is_superadmin:
+            return jsonify({'error': 'Cannot delete superadmin user'}), 400
+        
+        # Delete related data (cascade will handle most)
+        from models.cart import CartItem
+        CartItem.query.filter_by(user_id=user_id).delete()
+        
+        db.session.delete(user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'User {user.email} deleted successfully'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/users/<int:user_id>/password', methods=['PUT'])
+@require_admin
+def reset_user_password(user_id):
+    """Reset user password (admin only)."""
+    try:
+        user = User.query.get_or_404(user_id)
+        data = request.get_json()
+        
+        new_password = data.get('new_password')
+        if not new_password or len(new_password) < 6:
+            return jsonify({'error': 'New password must be at least 6 characters'}), 400
+        
+        import bcrypt
+        user.password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Password reset for {user.email}'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# ==================== DATABASE STATISTICS ROUTES ====================
+
+@admin_bp.route('/statistics', methods=['GET'])
+@require_admin
+def get_statistics():
+    """Get database statistics (admin only)."""
+    try:
+        from sqlalchemy import func
+        from datetime import datetime, timedelta
+        
+        stats = {
+            'users': {
+                'total': User.query.count(),
+                'admins': User.query.filter_by(is_admin=True).count(),
+                'superadmins': User.query.filter_by(is_superadmin=True).count(),
+                'active': User.query.filter_by(is_active=True).count()
+            },
+            'products': {
+                'total': Product.query.count(),
+                'active': Product.query.filter_by(is_active=True).count(),
+                'inactive': Product.query.filter_by(is_active=False).count(),
+                'low_stock': Product.query.filter(Product.stock_quantity < 10).count(),
+                'out_of_stock': Product.query.filter_by(stock_quantity=0).count()
+            },
+            'orders': {
+                'total': Order.query.count(),
+                'pending': Order.query.filter_by(status='pending').count(),
+                'processing': Order.query.filter_by(status='processing').count(),
+                'shipped': Order.query.filter_by(status='shipped').count(),
+                'delivered': Order.query.filter_by(status='delivered').count(),
+                'cancelled': Order.query.filter_by(status='cancelled').count(),
+                'today': Order.query.filter(Order.created_at >= datetime.now().date()).count(),
+                'this_week': Order.query.filter(Order.created_at >= datetime.now() - timedelta(days=7)).count(),
+                'this_month': Order.query.filter(Order.created_at >= datetime.now() - timedelta(days=30)).count()
+            },
+            'sales': {
+                'total': Sale.query.count(),
+                'active': Sale.query.filter_by(is_active=True).count(),
+                'inactive': Sale.query.filter_by(is_active=False).count()
+            },
+            'reviews': {
+                'total': Review.query.count(),
+                'today': Review.query.filter(Review.created_at >= datetime.now().date()).count()
+            },
+            'revenue': {
+                'total': float(db.session.query(func.sum(Order.total)).scalar() or 0),
+                'today': float(db.session.query(func.sum(Order.total)).filter(Order.created_at >= datetime.now().date()).scalar() or 0),
+                'this_week': float(db.session.query(func.sum(Order.total)).filter(Order.created_at >= datetime.now() - timedelta(days=7)).scalar() or 0),
+                'this_month': float(db.session.query(func.sum(Order.total)).filter(Order.created_at >= datetime.now() - timedelta(days=30)).scalar() or 0)
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'statistics': stats
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+# ==================== CART MANAGEMENT ROUTES ====================
+
+@admin_bp.route('/carts', methods=['GET'])
+@require_admin
+def list_carts():
+    """List all user carts (admin only)."""
+    try:
+        from models.cart import CartItem
+        from sqlalchemy import func
+        
+        # Get carts with item counts and totals
+        # Use product.to_dict() to get sale prices if applicable
+        carts_query = db.session.query(
+            CartItem.user_id,
+            func.count(CartItem.id).label('item_count')
+        ).group_by(CartItem.user_id).all()
+        
+        carts_data = []
+        for cart in carts_query:
+            user = User.query.get(cart.user_id)
+            if user:
+                # Calculate total using sale prices
+                cart_items = CartItem.query.filter_by(user_id=cart.user_id).all()
+                total = 0.0
+                for item in cart_items:
+                    if item.product:
+                        try:
+                            product_dict = item.product.to_dict()
+                            current_price = product_dict.get('price', float(item.product.price) if item.product.price else 0.0)
+                        except Exception:
+                            current_price = float(item.product.price) if item.product.price else 0.0
+                        total += current_price * item.quantity
+                
+                carts_data.append({
+                    'user_id': cart.user_id,
+                    'user_email': user.email,
+                    'item_count': cart.item_count,
+                    'estimated_total': total
+                })
+        
+        return jsonify({
+            'success': True,
+            'carts': carts_data,
+            'count': len(carts_data)
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/carts/user/<int:user_id>', methods=['GET'])
+@require_admin
+def get_user_cart(user_id):
+    """Get a specific user's cart (admin only)."""
+    try:
+        from models.cart import CartItem
+        cart_items = CartItem.query.filter_by(user_id=user_id).all()
+        
+        return jsonify({
+            'success': True,
+            'cart_items': [item.to_dict() for item in cart_items]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/carts/user/<int:user_id>', methods=['DELETE'])
+@require_admin
+def clear_user_cart(user_id):
+    """Clear a user's cart (admin only)."""
+    try:
+        from models.cart import CartItem
+        CartItem.query.filter_by(user_id=user_id).delete()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cart cleared for user {user_id}'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 # ==================== REVIEW MANAGEMENT ROUTES ====================
 
 @admin_bp.route('/reviews', methods=['GET'])

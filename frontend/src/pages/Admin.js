@@ -25,6 +25,16 @@ const Admin = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [statistics, setStatistics] = useState(null);
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [carts, setCarts] = useState([]);
+  const [cartsLoading, setCartsLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showUserDetails, setShowUserDetails] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
@@ -77,6 +87,15 @@ const Admin = () => {
     }
     if (activeTab === 'reviews') {
       loadReviews();
+    }
+    if (activeTab === 'orders') {
+      loadOrders();
+    }
+    if (activeTab === 'statistics') {
+      loadStatistics();
+    }
+    if (activeTab === 'carts') {
+      loadCarts();
     }
   }, [user, navigate, activeTab]);
 
@@ -376,6 +395,170 @@ const Admin = () => {
     } catch (error) {
       console.error('Error running sale automation:', error);
       setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to run sale automation' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      const response = await axios.get('/api/admin/orders', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setOrders(response.data.orders);
+      }
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      setMessage({ type: 'error', text: 'Failed to load orders' });
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    if (!window.confirm(`Update order status to ${newStatus}?`)) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await axios.put(`/api/admin/orders/${orderId}/status`, { status: newStatus }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: `Order status updated to ${newStatus}` });
+        loadOrders();
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to update order status' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadStatistics = async () => {
+    setStatisticsLoading(true);
+    try {
+      const response = await axios.get('/api/admin/statistics', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setStatistics(response.data.statistics);
+      }
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+      setMessage({ type: 'error', text: 'Failed to load statistics' });
+    } finally {
+      setStatisticsLoading(false);
+    }
+  };
+
+  const loadCarts = async () => {
+    setCartsLoading(true);
+    try {
+      const response = await axios.get('/api/admin/carts', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setCarts(response.data.carts);
+      }
+    } catch (error) {
+      console.error('Error loading carts:', error);
+      setMessage({ type: 'error', text: 'Failed to load carts' });
+    } finally {
+      setCartsLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId, userEmail) => {
+    if (!window.confirm(`Are you sure you want to delete user ${userEmail}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await axios.delete(`/api/admin/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: `User ${userEmail} deleted successfully` });
+        loadUsers();
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to delete user' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleViewUserDetails = async (userId) => {
+    try {
+      const response = await axios.get(`/api/admin/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setSelectedUser(response.data.user);
+        setShowUserDetails(true);
+      }
+    } catch (error) {
+      console.error('Error loading user details:', error);
+      setMessage({ type: 'error', text: 'Failed to load user details' });
+    }
+  };
+
+  const handleResetPassword = async (userId) => {
+    if (!newPassword || newPassword.length < 6) {
+      setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to reset this user\'s password?')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await axios.put(`/api/admin/users/${userId}/password`, { new_password: newPassword }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Password reset successfully' });
+        setShowPasswordReset(false);
+        setNewPassword('');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to reset password' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClearUserCart = async (userId) => {
+    if (!window.confirm('Are you sure you want to clear this user\'s cart?')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await axios.delete(`/api/admin/carts/user/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Cart cleared successfully' });
+        loadCarts();
+      }
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to clear cart' });
     } finally {
       setSaving(false);
     }
@@ -685,6 +868,33 @@ const Admin = () => {
           >
             Reviews & Ratings
           </button>
+          <button
+            className={activeTab === 'orders' ? 'active' : ''}
+            onClick={() => {
+              setActiveTab('orders');
+              loadOrders();
+            }}
+          >
+            Orders Management
+          </button>
+          <button
+            className={activeTab === 'statistics' ? 'active' : ''}
+            onClick={() => {
+              setActiveTab('statistics');
+              loadStatistics();
+            }}
+          >
+            Dashboard & Statistics
+          </button>
+          <button
+            className={activeTab === 'carts' ? 'active' : ''}
+            onClick={() => {
+              setActiveTab('carts');
+              loadCarts();
+            }}
+          >
+            Cart Management
+          </button>
         </div>
 
         {activeTab === 'fashion' && (
@@ -844,36 +1054,127 @@ const Admin = () => {
           <div className="admin-section">
             <h2>User Management</h2>
             <div className="users-table">
-              <table>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Verified</th>
-                    <th>Admin</th>
-                    <th>Actions</th>
+                  <tr style={{ background: '#f8f9fa' }}>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Email</th>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Name</th>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Verified</th>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Admin</th>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map(u => (
-                    <tr key={u.id}>
-                      <td>{u.email}</td>
-                      <td>{u.first_name} {u.last_name}</td>
-                      <td>{u.is_verified ? '✓' : '✗'}</td>
-                      <td>{u.is_admin ? '✓' : '✗'}</td>
-                      <td>
-                        <button
-                          onClick={() => handleToggleAdmin(u.id, u.is_admin)}
-                          className={u.is_admin ? 'remove-admin-btn' : 'make-admin-btn'}
-                        >
-                          {u.is_admin ? 'Remove Admin' : 'Make Admin'}
-                        </button>
+                    <tr key={u.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                      <td style={{ padding: '12px' }}>{u.email}</td>
+                      <td style={{ padding: '12px' }}>{u.first_name} {u.last_name}</td>
+                      <td style={{ padding: '12px' }}>{u.is_verified ? '✓' : '✗'}</td>
+                      <td style={{ padding: '12px' }}>{u.is_admin ? '✓' : '✗'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => handleToggleAdmin(u.id, u.is_admin)}
+                            className={u.is_admin ? 'remove-admin-btn' : 'make-admin-btn'}
+                            style={{ fontSize: '12px', padding: '6px 12px' }}
+                          >
+                            {u.is_admin ? 'Remove Admin' : 'Make Admin'}
+                          </button>
+                          <button
+                            onClick={() => handleViewUserDetails(u.id)}
+                            className="save-btn"
+                            style={{ fontSize: '12px', padding: '6px 12px', background: '#3b82f6' }}
+                          >
+                            View Details
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setShowPasswordReset(true);
+                            }}
+                            className="save-btn"
+                            style={{ fontSize: '12px', padding: '6px 12px', background: '#f59e0b' }}
+                          >
+                            Reset Password
+                          </button>
+                          {!u.is_superadmin && (
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.email)}
+                              className="save-btn"
+                              style={{ fontSize: '12px', padding: '6px 12px', background: '#dc2626' }}
+                              disabled={saving}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {showUserDetails && selectedUser && (
+              <div style={{ marginTop: '30px', padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <h3>User Details: {selectedUser.email}</h3>
+                <div style={{ display: 'grid', gap: '10px', marginTop: '15px' }}>
+                  <p><strong>Name:</strong> {selectedUser.first_name} {selectedUser.last_name}</p>
+                  <p><strong>Email:</strong> {selectedUser.email}</p>
+                  <p><strong>Verified:</strong> {selectedUser.is_verified ? 'Yes' : 'No'}</p>
+                  <p><strong>Admin:</strong> {selectedUser.is_admin ? 'Yes' : 'No'}</p>
+                  <p><strong>Superadmin:</strong> {selectedUser.is_superadmin ? 'Yes' : 'No'}</p>
+                  <p><strong>Orders:</strong> {selectedUser.order_count || 0}</p>
+                  <p><strong>Cart Items:</strong> {selectedUser.cart_item_count || 0}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowUserDetails(false);
+                    setSelectedUser(null);
+                  }}
+                  className="save-btn"
+                  style={{ marginTop: '15px', background: '#6c757d' }}
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {showPasswordReset && selectedUser && (
+              <div style={{ marginTop: '30px', padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <h3>Reset Password for {selectedUser.email}</h3>
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>New Password (min 6 characters):</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    style={{ width: '300px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    placeholder="Enter new password"
+                  />
+                </div>
+                <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => handleResetPassword(selectedUser.id)}
+                    className="save-btn"
+                    disabled={saving || !newPassword || newPassword.length < 6}
+                  >
+                    {saving ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPasswordReset(false);
+                      setSelectedUser(null);
+                      setNewPassword('');
+                    }}
+                    className="save-btn"
+                    style={{ background: '#6c757d' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1598,6 +1899,179 @@ const Admin = () => {
                               onClick={() => handleDeleteReview(review.id)}
                             >
                               Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'orders' && (
+          <div className="admin-section">
+            <h2>Orders Management</h2>
+            {ordersLoading ? (
+              <div>Loading orders...</div>
+            ) : (
+              <div className="sales-table">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Order #</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Customer</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Total</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Status</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Date</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                          No orders found.
+                        </td>
+                      </tr>
+                    ) : (
+                      orders.map(order => (
+                        <tr key={order.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <td style={{ padding: '12px' }}>{order.order_number}</td>
+                          <td style={{ padding: '12px' }}>
+                            {order.shipping_name}
+                            {order.guest_email && <div style={{ fontSize: '11px', color: '#666' }}>{order.guest_email}</div>}
+                          </td>
+                          <td style={{ padding: '12px' }}>${order.total.toFixed(2)}</td>
+                          <td style={{ padding: '12px' }}>
+                            <select
+                              value={order.status}
+                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                              style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="processing">Processing</option>
+                              <option value="shipped">Shipped</option>
+                              <option value="delivered">Delivered</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: '12px', fontSize: '12px', color: '#666' }}>
+                            {new Date(order.created_at).toLocaleDateString()}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <button
+                              className="save-btn"
+                              style={{ fontSize: '12px', padding: '6px 12px' }}
+                              onClick={() => window.open(`/orders/${order.id}`, '_blank')}
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'statistics' && (
+          <div className="admin-section">
+            <h2>Dashboard & Statistics</h2>
+            {statisticsLoading ? (
+              <div>Loading statistics...</div>
+            ) : statistics ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
+                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <h3>Users</h3>
+                  <p>Total: {statistics.users.total}</p>
+                  <p>Admins: {statistics.users.admins}</p>
+                  <p>Superadmins: {statistics.users.superadmins}</p>
+                  <p>Active: {statistics.users.active}</p>
+                </div>
+                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <h3>Products</h3>
+                  <p>Total: {statistics.products.total}</p>
+                  <p>Active: {statistics.products.active}</p>
+                  <p>Inactive: {statistics.products.inactive}</p>
+                  <p>Low Stock: {statistics.products.low_stock}</p>
+                  <p>Out of Stock: {statistics.products.out_of_stock}</p>
+                </div>
+                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <h3>Orders</h3>
+                  <p>Total: {statistics.orders.total}</p>
+                  <p>Pending: {statistics.orders.pending}</p>
+                  <p>Processing: {statistics.orders.processing}</p>
+                  <p>Shipped: {statistics.orders.shipped}</p>
+                  <p>Delivered: {statistics.orders.delivered}</p>
+                  <p>Today: {statistics.orders.today}</p>
+                  <p>This Week: {statistics.orders.this_week}</p>
+                  <p>This Month: {statistics.orders.this_month}</p>
+                </div>
+                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <h3>Revenue</h3>
+                  <p>Total: ${statistics.revenue.total.toFixed(2)}</p>
+                  <p>Today: ${statistics.revenue.today.toFixed(2)}</p>
+                  <p>This Week: ${statistics.revenue.this_week.toFixed(2)}</p>
+                  <p>This Month: ${statistics.revenue.this_month.toFixed(2)}</p>
+                </div>
+                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <h3>Sales</h3>
+                  <p>Total: {statistics.sales.total}</p>
+                  <p>Active: {statistics.sales.active}</p>
+                  <p>Inactive: {statistics.sales.inactive}</p>
+                </div>
+                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <h3>Reviews</h3>
+                  <p>Total: {statistics.reviews.total}</p>
+                  <p>Today: {statistics.reviews.today}</p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {activeTab === 'carts' && (
+          <div className="admin-section">
+            <h2>Cart Management</h2>
+            {cartsLoading ? (
+              <div>Loading carts...</div>
+            ) : (
+              <div className="sales-table">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>User Email</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Items</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Estimated Total</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {carts.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                          No active carts found.
+                        </td>
+                      </tr>
+                    ) : (
+                      carts.map(cart => (
+                        <tr key={cart.user_id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <td style={{ padding: '12px' }}>{cart.user_email}</td>
+                          <td style={{ padding: '12px' }}>{cart.item_count}</td>
+                          <td style={{ padding: '12px' }}>${cart.estimated_total.toFixed(2)}</td>
+                          <td style={{ padding: '12px' }}>
+                            <button
+                              className="save-btn"
+                              style={{ fontSize: '12px', padding: '6px 12px', background: '#dc2626' }}
+                              onClick={() => handleClearUserCart(cart.user_id)}
+                            >
+                              Clear Cart
                             </button>
                           </td>
                         </tr>

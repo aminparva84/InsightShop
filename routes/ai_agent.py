@@ -1197,10 +1197,17 @@ def text_to_speech():
         data = request.get_json()
         text = data.get('text', '')
         voice_gender = data.get('voice_gender', 'woman')  # 'woman' or 'man'
+        voice_id_param = data.get('voice_id', None)  # Optional specific voice ID
+        speech_speed = data.get('speech_speed', 1.0)  # Speech speed multiplier (0.5 to 2.0)
+        
+        # Validate speech speed
+        speech_speed = max(0.5, min(2.0, float(speech_speed)))
         
         print(f"[AWS POLLY] Request Details:")
         print(f"  - Text length: {len(text)} characters")
         print(f"  - Voice gender: {voice_gender}")
+        print(f"  - Voice ID: {voice_id_param}")
+        print(f"  - Speech speed: {speech_speed}x")
         print(f"  - Text preview: {text[:100]}..." if len(text) > 100 else f"  - Text: {text}")
         
         if not text:
@@ -1250,13 +1257,18 @@ def text_to_speech():
             print("[AWS POLLY] ❌ ERROR: No valid text after cleaning")
             return jsonify({'error': 'No valid text to convert'}), 400
         
-        # Select voice based on gender preference
-        # Using attractive, warm American voices with appealing tone
-        if voice_gender == 'woman':
+        # Select voice based on user preference or gender
+        if voice_id_param:
+            # Use specific voice ID if provided
+            voice_id = voice_id_param
+            print(f"[AWS POLLY] Using user-selected voice: {voice_id}")
+        elif voice_gender == 'woman':
+            # Default women's voices
             # Kendra - warm, friendly, attractive American voice (very appealing)
             # Alternative: Amy (expressive), Kimberly (smooth), Salli (clear, warm)
             voice_id = 'Kendra'  # Warm, attractive, American accent
         else:
+            # Default men's voices
             # Joey - young, energetic, attractive American male voice
             # Alternative: Justin (expressive), Matthew (calm, professional)
             voice_id = 'Joey'  # Attractive, energetic American accent
@@ -1283,18 +1295,30 @@ def text_to_speech():
         # Volume: medium for clear but intimate feel
         # Phonation: soft for appealing, warm, attractive tone
         
+        # Calculate rate based on speech speed (base rate * speed multiplier)
+        # Base rates: 82% (normal), 85% (excited)
+        # SSML rate accepts percentages: 50% to 200%
+        base_rate_normal = 82
+        base_rate_excited = 85
+        
+        # Convert speed multiplier to percentage (1.0 = 100%, 0.5 = 50%, 2.0 = 200%)
+        # Apply speed to base rate: rate = base_rate * speed
         if excitement_level > 2 or has_exclamation:
-            # More excited: slightly faster but still appealing, warmer pitch
-            ssml_text = f'<speak><prosody rate="85%" pitch="+1%" volume="medium">' \
+            # More excited: use excited base rate adjusted by speed
+            rate_percent = int(base_rate_excited * speech_speed)
+            rate_percent = max(50, min(200, rate_percent))  # Clamp between 50% and 200%
+            ssml_text = f'<speak><prosody rate="{rate_percent}%" pitch="+1%" volume="medium">' \
                        f'<amazon:effect phonation="soft">{escaped_text}</amazon:effect>' \
                        f'</prosody></speak>'
-            print("[AWS POLLY] Using excited appealing SSML (rate: 85%, pitch: +1%, soft phonation)")
+            print(f"[AWS POLLY] Using excited appealing SSML (rate: {rate_percent}%, pitch: +1%, soft phonation, speed: {speech_speed}x)")
         else:
-            # Normal: slower, warmer, more attractive and appealing tone
-            ssml_text = f'<speak><prosody rate="82%" pitch="-1%" volume="medium">' \
+            # Normal: use normal base rate adjusted by speed
+            rate_percent = int(base_rate_normal * speech_speed)
+            rate_percent = max(50, min(200, rate_percent))  # Clamp between 50% and 200%
+            ssml_text = f'<speak><prosody rate="{rate_percent}%" pitch="-1%" volume="medium">' \
                        f'<amazon:effect phonation="soft">{escaped_text}</amazon:effect>' \
                        f'</prosody></speak>'
-            print("[AWS POLLY] Using warm appealing SSML (rate: 82%, pitch: -1%, soft phonation)")
+            print(f"[AWS POLLY] Using warm appealing SSML (rate: {rate_percent}%, pitch: -1%, soft phonation, speed: {speech_speed}x)")
         
         print(f"[AWS POLLY] SSML length: {len(ssml_text)} characters")
         print(f"[AWS POLLY] Text preview: {clean_text[:200]}..." if len(clean_text) > 200 else f"[AWS POLLY] Text: {clean_text}")
@@ -1895,16 +1919,70 @@ def find_matches_for_image():
                 # Ensure product relations exist
                 ensure_product_relations(primary_product_id, primary_product.clothing_type)
                 
-                # Get fashion matches from database
+                # Get fashion matches from database - get more items for complete outfit
                 relations = ProductRelation.query.filter_by(
                     product_id=primary_product_id,
                     is_fashion_match=True
-                ).order_by(ProductRelation.match_score.desc()).limit(6).all()
+                ).order_by(ProductRelation.match_score.desc()).limit(12).all()
                 
+                # Group matches by clothing type to ensure complete outfit
+                matches_by_type = {}
                 for relation in relations:
                     if relation.related_product and relation.related_product.is_active:
-                        matched_products.append(relation.related_product.to_dict())
-                        match_explanations.append(f"Fashion match (score: {relation.match_score:.2f})")
+                        clothing_type = relation.related_product.clothing_type or 'other'
+                        if clothing_type not in matches_by_type:
+                            matches_by_type[clothing_type] = []
+                        matches_by_type[clothing_type].append({
+                            'product': relation.related_product.to_dict(),
+                            'score': relation.match_score
+                        })
+                
+                # Prioritize different clothing types for complete outfit
+                # If primary is a shirt, prioritize pants, shoes, accessories
+                primary_type_lower = primary_product.clothing_type.lower() if primary_product.clothing_type else ''
+                
+                # Define outfit priorities based on primary item type
+                outfit_priorities = []
+                if any(word in primary_type_lower for word in ['shirt', 't-shirt', 'blouse', 'top', 'polo']):
+                    # For shirts: pants, shoes, accessories
+                    outfit_priorities = ['pants', 'chinos', 'jeans', 'trousers', 'shoes', 'sneakers', 'boots', 'accessories', 'belt']
+                elif any(word in primary_type_lower for word in ['pants', 'chinos', 'jeans', 'trousers']):
+                    # For pants: shirts, shoes, accessories
+                    outfit_priorities = ['shirt', 't-shirt', 'blouse', 'top', 'shoes', 'sneakers', 'boots', 'accessories', 'belt']
+                elif any(word in primary_type_lower for word in ['dress', 'gown']):
+                    # For dresses: shoes, accessories
+                    outfit_priorities = ['shoes', 'heels', 'sandals', 'accessories', 'bag', 'jewelry']
+                else:
+                    # Default: get variety
+                    outfit_priorities = ['pants', 'shirt', 'shoes', 'accessories']
+                
+                # Collect matches prioritizing complete outfit
+                existing_ids = {primary_product_id}
+                for priority_type in outfit_priorities:
+                    for clothing_type, matches in matches_by_type.items():
+                        if priority_type.lower() in clothing_type.lower():
+                            for match in matches[:2]:  # Max 2 per type
+                                if match['product']['id'] not in existing_ids:
+                                    matched_products.append(match['product'])
+                                    match_explanations.append(f"Complete outfit match - {clothing_type} (score: {match['score']:.2f})")
+                                    existing_ids.add(match['product']['id'])
+                                    if len(matched_products) >= 8:
+                                        break
+                        if len(matched_products) >= 8:
+                            break
+                    if len(matched_products) >= 8:
+                        break
+                
+                # Fill remaining slots with other high-scoring matches
+                if len(matched_products) < 8:
+                    for relation in relations:
+                        if relation.related_product and relation.related_product.is_active:
+                            if relation.related_product.id not in existing_ids:
+                                matched_products.append(relation.related_product.to_dict())
+                                match_explanations.append(f"Fashion match (score: {relation.match_score:.2f})")
+                                existing_ids.add(relation.related_product.id)
+                                if len(matched_products) >= 8:
+                                    break
                 
                 # Also use fashion match rules as enhancement
                 fashion_matches = find_matching_products(primary_name, primary_product_id)

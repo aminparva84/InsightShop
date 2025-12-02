@@ -106,6 +106,16 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     const saved = localStorage.getItem('aiVoiceGender');
     return saved || 'woman';
   });
+  const [voiceId, setVoiceId] = useState(() => {
+    // Load voice ID preference from localStorage, default to 'Kendra' for women
+    const saved = localStorage.getItem('aiVoiceId');
+    return saved || 'Kendra';
+  });
+  const [speechSpeed, setSpeechSpeed] = useState(() => {
+    // Load speech speed preference from localStorage, default to 1.0 (normal speed)
+    const saved = localStorage.getItem('aiSpeechSpeed');
+    return saved ? parseFloat(saved) : 1.0;
+  });
   const [pollyAvailable, setPollyAvailable] = useState(true); // Assume available by default
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -185,6 +195,14 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   useEffect(() => {
     localStorage.setItem('aiVoiceGender', voiceGender);
   }, [voiceGender]);
+
+  useEffect(() => {
+    localStorage.setItem('aiVoiceId', voiceId);
+  }, [voiceId]);
+
+  useEffect(() => {
+    localStorage.setItem('aiSpeechSpeed', speechSpeed.toString());
+  }, [speechSpeed]);
 
   // Speak initial greeting when voice is enabled on mount
   useEffect(() => {
@@ -286,7 +304,9 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       console.log('[FRONTEND] 📤 Sending POST request to /api/ai/text-to-speech...');
       const response = await axios.post('/api/ai/text-to-speech', {
         text: textToSpeak,
-        voice_gender: voiceGender
+        voice_gender: voiceGender,
+        voice_id: voiceId,
+        speech_speed: speechSpeed
       }, {
         responseType: 'json'
       });
@@ -724,84 +744,28 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         setImageSimilarProductIds(response.data.similar_product_ids || []);
         setMatchedProducts([]); // Reset matched products
 
-        // Add user message showing image was uploaded
+        // Store response data for action buttons
+        const imageResponseData = {
+          similar_products: response.data.similar_products || [],
+          similar_product_ids: response.data.similar_product_ids || [],
+          metadata: response.data.metadata || {},
+          message: response.data.message || response.data.metadata_sentence || 'Image analyzed successfully!'
+        };
+        
+        // Add user message showing image thumbnail with action buttons
         const imageMessage = {
           role: 'user',
           content: `[Image uploaded: ${file.name}]`,
-          image: response.data.image_data
+          image: response.data.image_data,
+          showImageActions: true, // Flag to show action buttons
+          imageMetadata: imageResponseData.metadata,
+          imageSimilarProductIds: imageResponseData.similar_product_ids,
+          imageResponseData: imageResponseData // Store full response for action buttons
         };
         setMessages(prev => [...prev, imageMessage]);
 
-        // Add AI response with analysis and metadata
-        // Always show buttons after image upload, even if no similar products found
-        const aiResponse = {
-          role: 'assistant',
-          content: response.data.message || response.data.metadata_sentence || 'Image analyzed successfully!',
-          similarProducts: response.data.similar_products || [],
-          showMatchButtons: true, // Always show match buttons after upload
-          metadata: response.data.metadata,
-          hasImageUpload: true // Additional flag to ensure buttons show
-        };
-        setMessages(prev => [...prev, aiResponse]);
-
-        // Update selected products if similar products found
-        if (response.data.similar_product_ids && response.data.similar_product_ids.length > 0) {
-          setSelectedProductIds(prev => {
-            const combined = [...new Set([...prev, ...response.data.similar_product_ids])];
-            return combined;
-          });
-        }
-
-        // If we have similar products, navigate to show them
-        if (response.data.similar_products && response.data.similar_products.length > 0) {
-          const productIds = response.data.similar_product_ids || response.data.similar_products.map(p => p.id);
-          
-          // Navigate to products page with similar products
-          if (location.pathname === '/' && onProductsUpdate) {
-            // Update products on Home page
-            onProductsUpdate(productIds);
-            
-            // Update message to mention products are shown
-            const updatedMessage = {
-              role: 'assistant',
-              content: `${response.data.message}\n\nCheck out the similar products I found below!`
-            };
-            setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1] = updatedMessage;
-              return newMessages;
-            });
-            
-            // Scroll to products
-            setTimeout(() => {
-              document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
-          } else {
-            // Navigate to products page
-            const idsParam = productIds.join(',');
-            navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
-            
-            // Minimize chat if not inline
-            if (!isInline) {
-              setTimeout(() => {
-                if (onMinimize) {
-                  onMinimize();
-                } else if (onClose) {
-                  onClose();
-                }
-              }, 100);
-            }
-          }
-        }
-
-        // Speak the response if voice is enabled
-        if (voiceEnabled && audioRef.current) {
-          setTimeout(() => {
-            if (audioRef.current) {
-              speakText(aiResponse.content);
-            }
-          }, 300);
-        }
+        // Don't automatically add AI response - let user choose action first
+        // The action buttons will trigger the appropriate response
       }
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -1348,9 +1312,194 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                       maxWidth: '100%',
                       maxHeight: '200px',
                       borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.2)'
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      objectFit: 'contain'
                     }}
                   />
+                  {/* Show action buttons for uploaded images */}
+                  {msg.showImageActions && (
+                    <div style={{ 
+                      marginTop: '12px', 
+                      display: 'flex', 
+                      gap: '8px', 
+                      flexWrap: 'wrap' 
+                    }}>
+                      <button
+                        onClick={async () => {
+                          // Find similar items using stored response data
+                          setLoading(true);
+                          try {
+                            const imageData = msg.imageResponseData || {};
+                            const similarProducts = imageData.similar_products || [];
+                            const productIds = imageData.similar_product_ids || [];
+                            
+                            if (similarProducts.length === 0 && productIds.length === 0) {
+                              // If no data stored, re-analyze
+                              const formData = new FormData();
+                              const blob = await fetch(`data:image/jpeg;base64,${msg.image}`).then(r => r.blob());
+                              formData.append('image', blob, 'uploaded-image.jpg');
+                              
+                              const similarResponse = await axios.post('/api/ai/upload-image', formData, {
+                                headers: { 'Content-Type': 'multipart/form-data' }
+                              });
+                              
+                              if (similarResponse.data.success) {
+                                const aiResponse = {
+                                  role: 'assistant',
+                                  content: similarResponse.data.message || `I found ${similarResponse.data.similar_products?.length || 0} similar item${(similarResponse.data.similar_products?.length || 0) !== 1 ? 's' : ''} in our store!`,
+                                  similarProducts: similarResponse.data.similar_products || [],
+                                  showMatchButtons: false
+                                };
+                                setMessages(prev => [...prev, aiResponse]);
+                                
+                                const ids = similarResponse.data.similar_product_ids || [];
+                                if (ids.length > 0) {
+                                  setSelectedProductIds(prev => {
+                                    const combined = [...new Set([...prev, ...ids])];
+                                    return combined;
+                                  });
+                                  
+                                  if (location.pathname === '/' && onProductsUpdate) {
+                                    onProductsUpdate(ids);
+                                    setTimeout(() => {
+                                      document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }, 300);
+                                  } else {
+                                    const idsParam = ids.join(',');
+                                    navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+                                  }
+                                }
+                                
+                                if (voiceEnabled && audioRef.current) {
+                                  setTimeout(() => {
+                                    speakText(aiResponse.content);
+                                  }, 300);
+                                }
+                              }
+                            } else {
+                              // Use stored data
+                              const aiResponse = {
+                                role: 'assistant',
+                                content: imageData.message || `I found ${similarProducts.length} similar item${similarProducts.length !== 1 ? 's' : ''} in our store!`,
+                                similarProducts: similarProducts,
+                                showMatchButtons: false
+                              };
+                              setMessages(prev => [...prev, aiResponse]);
+                              
+                              if (productIds.length > 0) {
+                                setSelectedProductIds(prev => {
+                                  const combined = [...new Set([...prev, ...productIds])];
+                                  return combined;
+                                });
+                                
+                                if (location.pathname === '/' && onProductsUpdate) {
+                                  onProductsUpdate(productIds);
+                                  setTimeout(() => {
+                                    document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                  }, 300);
+                                } else {
+                                  const idsParam = productIds.join(',');
+                                  navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+                                }
+                              }
+                              
+                              if (voiceEnabled && audioRef.current) {
+                                setTimeout(() => {
+                                  speakText(aiResponse.content);
+                                }, 300);
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Error finding similar items:', error);
+                            alert(error.response?.data?.error || 'Failed to find similar items. Please try again.');
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        disabled={loading}
+                        style={{
+                          padding: '8px 16px',
+                          background: loading ? '#9ca3af' : '#667eea',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {loading ? '🔍 Searching...' : '🔍 Find Similar Item'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          // Find fashion match
+                          setFindingMatches(true);
+                          try {
+                            const matchResponse = await axios.post('/api/ai/find-matches-for-image', {
+                              metadata: msg.imageMetadata,
+                              similar_product_ids: msg.imageSimilarProductIds || []
+                            });
+                            
+                            if (matchResponse.data.success) {
+                              const matched = matchResponse.data.matched_products || [];
+                              const aiResponse = {
+                                role: 'assistant',
+                                content: `I found ${matched.length} matching item${matched.length !== 1 ? 's' : ''} that would create a complete outfit!`,
+                                matchedProducts: matched,
+                                matchExplanations: matchResponse.data.match_explanations || []
+                              };
+                              setMessages(prev => [...prev, aiResponse]);
+                              
+                              if (matched.length > 0) {
+                                const matchedIds = matched.map(p => p.id);
+                                setSelectedProductIds(prev => {
+                                  const combined = [...new Set([...prev, ...matchedIds])];
+                                  return combined;
+                                });
+                                
+                                if (location.pathname === '/' && onProductsUpdate) {
+                                  onProductsUpdate(matchedIds);
+                                  setTimeout(() => {
+                                    document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                  }, 300);
+                                } else {
+                                  const idsParam = matchedIds.join(',');
+                                  navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+                                }
+                              }
+                              
+                              // Speak the response if voice is enabled
+                              if (voiceEnabled && audioRef.current) {
+                                setTimeout(() => {
+                                  speakText(aiResponse.content);
+                                }, 300);
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Error finding matches:', error);
+                            alert(error.response?.data?.error || 'Failed to find matches. Please try again.');
+                          } finally {
+                            setFindingMatches(false);
+                          }
+                        }}
+                        disabled={findingMatches}
+                        style={{
+                          padding: '8px 16px',
+                          background: findingMatches ? '#9ca3af' : '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: findingMatches ? 'not-allowed' : 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {findingMatches ? '🎯 Finding Match...' : '👔 Find Fashion Match'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -1657,18 +1806,63 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             {isSpeaking ? <SpeakerIcon size={18} /> : voiceEnabled ? <SpeakerIcon size={18} /> : <SpeakerOffIcon size={18} />}
           </button>
           {voiceEnabled && (
-            <select
-              className="voice-gender-select"
-              value={voiceGender}
-              onChange={(e) => {
-                setVoiceGender(e.target.value);
-                if (isSpeaking) stopSpeaking();
-              }}
-              title="Select voice gender"
-            >
-              <option value="woman">Woman</option>
-              <option value="man">Man</option>
-            </select>
+            <>
+              <select
+                className="voice-gender-select"
+                value={voiceGender}
+                onChange={(e) => {
+                  setVoiceGender(e.target.value);
+                  // Reset voice ID when gender changes
+                  if (e.target.value === 'woman') {
+                    setVoiceId('Kendra');
+                  } else {
+                    setVoiceId('Joey');
+                  }
+                  if (isSpeaking) stopSpeaking();
+                }}
+                title="Select voice gender"
+                style={{ minWidth: '80px' }}
+              >
+                <option value="woman">Woman</option>
+                <option value="man">Man</option>
+              </select>
+              {voiceGender === 'woman' && (
+                <select
+                  className="voice-gender-select"
+                  value={voiceId}
+                  onChange={(e) => {
+                    setVoiceId(e.target.value);
+                    if (isSpeaking) stopSpeaking();
+                  }}
+                  title="Select women's voice"
+                  style={{ minWidth: '100px' }}
+                >
+                  <option value="Kendra">Kendra (Warm)</option>
+                  <option value="Amy">Amy (Expressive)</option>
+                  <option value="Kimberly">Kimberly (Smooth)</option>
+                  <option value="Salli">Salli (Clear)</option>
+                  <option value="Joanna">Joanna (Neural)</option>
+                  <option value="Ivy">Ivy (Young)</option>
+                </select>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 4px' }}>
+                <label style={{ fontSize: '11px', color: '#1a2332', whiteSpace: 'nowrap' }}>Speed:</label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={speechSpeed}
+                  onChange={(e) => {
+                    setSpeechSpeed(parseFloat(e.target.value));
+                    if (isSpeaking) stopSpeaking();
+                  }}
+                  title={`Speech speed: ${speechSpeed}x`}
+                  style={{ width: '60px', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '11px', color: '#1a2332', minWidth: '30px' }}>{speechSpeed.toFixed(1)}x</span>
+              </div>
+            </>
           )}
           {isSpeaking && (
             <button

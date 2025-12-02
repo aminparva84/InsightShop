@@ -10,6 +10,38 @@ from functools import wraps
 
 auth_bp = Blueprint('auth', __name__)
 
+def verify_jwt_token(token):
+    """Verify JWT token and return payload."""
+    try:
+        import jwt
+        from config import Config
+        
+        # Decode token using PyJWT with the secret key
+        decoded = jwt.decode(
+            token,
+            Config.JWT_SECRET,
+            algorithms=[Config.JWT_ALGORITHM]
+        )
+        return decoded
+    except Exception:
+        return None
+
+def get_current_user_optional():
+    """Get current user if authenticated, otherwise return None."""
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        try:
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if payload:
+                user_id = payload.get('sub') or payload.get('user_id')
+                if user_id:
+                    user = User.query.get(user_id)
+                    return user
+        except Exception:
+            pass
+    return None
+
 def hash_password(password):
     """Hash a password using bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')

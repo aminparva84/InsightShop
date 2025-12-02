@@ -338,6 +338,56 @@
   border-color: #1a2332 !important;
 }
 
+.voice-speed-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.voice-speed-control label {
+  font-size: 11px;
+  color: #1a2332;
+  white-space: nowrap;
+}
+
+.voice-speed-control input[type="range"] {
+  width: 60px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: #d4af37;
+  border-radius: 2px;
+  outline: none;
+}
+
+.voice-speed-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #1a2332;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.voice-speed-control input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: #1a2332;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.voice-speed-control span {
+  font-size: 11px;
+  color: #1a2332;
+  min-width: 30px;
+  text-align: center;
+}
+
 .voice-btn.listening {
   background: rgba(239, 68, 68, 0.1) !important;
   border-color: #ef4444 !important;

@@ -245,17 +245,43 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         console.log(`[FRONTEND] Set currently playing message ID: ${messageId}`);
       }
       
+      // Count words in the text
+      const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+      console.log(`[FRONTEND] Text word count: ${wordCount}`);
+      
+      // If text is longer than 100 words, summarize it first
+      let textToSpeak = text;
+      if (wordCount > 100) {
+        console.log('[FRONTEND] Text exceeds 100 words, summarizing before speaking...');
+        try {
+          const summarizeResponse = await axios.post('/api/ai/summarize', {
+            text: text
+          });
+          
+          if (summarizeResponse.data && summarizeResponse.data.summary) {
+            textToSpeak = summarizeResponse.data.summary;
+            console.log(`[FRONTEND] ✅ Text summarized: ${wordCount} words → ${textToSpeak.trim().split(/\s+/).filter(word => word.length > 0).length} words`);
+          } else {
+            console.log('[FRONTEND] ⚠️ Summarization failed, using original text');
+          }
+        } catch (summarizeError) {
+          console.error('[FRONTEND] ❌ Error summarizing text:', summarizeError);
+          console.log('[FRONTEND] Using original text for TTS');
+          // Continue with original text if summarization fails
+        }
+      }
+      
       console.log('[FRONTEND] Preparing TTS API request...');
-      console.log(`[FRONTEND]   - Text length: ${text.length} characters`);
+      console.log(`[FRONTEND]   - Text length: ${textToSpeak.length} characters`);
       console.log(`[FRONTEND]   - Voice gender: ${voiceGender}`);
-      console.log(`[FRONTEND]   - Text preview: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`);
+      console.log(`[FRONTEND]   - Text preview: ${textToSpeak.substring(0, 100)}${textToSpeak.length > 100 ? '...' : ''}`);
       
       const requestStartTime = performance.now();
       
       // Call backend to get audio from AWS Polly
       console.log('[FRONTEND] 📤 Sending POST request to /api/ai/text-to-speech...');
       const response = await axios.post('/api/ai/text-to-speech', {
-        text: text,
+        text: textToSpeak,
         voice_gender: voiceGender
       }, {
         responseType: 'json'

@@ -1079,6 +1079,54 @@ def compare_products():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@ai_agent_bp.route('/summarize', methods=['POST'])
+def summarize_text():
+    """Summarize text for text-to-speech when it's too long."""
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        
+        if not text:
+            return jsonify({'error': 'Text is required'}), 400
+        
+        print(f"[SUMMARIZE] Summarizing text ({len(text)} characters)")
+        
+        # Create a summarization prompt
+        summarize_prompt = f"""Please summarize the following text in a concise, natural way that's perfect for speaking aloud. 
+Keep the key information and main points, but make it shorter and more conversational. 
+Aim for about 50-80 words. Keep the friendly, excited tone if present.
+
+Text to summarize:
+{text}
+
+Summary:"""
+        
+        # Use a simpler system prompt for summarization
+        system_prompt = """You are a helpful assistant that creates concise, natural summaries perfect for text-to-speech. 
+Keep summaries conversational and maintain the original tone and key information."""
+        
+        # Call Bedrock for summarization
+        result = call_bedrock(summarize_prompt, system_prompt)
+        summary = result.get('content', text)  # Fallback to original if summarization fails
+        
+        print(f"[SUMMARIZE] Summary created ({len(summary)} characters)")
+        
+        return jsonify({
+            'summary': summary,
+            'original_length': len(text),
+            'summary_length': len(summary)
+        })
+        
+    except Exception as e:
+        print(f"[SUMMARIZE] Error: {str(e)}")
+        # Return original text if summarization fails
+        return jsonify({
+            'summary': text,
+            'original_length': len(text),
+            'summary_length': len(text),
+            'error': str(e)
+        }), 200  # Return 200 so frontend can still use the original text
+
 @ai_agent_bp.route('/text-to-speech/status', methods=['GET'])
 def tts_status():
     """Check if AWS Polly is available and configured."""

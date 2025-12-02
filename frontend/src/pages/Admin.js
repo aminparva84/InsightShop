@@ -10,7 +10,9 @@ const Admin = () => {
   const [fashionKB, setFashionKB] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('colors');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [fashionSubTab, setFashionSubTab] = useState('colors');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [users, setUsers] = useState([]);
   const [paymentLogs, setPaymentLogs] = useState([]);
   const [paymentLogsLoading, setPaymentLogsLoading] = useState(false);
@@ -806,128 +808,290 @@ const Admin = () => {
     return <div className="admin-page"><div className="container">Failed to load fashion knowledge base</div></div>;
   }
 
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: '📊', description: 'Overview & Statistics' },
+    { id: 'products', label: 'Products', icon: '🛍️', description: 'Manage Products' },
+    { id: 'orders', label: 'Orders', icon: '📦', description: 'Order Management' },
+    { id: 'users', label: 'Users', icon: '👥', description: 'User Management' },
+    { id: 'sales', label: 'Sales', icon: '💰', description: 'Sales & Promotions' },
+    { id: 'carts', label: 'Carts', icon: '🛒', description: 'Shopping Carts' },
+    { id: 'reviews', label: 'Reviews', icon: '⭐', description: 'Reviews & Ratings' },
+    { id: 'payment-logs', label: 'Payments', icon: '💳', description: 'Payment Logs' },
+    { id: 'fashion', label: 'Fashion KB', icon: '🎨', description: 'Knowledge Base' },
+  ];
+
   return (
     <div className="admin-page">
-      <div className="container">
-        <h1>Admin Panel</h1>
-
-        {message.text && (
-          <div className={`admin-message ${message.type}`}>
-            {message.text}
-            <button onClick={() => setMessage({ type: '', text: '' })}>×</button>
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close sidebar"
+        />
+      )}
+      <div className="admin-layout">
+        {/* Sidebar Navigation */}
+        <aside className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+          <div className="sidebar-header">
+            <h2>Admin Center</h2>
+            <button 
+              className="sidebar-toggle"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            >
+              {sidebarOpen ? '←' : '→'}
+            </button>
           </div>
-        )}
+          <nav className="sidebar-nav" role="navigation" aria-label="Admin navigation">
+            <ul>
+              {menuItems.map(item => (
+                <li key={item.id}>
+                  <button
+                    className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      if (item.id === 'dashboard') loadStatistics();
+                      if (item.id === 'products') loadProducts();
+                      if (item.id === 'orders') loadOrders();
+                      if (item.id === 'sales') { loadSales(); loadUpcomingEvents(); }
+                      if (item.id === 'reviews') loadReviews();
+                      if (item.id === 'payment-logs') loadPaymentLogs();
+                      if (item.id === 'carts') loadCarts();
+                    }}
+                    aria-current={activeTab === item.id ? 'page' : undefined}
+                    title={item.description}
+                  >
+                    <span className="nav-icon">{item.icon}</span>
+                    {sidebarOpen && (
+                      <>
+                        <span className="nav-label">{item.label}</span>
+                        {item.description && <span className="nav-description">{item.description}</span>}
+                      </>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="sidebar-footer">
+            {sidebarOpen && (
+              <div className="admin-info">
+                <p><strong>Logged in as:</strong></p>
+                <p>{user?.email}</p>
+              </div>
+            )}
+          </div>
+        </aside>
 
-        <div className="admin-tabs">
-          <button
-            className={activeTab === 'fashion' ? 'active' : ''}
-            onClick={() => setActiveTab('fashion')}
-          >
-            Fashion Knowledge Base
-          </button>
-          <button
-            className={activeTab === 'users' ? 'active' : ''}
-            onClick={() => setActiveTab('users')}
-          >
-            User Management
-          </button>
-          <button
-            className={activeTab === 'payment-logs' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('payment-logs');
-              loadPaymentLogs();
-            }}
-          >
-            Payment Logs
-          </button>
-          <button
-            className={activeTab === 'sales' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('sales');
-              loadSales();
-              loadUpcomingEvents();
-            }}
-          >
-            Sales Management
-          </button>
-          <button
-            className={activeTab === 'products' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('products');
-              loadProducts();
-            }}
-          >
-            Product Management
-          </button>
-          <button
-            className={activeTab === 'reviews' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('reviews');
-              loadReviews();
-            }}
-          >
-            Reviews & Ratings
-          </button>
-          <button
-            className={activeTab === 'orders' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('orders');
-              loadOrders();
-            }}
-          >
-            Orders Management
-          </button>
-          <button
-            className={activeTab === 'statistics' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('statistics');
-              loadStatistics();
-            }}
-          >
-            Dashboard & Statistics
-          </button>
-          <button
-            className={activeTab === 'carts' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('carts');
-              loadCarts();
-            }}
-          >
-            Cart Management
-          </button>
-        </div>
-
-        {activeTab === 'fashion' && (
-          <div className="admin-section">
-            <div className="admin-section-header">
-              <h2>Fashion Knowledge Base Management</h2>
-              <button onClick={handleSaveKB} disabled={saving} className="save-btn">
-                {saving ? 'Saving...' : 'Save Changes'}
+        {/* Main Content Area */}
+        <main className="admin-main">
+          <div className="admin-header">
+            <h1>
+              {menuItems.find(item => item.id === activeTab)?.icon} {menuItems.find(item => item.id === activeTab)?.label || 'Admin Panel'}
+            </h1>
+            <div className="header-actions">
+              <button 
+                className="mobile-menu-toggle"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                aria-label="Toggle menu"
+              >
+                ☰
               </button>
             </div>
+          </div>
 
-            <div className="kb-tabs">
-              <button
-                className={activeTab === 'colors' ? 'active' : ''}
-                onClick={() => setActiveTab('colors')}
+          {message.text && (
+            <div className={`admin-message ${message.type}`} role="alert">
+              <span>{message.text}</span>
+              <button 
+                onClick={() => setMessage({ type: '', text: '' })}
+                aria-label="Close message"
               >
-                Color Matching
-              </button>
-              <button
-                className={activeTab === 'fabrics' ? 'active' : ''}
-                onClick={() => setActiveTab('fabrics')}
-              >
-                Fabrics
-              </button>
-              <button
-                className={activeTab === 'occasions' ? 'active' : ''}
-                onClick={() => setActiveTab('occasions')}
-              >
-                Occasions
+                ×
               </button>
             </div>
+          )}
 
-            {activeTab === 'colors' && (
+          {/* Dashboard View */}
+          {activeTab === 'dashboard' && (
+            <div className="admin-section">
+              <div className="dashboard-grid">
+                {statisticsLoading ? (
+                  <div>Loading statistics...</div>
+                ) : statistics ? (
+                  <>
+                    <div className="stat-card primary">
+                      <div className="stat-icon">👥</div>
+                      <div className="stat-content">
+                        <h3>Total Users</h3>
+                        <div className="stat-value">{statistics.users.total}</div>
+                        <div className="stat-detail">
+                          {statistics.users.admins} admins, {statistics.users.active} active
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="stat-card success">
+                      <div className="stat-icon">🛍️</div>
+                      <div className="stat-content">
+                        <h3>Products</h3>
+                        <div className="stat-value">{statistics.products.active}</div>
+                        <div className="stat-detail">
+                          {statistics.products.low_stock} low stock, {statistics.products.out_of_stock} out of stock
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="stat-card warning">
+                      <div className="stat-icon">📦</div>
+                      <div className="stat-content">
+                        <h3>Orders Today</h3>
+                        <div className="stat-value">{statistics.orders.today}</div>
+                        <div className="stat-detail">
+                          {statistics.orders.pending} pending, {statistics.orders.processing} processing
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="stat-card info">
+                      <div className="stat-icon">💰</div>
+                      <div className="stat-content">
+                        <h3>Revenue (Month)</h3>
+                        <div className="stat-value">${statistics.revenue.this_month.toFixed(2)}</div>
+                        <div className="stat-detail">
+                          Today: ${statistics.revenue.today.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="dashboard-section">
+                      <h2>Quick Stats</h2>
+                      <div className="stats-grid">
+                        <div className="stat-box">
+                          <h4>Total Orders</h4>
+                          <p className="stat-number">{statistics.orders.total}</p>
+                        </div>
+                        <div className="stat-box">
+                          <h4>Active Sales</h4>
+                          <p className="stat-number">{statistics.sales.active}</p>
+                        </div>
+                        <div className="stat-box">
+                          <h4>Total Reviews</h4>
+                          <p className="stat-number">{statistics.reviews.total}</p>
+                        </div>
+                        <div className="stat-box">
+                          <h4>Total Revenue</h4>
+                          <p className="stat-number">${statistics.revenue.total.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="dashboard-section">
+                      <h2>Order Status Breakdown</h2>
+                      <div className="status-grid">
+                        <div className="status-item pending">
+                          <span className="status-label">Pending</span>
+                          <span className="status-count">{statistics.orders.pending}</span>
+                        </div>
+                        <div className="status-item processing">
+                          <span className="status-label">Processing</span>
+                          <span className="status-count">{statistics.orders.processing}</span>
+                        </div>
+                        <div className="status-item shipped">
+                          <span className="status-label">Shipped</span>
+                          <span className="status-count">{statistics.orders.shipped}</span>
+                        </div>
+                        <div className="status-item delivered">
+                          <span className="status-label">Delivered</span>
+                          <span className="status-count">{statistics.orders.delivered}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="dashboard-section">
+                      <h2>Quick Actions</h2>
+                      <div className="quick-actions">
+                        <button 
+                          className="action-btn"
+                          onClick={() => {
+                            setActiveTab('products');
+                            loadProducts();
+                          }}
+                        >
+                          ➕ Add Product
+                        </button>
+                        <button 
+                          className="action-btn"
+                          onClick={() => {
+                            setActiveTab('sales');
+                            loadSales();
+                            loadUpcomingEvents();
+                          }}
+                        >
+                          💰 Create Sale
+                        </button>
+                        <button 
+                          className="action-btn"
+                          onClick={() => {
+                            setActiveTab('orders');
+                            loadOrders();
+                          }}
+                        >
+                          📦 View Orders
+                        </button>
+                        <button 
+                          className="action-btn"
+                          onClick={handleRunSaleAutomation}
+                          disabled={saving}
+                        >
+                          🔄 Run Automation
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div>No statistics available</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Fashion Knowledge Base Section */}
+          {activeTab === 'fashion' && (
+            <div className="admin-section">
+              <div className="admin-section-header">
+                <h2>Fashion Knowledge Base Management</h2>
+                <button onClick={handleSaveKB} disabled={saving} className="save-btn">
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+
+              <div className="kb-tabs">
+                <button
+                  className={fashionSubTab === 'colors' ? 'active' : ''}
+                  onClick={() => setFashionSubTab('colors')}
+                  aria-label="Color matching advice"
+                >
+                  Color Matching
+                </button>
+                <button
+                  className={fashionSubTab === 'fabrics' ? 'active' : ''}
+                  onClick={() => setFashionSubTab('fabrics')}
+                  aria-label="Fabric information"
+                >
+                  Fabrics
+                </button>
+                <button
+                  className={fashionSubTab === 'occasions' ? 'active' : ''}
+                  onClick={() => setFashionSubTab('occasions')}
+                  aria-label="Occasion styling"
+                >
+                  Occasions
+                </button>
+              </div>
+
+              {fashionSubTab === 'colors' && (
               <div className="kb-section">
                 <div className="kb-section-header">
                   <h3>Color Matching Advice</h3>
@@ -947,7 +1111,7 @@ const Admin = () => {
               </div>
             )}
 
-            {activeTab === 'fabrics' && (
+              {fashionSubTab === 'fabrics' && (
               <div className="kb-section">
                 <div className="kb-section-header">
                   <h3>Fabric Information</h3>
@@ -970,7 +1134,7 @@ const Admin = () => {
               </div>
             )}
 
-            {activeTab === 'occasions' && (
+              {fashionSubTab === 'occasions' && (
               <div className="kb-section">
                 <h3>Occasions</h3>
                 <div className="kb-items">
@@ -983,10 +1147,11 @@ const Admin = () => {
                 </div>
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {activeTab === 'payment-logs' && (
+          {/* Payment Logs Section */}
+          {activeTab === 'payment-logs' && (
           <div className="admin-section">
             <h2>Payment Logs</h2>
             <p style={{color: '#6b7280', marginBottom: '24px'}}>
@@ -1050,7 +1215,8 @@ const Admin = () => {
           </div>
         )}
 
-        {activeTab === 'users' && (
+          {/* User Management Section */}
+          {activeTab === 'users' && (
           <div className="admin-section">
             <h2>User Management</h2>
             <div className="users-table">
@@ -1178,7 +1344,8 @@ const Admin = () => {
           </div>
         )}
 
-        {activeTab === 'sales' && (
+          {/* Sales Management Section */}
+          {activeTab === 'sales' && (
           <div className="admin-section">
             <div className="admin-section-header">
               <h2>Sales Management</h2>
@@ -1439,7 +1606,8 @@ const Admin = () => {
           </div>
         )}
 
-        {activeTab === 'products' && (
+          {/* Product Management Section */}
+          {activeTab === 'products' && (
           <div className="admin-section">
             <div className="admin-section-header">
               <h2>Product Management</h2>
@@ -1816,7 +1984,8 @@ const Admin = () => {
           </div>
         )}
 
-        {activeTab === 'reviews' && (
+          {/* Reviews Management Section */}
+          {activeTab === 'reviews' && (
           <div className="admin-section">
             <h2>Reviews & Ratings Management</h2>
             <p style={{color: '#6b7280', marginBottom: '24px'}}>
@@ -1911,7 +2080,8 @@ const Admin = () => {
           </div>
         )}
 
-        {activeTab === 'orders' && (
+          {/* Orders Management Section */}
+          {activeTab === 'orders' && (
           <div className="admin-section">
             <h2>Orders Management</h2>
             {ordersLoading ? (
@@ -1980,63 +2150,9 @@ const Admin = () => {
           </div>
         )}
 
-        {activeTab === 'statistics' && (
-          <div className="admin-section">
-            <h2>Dashboard & Statistics</h2>
-            {statisticsLoading ? (
-              <div>Loading statistics...</div>
-            ) : statistics ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
-                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
-                  <h3>Users</h3>
-                  <p>Total: {statistics.users.total}</p>
-                  <p>Admins: {statistics.users.admins}</p>
-                  <p>Superadmins: {statistics.users.superadmins}</p>
-                  <p>Active: {statistics.users.active}</p>
-                </div>
-                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
-                  <h3>Products</h3>
-                  <p>Total: {statistics.products.total}</p>
-                  <p>Active: {statistics.products.active}</p>
-                  <p>Inactive: {statistics.products.inactive}</p>
-                  <p>Low Stock: {statistics.products.low_stock}</p>
-                  <p>Out of Stock: {statistics.products.out_of_stock}</p>
-                </div>
-                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
-                  <h3>Orders</h3>
-                  <p>Total: {statistics.orders.total}</p>
-                  <p>Pending: {statistics.orders.pending}</p>
-                  <p>Processing: {statistics.orders.processing}</p>
-                  <p>Shipped: {statistics.orders.shipped}</p>
-                  <p>Delivered: {statistics.orders.delivered}</p>
-                  <p>Today: {statistics.orders.today}</p>
-                  <p>This Week: {statistics.orders.this_week}</p>
-                  <p>This Month: {statistics.orders.this_month}</p>
-                </div>
-                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
-                  <h3>Revenue</h3>
-                  <p>Total: ${statistics.revenue.total.toFixed(2)}</p>
-                  <p>Today: ${statistics.revenue.today.toFixed(2)}</p>
-                  <p>This Week: ${statistics.revenue.this_week.toFixed(2)}</p>
-                  <p>This Month: ${statistics.revenue.this_month.toFixed(2)}</p>
-                </div>
-                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
-                  <h3>Sales</h3>
-                  <p>Total: {statistics.sales.total}</p>
-                  <p>Active: {statistics.sales.active}</p>
-                  <p>Inactive: {statistics.sales.inactive}</p>
-                </div>
-                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
-                  <h3>Reviews</h3>
-                  <p>Total: {statistics.reviews.total}</p>
-                  <p>Today: {statistics.reviews.today}</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
 
-        {activeTab === 'carts' && (
+          {/* Cart Management Section */}
+          {activeTab === 'carts' && (
           <div className="admin-section">
             <h2>Cart Management</h2>
             {cartsLoading ? (
@@ -2083,6 +2199,7 @@ const Admin = () => {
             )}
           </div>
         )}
+        </main>
       </div>
     </div>
   );

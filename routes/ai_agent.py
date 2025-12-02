@@ -1203,92 +1203,97 @@ def text_to_speech():
             return jsonify({'error': 'No valid text to convert'}), 400
         
         # Select voice based on gender preference
-        # Using neural voices for natural, excited tone
+        # Using more expressive voices with better intonation
         if voice_gender == 'woman':
-            # Joanna - natural, friendly, can express excitement well
-            voice_id = 'Joanna'  # Neural voice, great for excited tone
+            # Amy - very expressive, warm, friendly, great for shopping assistant
+            # Alternative: Emma (British), Ivy (child-like), Kendra (friendly)
+            voice_id = 'Amy'  # Very expressive and natural
         else:
-            # Matthew - natural, friendly male voice
-            voice_id = 'Matthew'  # Neural voice, great for excited tone
+            # Justin - expressive, friendly male voice
+            # Alternative: Matthew (calm), Joey (young, energetic)
+            voice_id = 'Justin'  # More expressive than Matthew
         
         print(f"[AWS POLLY] Voice selection: {voice_id} (gender: {voice_gender})")
         
-        # For neural engine, we cannot use prosody tags (rate/pitch)
-        # Neural voices are already natural and expressive
-        # Use plain text with neural engine for best quality
-        print("[AWS POLLY] Preparing text for neural engine (no prosody tags - not supported)")
-        
-        # Clean text to remove any potential SSML-like characters that might confuse AWS
-        # Remove any angle brackets that might be interpreted as SSML
+        # Use standard engine with SSML for better control over prosody
+        # Standard engine supports prosody tags (rate, pitch, volume) for better expression
         import re
-        text_for_speech = clean_text
-        # Remove any remaining angle brackets (could be interpreted as SSML)
-        text_for_speech = re.sub(r'[<>]', '', text_for_speech)
-        # Ensure no SSML-like patterns
-        text_for_speech = text_for_speech.strip()
+        import html
         
-        print(f"[AWS POLLY] Text after SSML cleanup: {len(text_for_speech)} characters")
-        print(f"[AWS POLLY] Text preview: {text_for_speech[:200]}..." if len(text_for_speech) > 200 else f"[AWS POLLY] Text: {text_for_speech}")
+        # Escape HTML/XML special characters for SSML
+        escaped_text = html.escape(clean_text)
         
-        # Call Polly with neural engine for best quality
-        # Try neural first, fall back to standard if neural fails
+        # Detect excitement level in text
+        excitement_indicators = ['!', 'OMG', 'wow', 'awesome', 'amazing', 'great', 'perfect', 
+                                 'love', 'fantastic', 'excellent', 'wonderful', 'beautiful']
+        excitement_level = sum(1 for indicator in excitement_indicators if indicator.lower() in text.lower())
+        has_exclamation = '!' in text
+        
+        # Create SSML with prosody for softer, slower, more expressive speech
+        # Rate: slower for softer feel (85-90% = slower, more gentle)
+        # Pitch: slightly higher for more expression (+3% to +5%)
+        # Volume: normal to slightly softer
+        
+        if excitement_level > 2 or has_exclamation:
+            # More excited: slightly faster but still soft, higher pitch for expression
+            ssml_text = f'<speak><prosody rate="88%" pitch="+4%" volume="medium">' \
+                       f'<amazon:effect phonation="soft">{escaped_text}</amazon:effect>' \
+                       f'</prosody></speak>'
+            print("[AWS POLLY] Using excited SSML (rate: 88%, pitch: +4%, soft phonation)")
+        else:
+            # Normal: slower, softer, gentle tone
+            ssml_text = f'<speak><prosody rate="85%" pitch="+2%" volume="medium">' \
+                       f'<amazon:effect phonation="soft">{escaped_text}</amazon:effect>' \
+                       f'</prosody></speak>'
+            print("[AWS POLLY] Using soft SSML (rate: 85%, pitch: +2%, soft phonation)")
+        
+        print(f"[AWS POLLY] SSML length: {len(ssml_text)} characters")
+        print(f"[AWS POLLY] Text preview: {clean_text[:200]}..." if len(clean_text) > 200 else f"[AWS POLLY] Text: {clean_text}")
+        
+        # Use standard engine with SSML for better prosody control
         import time
         start_time = time.time()
         response = None
-        engine_used = 'neural'
+        engine_used = 'standard'
         
-        # First try: Neural engine (best quality)
         try:
-            print(f"[AWS POLLY] Attempting with neural engine...")
+            print(f"[AWS POLLY] Calling AWS Polly with standard engine and SSML...")
             print(f"  - VoiceId: {voice_id}")
-            print(f"  - Engine: neural")
+            print(f"  - Engine: standard (supports SSML prosody)")
             print(f"  - OutputFormat: mp3")
-            print(f"  - TextType: text (plain text, no SSML)")
-            print(f"  - Text length: {len(text_for_speech)} characters")
+            print(f"  - TextType: ssml")
             
             response = polly_client.synthesize_speech(
-                Text=text_for_speech,
+                Text=ssml_text,
                 OutputFormat='mp3',
                 VoiceId=voice_id,
-                Engine='neural'  # Use neural engine for natural, expressive speech
-                # Note: Neural engine doesn't support SSML prosody tags
-                # Neural voices are already natural and expressive
+                TextType='ssml'  # Using SSML for prosody control
+                # Standard engine (no Engine parameter = standard)
             )
             elapsed_time = time.time() - start_time
-            print(f"[AWS POLLY] ✅ Polly API call successful with neural engine (took {elapsed_time:.2f}s)")
-        except Exception as neural_error:
+            print(f"[AWS POLLY] ✅ Polly API call successful with standard engine + SSML (took {elapsed_time:.2f}s)")
+        except Exception as ssml_error:
             elapsed_time = time.time() - start_time
-            error_msg = str(neural_error)
-            print(f"[AWS POLLY] ⚠️ Neural engine failed after {elapsed_time:.2f}s")
+            error_msg = str(ssml_error)
+            print(f"[AWS POLLY] ⚠️ SSML failed, trying plain text with standard engine...")
             print(f"[AWS POLLY] Error: {error_msg}")
             
-            # Check if it's a neural-specific error
-            if 'Neural' in error_msg or 'neural' in error_msg.lower():
-                print(f"[AWS POLLY] Neural engine not supported, falling back to standard engine...")
+            # Fallback: plain text without SSML
+            try:
                 start_time = time.time()
-                try:
-                    response = polly_client.synthesize_speech(
-                        Text=text_for_speech,
-                        OutputFormat='mp3',
-                        VoiceId=voice_id
-                        # Standard engine (no Engine parameter = standard)
-                    )
-                    elapsed_time = time.time() - start_time
-                    engine_used = 'standard'
-                    print(f"[AWS POLLY] ✅ Polly API call successful with standard engine (took {elapsed_time:.2f}s)")
-                except Exception as standard_error:
-                    elapsed_time = time.time() - start_time
-                    print(f"[AWS POLLY] ❌ ERROR: Standard engine also failed after {elapsed_time:.2f}s")
-                    print(f"[AWS POLLY] Error type: {type(standard_error).__name__}")
-                    print(f"[AWS POLLY] Error message: {str(standard_error)}")
-                    print(f"[AWS POLLY] Error traceback:")
-                    traceback.print_exc()
-                    raise
-            else:
-                # Some other error, re-raise it
-                print(f"[AWS POLLY] ❌ ERROR: Polly API call failed after {elapsed_time:.2f}s")
-                print(f"[AWS POLLY] Error type: {type(neural_error).__name__}")
-                print(f"[AWS POLLY] Error message: {str(neural_error)}")
+                response = polly_client.synthesize_speech(
+                    Text=clean_text,
+                    OutputFormat='mp3',
+                    VoiceId=voice_id
+                    # Standard engine with plain text
+                )
+                elapsed_time = time.time() - start_time
+                print(f"[AWS POLLY] ✅ Polly API call successful with standard engine + plain text (took {elapsed_time:.2f}s)")
+            except Exception as plain_error:
+                elapsed_time = time.time() - start_time
+                print(f"[AWS POLLY] ❌ ERROR: Both SSML and plain text failed after {elapsed_time:.2f}s")
+                print(f"[AWS POLLY] Error type: {type(plain_error).__name__}")
+                print(f"[AWS POLLY] Error message: {str(plain_error)}")
                 print(f"[AWS POLLY] Error traceback:")
                 traceback.print_exc()
                 raise

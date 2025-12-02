@@ -57,9 +57,9 @@ const Admin = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
-    // Check if user is admin
-    if (!user || !user.is_admin) {
-      navigate('/');
+    // Check if user is superadmin
+    if (!user || !user.is_superadmin) {
+      navigate('/members');
       return;
     }
 

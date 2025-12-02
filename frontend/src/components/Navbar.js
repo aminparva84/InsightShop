@@ -36,7 +36,7 @@ const Navbar = () => {
           {isAuthenticated ? (
             <>
               <Link to="/members" className="nav-link">My Account</Link>
-              {user?.is_admin && (
+              {user?.is_superadmin && (
                 <Link to="/admin" className="nav-link">Admin</Link>
               )}
               <div className="user-menu">

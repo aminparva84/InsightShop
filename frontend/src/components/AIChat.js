@@ -501,16 +501,42 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Stop speaking
   const stopSpeaking = () => {
     console.log('[FRONTEND] 🛑 stopSpeaking called');
-    if (audioRef.current && !audioRef.current.paused) {
-      console.log('[FRONTEND] Pausing audio and resetting state...');
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setIsSpeaking(false);
-      setCurrentlyPlayingMessageId(null);
-      console.log('[FRONTEND] ✅ Audio stopped');
-    } else {
-      console.log('[FRONTEND] ⚠️ No audio playing to stop');
+    
+    // Stop audio playback completely
+    if (audioRef.current) {
+      console.log('[FRONTEND] Stopping audio playback...');
+      console.log('[FRONTEND]   - Current state:', {
+        paused: audioRef.current.paused,
+        currentTime: audioRef.current.currentTime,
+        readyState: audioRef.current.readyState
+      });
+      
+      // Remove all event listeners to prevent any callbacks
+      const audioElement = audioRef.current;
+      const newAudio = new Audio();
+      
+      // Copy any needed properties, then replace
+      audioRef.current = newAudio;
+      
+      // Stop the old audio
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      audioElement.src = '';
+      audioElement.load();
+      
+      // Clear all event listeners by removing src
+      if (audioElement.src) {
+        URL.revokeObjectURL(audioElement.src);
+      }
+      
+      console.log('[FRONTEND] ✅ Audio element reset and stopped');
     }
+    
+    // Reset all state
+    setIsSpeaking(false);
+    setCurrentlyPlayingMessageId(null);
+    
+    console.log('[FRONTEND] ✅ All audio state cleared');
   };
   
   // Play specific message
@@ -520,23 +546,44 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     console.log('[FRONTEND]   - messageContent length:', messageContent?.length);
     console.log('[FRONTEND]   - current voiceEnabled:', voiceEnabled);
     console.log('[FRONTEND]   - current pollyAvailable:', pollyAvailable);
+    console.log('[FRONTEND]   - isCurrentlyPlaying:', currentlyPlayingMessageId === messageId);
+    
+    // If clicking on the same message that's playing, stop it
+    if (currentlyPlayingMessageId === messageId && isSpeaking) {
+      console.log('[FRONTEND] Same message is playing - stopping it');
+      stopSpeaking();
+      return; // Don't restart, just stop
+    }
     
     // Stop any currently playing audio
     if (audioRef.current && !audioRef.current.paused) {
       console.log('[FRONTEND] Stopping currently playing audio...');
       stopSpeaking();
+      // Wait a moment for cleanup
+      setTimeout(() => {
+        // Enable voice if not already enabled
+        if (!voiceEnabled) {
+          console.log('[FRONTEND] Auto-enabling voice for manual play');
+          setVoiceEnabled(true);
+          localStorage.setItem('aiVoiceEnabled', 'true');
+        }
+        
+        // Speak the message
+        console.log('[FRONTEND] Calling speakText with messageId:', messageId);
+        speakText(messageContent, messageId);
+      }, 100);
+    } else {
+      // Enable voice if not already enabled
+      if (!voiceEnabled) {
+        console.log('[FRONTEND] Auto-enabling voice for manual play');
+        setVoiceEnabled(true);
+        localStorage.setItem('aiVoiceEnabled', 'true');
+      }
+      
+      // Speak the message
+      console.log('[FRONTEND] Calling speakText with messageId:', messageId);
+      speakText(messageContent, messageId);
     }
-    
-    // Enable voice if not already enabled
-    if (!voiceEnabled) {
-      console.log('[FRONTEND] Auto-enabling voice for manual play');
-      setVoiceEnabled(true);
-      localStorage.setItem('aiVoiceEnabled', 'true');
-    }
-    
-    // Speak the message
-    console.log('[FRONTEND] Calling speakText with messageId:', messageId);
-    speakText(messageContent, messageId);
   };
 
   // Toggle voice on/off
@@ -1150,26 +1197,31 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               {msg.role === 'assistant' && (
                 <button
                   onClick={() => {
-                    console.log('[FRONTEND] 🎵 Play button clicked for message:', messageId);
-                    playMessage(msg.content, messageId);
+                    if (isCurrentlyPlaying) {
+                      console.log('[FRONTEND] 🛑 Stop button clicked for message:', messageId);
+                      stopSpeaking();
+                    } else {
+                      console.log('[FRONTEND] 🎵 Play button clicked for message:', messageId);
+                      playMessage(msg.content, messageId);
+                    }
                   }}
                   className="message-play-btn"
-                  title={isCurrentlyPlaying ? "Playing... Click to stop" : "Play voice"}
-                  disabled={isCurrentlyPlaying || loading}
+                  title={isCurrentlyPlaying ? "Click to stop playback" : "Play voice"}
+                  disabled={loading}
                   style={{
                     position: 'absolute',
                     top: '8px',
                     right: '8px',
-                    background: isCurrentlyPlaying ? '#10b981' : 'rgba(212, 175, 55, 0.15)',
-                    border: '1px solid #d4af37',
+                    background: isCurrentlyPlaying ? '#ef4444' : 'rgba(212, 175, 55, 0.15)',
+                    border: isCurrentlyPlaying ? '1px solid #dc2626' : '1px solid #d4af37',
                     borderRadius: '4px',
                     padding: '4px 8px',
-                    cursor: (isCurrentlyPlaying || loading) ? 'default' : 'pointer',
+                    cursor: loading ? 'default' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
                     fontSize: '12px',
-                    color: '#1a2332',
+                    color: isCurrentlyPlaying ? '#ffffff' : '#1a2332',
                     transition: 'all 0.2s',
                     zIndex: 100,
                     visibility: 'visible',
@@ -1182,7 +1234,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                   {isCurrentlyPlaying ? (
                     <>
                       <StopIcon size={14} />
-                      <span>Playing</span>
+                      <span>Stop</span>
                     </>
                   ) : (
                     <>

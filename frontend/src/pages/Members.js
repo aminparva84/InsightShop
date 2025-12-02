@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import ProductCard from '../components/ProductCard';
 import './Members.css';
 
 const Members = () => {
@@ -10,6 +11,8 @@ const Members = () => {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [suggestedProducts, setSuggestedProducts] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -17,7 +20,14 @@ const Members = () => {
       return;
     }
     fetchDashboard();
+    fetchAllOrders();
   }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (!loading && (allOrders.length > 0 || !dashboard || dashboard.recent_orders.length === 0)) {
+      fetchSuggestions();
+    }
+  }, [allOrders, dashboard, loading]);
 
   const fetchDashboard = async () => {
     try {
@@ -27,6 +37,25 @@ const Members = () => {
       console.error('Error fetching dashboard:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllOrders = async () => {
+    try {
+      const response = await axios.get('/api/members/orders');
+      setAllOrders(response.data.orders || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  };
+
+  const fetchSuggestions = async () => {
+    try {
+      // Fetch general product suggestions for member area
+      const response = await axios.get('/api/products?per_page=8');
+      setSuggestedProducts(response.data.products || []);
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
     }
   };
 
@@ -82,14 +111,22 @@ const Members = () => {
             </div>
 
             <div className="recent-section">
-              <h2>Recent Orders</h2>
-              {dashboard.recent_orders.length > 0 ? (
+              <h2>Your Orders</h2>
+              {allOrders.length > 0 ? (
                 <div className="orders-list">
-                  {dashboard.recent_orders.map(order => (
+                  {allOrders.map(order => (
                     <div key={order.id} className="order-card">
                       <div className="order-header">
                         <span className="order-number">{order.order_number}</span>
                         <span className={`order-status ${order.status}`}>{order.status}</span>
+                      </div>
+                      <div className="order-items">
+                        {order.items && order.items.map(item => (
+                          <div key={item.id} className="order-item">
+                            <span>{item.product?.name} x {item.quantity}</span>
+                            <span>${item.subtotal.toFixed(2)}</span>
+                          </div>
+                        ))}
                       </div>
                       <div className="order-details">
                         <p>Total: ${order.total.toFixed(2)}</p>
@@ -102,6 +139,17 @@ const Members = () => {
                 <p>No orders yet</p>
               )}
             </div>
+
+            {suggestedProducts.length > 0 && (
+              <div className="suggestions-section">
+                <h2>You Might Also Like</h2>
+                <div className="suggestions-grid">
+                  {suggestedProducts.map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -18,13 +18,13 @@ import os
 admin_bp = Blueprint('admin', __name__)
 
 def require_admin(f):
-    """Decorator to require admin authentication."""
+    """Decorator to require superadmin authentication."""
     @wraps(f)
     @require_auth
     def decorated_function(*args, **kwargs):
         user = request.current_user
-        if not user.is_admin:
-            return jsonify({'error': 'Admin access required'}), 403
+        if not user.is_superadmin:
+            return jsonify({'error': 'Superadmin access required'}), 403
         return f(*args, **kwargs)
     return decorated_function
 

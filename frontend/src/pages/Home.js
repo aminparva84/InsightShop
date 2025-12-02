@@ -18,9 +18,23 @@ const Home = () => {
 
   const fetchFeaturedProducts = async () => {
     try {
-      const response = await axios.get('/api/products?per_page=12');
+      // Fetch more products to filter for those with images
+      const response = await axios.get('/api/products?per_page=100');
       if (response.data && response.data.products) {
-        const productsList = response.data.products;
+        // Filter products that have images (from generated_images or static/images)
+        const productsWithImages = response.data.products.filter(product => {
+          if (!product.image_url) return false;
+          // Check if image is from our local sources (not external URLs)
+          return product.image_url.includes('/api/images/') || 
+                 product.image_url.includes('static/images/') ||
+                 product.image_url.includes('generated_images/');
+        });
+        
+        // If we have products with images, use them; otherwise use all products
+        const productsList = productsWithImages.length > 0 
+          ? productsWithImages.slice(0, 12) 
+          : response.data.products.slice(0, 12);
+        
         setProducts(productsList);
       } else {
         setProducts([]);

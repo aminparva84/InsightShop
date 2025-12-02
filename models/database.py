@@ -46,17 +46,17 @@ def init_db(app):
             # Try a simple query to verify table exists
             try:
                 Sale.query.limit(1).all()
-                print("✅ Sales table verified")
+                print("[OK] Sales table verified")
             except Exception as e:
-                print(f"⚠️ Warning: Sales table may not exist: {e}")
+                print(f"[WARNING] Sales table may not exist: {e}")
                 # Try to create it explicitly
                 try:
                     Sale.__table__.create(db.engine, checkfirst=True)
-                    print("✅ Sales table created")
+                    print("[OK] Sales table created")
                 except Exception as e2:
-                    print(f"⚠️ Could not create Sales table: {e2}")
+                    print(f"[WARNING] Could not create Sales table: {e2}")
         except Exception as e:
-            print(f"⚠️ Could not verify Sales table: {e}")
+            print(f"[WARNING] Could not verify Sales table: {e}")
         
         # Initialize vector database (skip in test mode)
         if not app.config.get('TESTING'):

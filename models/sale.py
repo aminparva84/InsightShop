@@ -46,14 +46,23 @@ class Sale(db.Model):
     )
     
     def is_currently_active(self, check_date=None):
-        """Check if sale is currently active."""
+        """Check if sale is currently active.
+        Sales stay active until manually deactivated by admin (is_active=False).
+        End date is informational only - sales don't auto-expire."""
         if check_date is None:
             check_date = date.today()
         
+        # Sale must be active (not manually deactivated)
         if not self.is_active:
             return False
         
-        return self.start_date <= check_date <= self.end_date
+        # Sale must have started (start_date check)
+        if check_date < self.start_date:
+            return False
+        
+        # End date is informational - sales don't auto-expire
+        # They stay active until admin manually deactivates them
+        return True
     
     def to_dict(self):
         """Convert sale to dictionary."""

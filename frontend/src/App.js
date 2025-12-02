@@ -5,6 +5,7 @@ import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import FloatingAIAssistant from './components/FloatingAIAssistant';
 import Home from './pages/Home';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
@@ -44,6 +45,7 @@ function App() {
                 </Routes>
               </main>
               <Footer />
+              <FloatingAIAssistant />
             </div>
           </Router>
         </NotificationProvider>

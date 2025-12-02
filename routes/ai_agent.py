@@ -159,11 +159,12 @@ Keep it super conversational, warm, helpful, real, and EXCITED - like you're sha
         
         body = {
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 2048,
+            "max_tokens": 1024,  # Reduced from 2048 for faster responses
             "system": system_prompt,
             "messages": messages
         }
         
+        # Optimized for faster response
         response = bedrock_runtime.invoke_model(
             modelId=Config.BEDROCK_MODEL_ID,
             body=json.dumps(body)

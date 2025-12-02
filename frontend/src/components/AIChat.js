@@ -114,13 +114,21 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   const recognitionRef = useRef(null);
   const audioRef = useRef(null); // For AWS Polly audio playback
   const fileInputRef = useRef(null);
+  const inputRef = useRef(null); // For input focus management
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll if user is not typing (input is empty or not focused)
+    if (!input.trim() && document.activeElement?.tagName !== 'INPUT') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Delay scroll to avoid interfering with typing
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   // Save chat history to localStorage whenever messages change
@@ -187,7 +195,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Function to speak text with natural-sounding voice
   // Function to speak text using AWS Polly (natural, excited voice)
   const speakText = async (text, messageId = null) => {
-    console.log('speakText called:', { voiceEnabled, pollyAvailable, hasAudioRef: !!audioRef.current, textLength: text?.length, messageId });
+    console.log('speakText called:', { voiceEnabled, pollyAvailable, hasAudioRef: !!audioRef.current, textLength: text?.length, messageId, usedSpeechInput });
     
     // If voice is disabled but user used mic, enable it
     if (!voiceEnabled && usedSpeechInput) {
@@ -203,11 +211,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       return;
     }
     
-    if (!pollyAvailable) {
-      console.log('Polly is not available');
-      return;
-    }
-    
+    // Try to use Polly, but don't block if it's not available - try anyway
+    // The backend will handle the error gracefully
     if (!audioRef.current) {
       console.log('Audio ref is not initialized');
       return;
@@ -686,6 +691,13 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
+    
+    // Keep input focused after sending
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 50);
 
     // Check if user wants to see products in chat (explicit request) - check BEFORE API call
     const showInChatKeywords = ['show it here', 'show here', 'display here', 'list here', 'show me here', 'tell me here', 'show them here'];
@@ -1023,28 +1035,29 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           return (
           <div key={idx} className={`message ${msg.role}`}>
             <div className="message-content" style={{ position: 'relative' }}>
-              {/* Play button for assistant messages */}
-              {msg.role === 'assistant' && pollyAvailable && (
+              {/* Play button for assistant messages - always show, handle errors gracefully */}
+              {msg.role === 'assistant' && (
                 <button
                   onClick={() => playMessage(msg.content, messageId)}
                   className="message-play-btn"
                   title={isCurrentlyPlaying ? "Playing..." : "Play voice"}
-                  disabled={isCurrentlyPlaying}
+                  disabled={isCurrentlyPlaying || loading}
                   style={{
                     position: 'absolute',
                     top: '8px',
                     right: '8px',
-                    background: isCurrentlyPlaying ? '#10b981' : 'transparent',
+                    background: isCurrentlyPlaying ? '#10b981' : 'rgba(212, 175, 55, 0.1)',
                     border: '1px solid #d4af37',
                     borderRadius: '4px',
                     padding: '4px 8px',
-                    cursor: isCurrentlyPlaying ? 'default' : 'pointer',
+                    cursor: (isCurrentlyPlaying || loading) ? 'default' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
                     fontSize: '12px',
                     color: '#1a2332',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s',
+                    zIndex: 10
                   }}
                 >
                   {isCurrentlyPlaying ? (
@@ -1196,9 +1209,30 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           {uploadingImage ? '⏳' : '📷'}
         </button>
         <input
+          ref={inputRef}
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            // Keep focus on input when typing
+            if (inputRef.current && document.activeElement !== inputRef.current) {
+              inputRef.current.focus();
+            }
+          }}
+          onFocus={() => {
+            // Prevent scrolling when input is focused
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView = () => {}; // Disable auto-scroll
+            }
+          }}
+          onBlur={() => {
+            // Re-enable scrolling when input loses focus
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView = function(options) {
+                Element.prototype.scrollIntoView.call(this, options);
+              };
+            }
+          }}
           placeholder="Ask me about products, or say 'compare product 1, 2, 3' or 'compare selected items'..."
           disabled={loading || isListening}
         />

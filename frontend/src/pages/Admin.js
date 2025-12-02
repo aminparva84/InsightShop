@@ -14,6 +14,22 @@ const Admin = () => {
   const [users, setUsers] = useState([]);
   const [paymentLogs, setPaymentLogs] = useState([]);
   const [paymentLogsLoading, setPaymentLogsLoading] = useState(false);
+  const [sales, setSales] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [showSaleForm, setShowSaleForm] = useState(false);
+  const [editingSale, setEditingSale] = useState(null);
+  const [newSale, setNewSale] = useState({
+    name: '',
+    description: '',
+    sale_type: 'holiday',
+    event_name: '',
+    discount_percentage: '',
+    start_date: '',
+    end_date: '',
+    product_filters: {},
+    is_active: true
+  });
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
@@ -27,6 +43,10 @@ const Admin = () => {
     loadUsers();
     if (activeTab === 'payment-logs') {
       loadPaymentLogs();
+    }
+    if (activeTab === 'sales') {
+      loadSales();
+      loadUpcomingEvents();
     }
   }, [user, navigate, activeTab]);
 
@@ -176,6 +196,145 @@ const Admin = () => {
     }
   };
 
+  const loadSales = async () => {
+    setSalesLoading(true);
+    try {
+      const response = await axios.get('/api/admin/sales', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setSales(response.data.sales);
+      }
+    } catch (error) {
+      console.error('Error loading sales:', error);
+      setMessage({ type: 'error', text: 'Failed to load sales' });
+    } finally {
+      setSalesLoading(false);
+    }
+  };
+
+  const loadUpcomingEvents = async () => {
+    try {
+      const response = await axios.get('/api/admin/sales/events', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setUpcomingEvents({
+          holidays: response.data.upcoming_holidays || [],
+          current: response.data.current_events || []
+        });
+      }
+    } catch (error) {
+      console.error('Error loading events:', error);
+    }
+  };
+
+  const handleCreateSale = async () => {
+    if (!newSale.name || !newSale.discount_percentage || !newSale.start_date) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const saleData = {
+        ...newSale,
+        discount_percentage: parseFloat(newSale.discount_percentage),
+        product_filters: newSale.product_filters || {}
+      };
+
+      const response = await axios.post('/api/admin/sales', saleData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Sale created successfully!' });
+        setShowSaleForm(false);
+        setNewSale({
+          name: '',
+          description: '',
+          sale_type: 'holiday',
+          event_name: '',
+          discount_percentage: '',
+          start_date: '',
+          end_date: '',
+          product_filters: {},
+          is_active: true
+        });
+        loadSales();
+      }
+    } catch (error) {
+      console.error('Error creating sale:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to create sale' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateSale = async (saleId, updates) => {
+    setSaving(true);
+    try {
+      const response = await axios.put(`/api/admin/sales/${saleId}`, updates, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Sale updated successfully!' });
+        setEditingSale(null);
+        loadSales();
+      }
+    } catch (error) {
+      console.error('Error updating sale:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to update sale' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteSale = async (saleId) => {
+    if (!window.confirm('Are you sure you want to delete this sale?')) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(`/api/admin/sales/${saleId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Sale deleted successfully!' });
+        loadSales();
+      }
+    } catch (error) {
+      console.error('Error deleting sale:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to delete sale' });
+    }
+  };
+
+  const handleToggleSaleActive = async (sale) => {
+    await handleUpdateSale(sale.id, { is_active: !sale.is_active });
+  };
+
+  const createThanksgivingSale = async () => {
+    const today = new Date();
+    const nextYear = new Date(today.getFullYear() + 1, 10, 1); // November next year
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = nextYear.toISOString().split('T')[0];
+
+    setNewSale({
+      name: 'Thanksgiving Sale',
+      description: 'Celebrate Thanksgiving with amazing deals!',
+      sale_type: 'holiday',
+      event_name: 'thanksgiving',
+      discount_percentage: '40',
+      start_date: startDate,
+      end_date: endDate,
+      product_filters: {},
+      is_active: true
+    });
+    setShowSaleForm(true);
+  };
+
   if (loading) {
     return <div className="admin-page"><div className="container">Loading...</div></div>;
   }
@@ -217,6 +376,16 @@ const Admin = () => {
             }}
           >
             Payment Logs
+          </button>
+          <button
+            className={activeTab === 'sales' ? 'active' : ''}
+            onClick={() => {
+              setActiveTab('sales');
+              loadSales();
+              loadUpcomingEvents();
+            }}
+          >
+            Sales Management
           </button>
         </div>
 
@@ -407,6 +576,245 @@ const Admin = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'sales' && (
+          <div className="admin-section">
+            <div className="admin-section-header">
+              <h2>Sales Management</h2>
+              <button className="save-btn" onClick={() => setShowSaleForm(!showSaleForm)}>
+                {showSaleForm ? 'Cancel' : '+ Create New Sale'}
+              </button>
+            </div>
+
+            {/* Upcoming Events Section */}
+            {upcomingEvents.holidays && upcomingEvents.holidays.length > 0 && (
+              <div className="upcoming-events-section" style={{ marginBottom: '30px', padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <h3>Upcoming Holidays & Events</h3>
+                <p style={{ color: '#666', marginBottom: '15px' }}>Quick create sales for upcoming events:</p>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {upcomingEvents.holidays.slice(0, 5).map((event, idx) => (
+                    <button
+                      key={idx}
+                      className="save-btn"
+                      style={{ fontSize: '12px', padding: '8px 16px' }}
+                      onClick={() => {
+                        const today = new Date();
+                        const nextYear = new Date(today.getFullYear() + 1, 10, 1);
+                        const eventDate = new Date(event.date);
+                        const startDate = eventDate <= today ? today.toISOString().split('T')[0] : event.date;
+                        const endDate = nextYear.toISOString().split('T')[0];
+                        
+                        setNewSale({
+                          name: `${event.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} Sale`,
+                          description: `Special ${event.name.replace('_', ' ')} sale!`,
+                          sale_type: 'holiday',
+                          event_name: event.name,
+                          discount_percentage: '25',
+                          start_date: startDate,
+                          end_date: endDate,
+                          product_filters: {},
+                          is_active: true
+                        });
+                        setShowSaleForm(true);
+                      }}
+                    >
+                      {event.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ({event.days_until === 0 ? 'Today' : event.days_until === 1 ? 'Tomorrow' : `in ${event.days_until} days`})
+                    </button>
+                  ))}
+                  <button
+                    className="save-btn"
+                    style={{ fontSize: '12px', padding: '8px 16px', background: '#dc2626' }}
+                    onClick={createThanksgivingSale}
+                  >
+                    🦃 Create Thanksgiving Sale (40% off)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Create/Edit Sale Form */}
+            {showSaleForm && (
+              <div className="sale-form" style={{ marginBottom: '30px', padding: '20px', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+                <h3>{editingSale ? 'Edit Sale' : 'Create New Sale'}</h3>
+                <div style={{ display: 'grid', gap: '15px' }}>
+                  <div>
+                    <label>Sale Name *</label>
+                    <input
+                      type="text"
+                      value={newSale.name}
+                      onChange={(e) => setNewSale({ ...newSale, name: e.target.value })}
+                      placeholder="e.g., Thanksgiving Sale"
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                  </div>
+                  <div>
+                    <label>Description</label>
+                    <textarea
+                      value={newSale.description}
+                      onChange={(e) => setNewSale({ ...newSale, description: e.target.value })}
+                      placeholder="Sale description..."
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '60px' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                      <label>Discount Percentage *</label>
+                      <input
+                        type="number"
+                        value={newSale.discount_percentage}
+                        onChange={(e) => setNewSale({ ...newSale, discount_percentage: e.target.value })}
+                        placeholder="40"
+                        min="0"
+                        max="100"
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <div>
+                      <label>Sale Type</label>
+                      <select
+                        value={newSale.sale_type}
+                        onChange={(e) => setNewSale({ ...newSale, sale_type: e.target.value })}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      >
+                        <option value="holiday">Holiday</option>
+                        <option value="seasonal">Seasonal</option>
+                        <option value="event">Event</option>
+                        <option value="general">General</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                      <label>Start Date *</label>
+                      <input
+                        type="date"
+                        value={newSale.start_date}
+                        onChange={(e) => setNewSale({ ...newSale, start_date: e.target.value })}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <div>
+                      <label>End Date (Informational - sales stay active until manually deactivated)</label>
+                      <input
+                        type="date"
+                        value={newSale.end_date}
+                        onChange={(e) => setNewSale({ ...newSale, end_date: e.target.value })}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={newSale.is_active}
+                        onChange={(e) => setNewSale({ ...newSale, is_active: e.target.checked })}
+                        style={{ marginRight: '8px' }}
+                      />
+                      Active (Sale will be active until you uncheck this)
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="save-btn" onClick={handleCreateSale} disabled={saving}>
+                      {saving ? 'Saving...' : editingSale ? 'Update Sale' : 'Create Sale'}
+                    </button>
+                    <button
+                      className="save-btn"
+                      style={{ background: '#6c757d' }}
+                      onClick={() => {
+                        setShowSaleForm(false);
+                        setEditingSale(null);
+                        setNewSale({
+                          name: '',
+                          description: '',
+                          sale_type: 'holiday',
+                          event_name: '',
+                          discount_percentage: '',
+                          start_date: '',
+                          end_date: '',
+                          product_filters: {},
+                          is_active: true
+                        });
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sales List */}
+            {salesLoading ? (
+              <div>Loading sales...</div>
+            ) : (
+              <div className="sales-table">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Name</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Discount</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Type</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Start Date</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Status</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sales.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                          No sales created yet. Create your first sale above!
+                        </td>
+                      </tr>
+                    ) : (
+                      sales.map(sale => (
+                        <tr key={sale.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <td style={{ padding: '12px' }}>{sale.name}</td>
+                          <td style={{ padding: '12px', fontWeight: 'bold', color: '#dc2626' }}>
+                            {sale.discount_percentage}% OFF
+                          </td>
+                          <td style={{ padding: '12px', textTransform: 'capitalize' }}>{sale.sale_type}</td>
+                          <td style={{ padding: '12px' }}>{new Date(sale.start_date).toLocaleDateString()}</td>
+                          <td style={{ padding: '12px' }}>
+                            <span style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              background: sale.is_currently_active ? '#d4edda' : '#f8d7da',
+                              color: sale.is_currently_active ? '#155724' : '#721c24',
+                              fontSize: '12px',
+                              fontWeight: 'bold'
+                            }}>
+                              {sale.is_currently_active ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                className="save-btn"
+                                style={{ fontSize: '12px', padding: '6px 12px', background: sale.is_active ? '#dc2626' : '#28a745' }}
+                                onClick={() => handleToggleSaleActive(sale)}
+                              >
+                                {sale.is_active ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <button
+                                className="save-btn"
+                                style={{ fontSize: '12px', padding: '6px 12px', background: '#6c757d' }}
+                                onClick={() => handleDeleteSale(sale.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -13,15 +13,18 @@ sales_bp = Blueprint('sales', __name__)
 
 @sales_bp.route('/active', methods=['GET'])
 def get_active_sales():
-    """Get all currently active sales."""
+    """Get all currently active sales.
+    Sales stay active until manually deactivated (is_active=False).
+    End date is informational only."""
     try:
         # Check if Sale table exists
         try:
             current_date = date.today()
+            # Sales are active if: is_active=True AND start_date <= today
+            # End date is informational - sales don't auto-expire
             active_sales = Sale.query.filter(
                 Sale.is_active == True,
-                Sale.start_date <= current_date,
-                Sale.end_date >= current_date
+                Sale.start_date <= current_date
             ).all()
         except Exception as e:
             # Table doesn't exist yet, return empty list
@@ -73,14 +76,13 @@ def get_current_sales_context():
         active_sales = []
         upcoming_sales = []
         try:
-            # Get active sales
+            # Get active sales (sales stay active until manually deactivated)
             active_sales = Sale.query.filter(
                 Sale.is_active == True,
-                Sale.start_date <= current_date,
-                Sale.end_date >= current_date
+                Sale.start_date <= current_date
             ).all()
             
-            # Get upcoming sales
+            # Get upcoming sales (sales that haven't started yet)
             from datetime import timedelta
             future_date = current_date + timedelta(days=30)
             upcoming_sales = Sale.query.filter(

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import AIChat from './AIChat';
+import Logo from './Logo';
 import './FloatingAIAssistant.css';
 
 const AI_HINTS = [
@@ -10,13 +11,32 @@ const AI_HINTS = [
   "Ask: 'Compare product 1, 2, 3' to see differences",
   "I know about fabrics, colors, and styling advice",
   "Say 'What should I wear for a business meeting?'",
-  "I can help you find the perfect outfit for any occasion"
+  "I can help you find the perfect outfit for any occasion",
+  "Ask me about fashion matching and color coordination",
+  "I can suggest complementary items for your cart",
+  "Try: 'What colors match with blue?'",
+  "Ask: 'Help me style this outfit'",
+  "I can analyze images and find similar products"
+];
+
+const CART_AI_HINTS = [
+  "I can suggest items that match what's in your cart",
+  "Ask: 'What goes well with my cart items?'",
+  "Try: 'Help me complete my outfit'",
+  "I can suggest complementary colors and styles",
+  "Ask me about fashion matching for your cart",
+  "Say: 'What accessories match my cart?'",
+  "I can help you find coordinating pieces",
+  "Try: 'Suggest items that match my style'"
 ];
 
 const FloatingAIAssistant = () => {
+  const location = useLocation();
   const [showChat, setShowChat] = useState(false);
   const [currentHint, setCurrentHint] = useState(0);
   const [showHint, setShowHint] = useState(true);
+  // Only show on cart page, so always use cart hints
+  const hints = CART_AI_HINTS;
   const [chatSize, setChatSize] = useState(() => {
     // Load saved size from localStorage or use defaults
     const saved = localStorage.getItem('aiChatSize');
@@ -24,22 +44,21 @@ const FloatingAIAssistant = () => {
       try {
         return JSON.parse(saved);
       } catch {
-        return { width: 420, height: 600 };
+        return { width: 420, height: 630 }; // Added 30px to default height
       }
     }
-    return { width: 420, height: 600 };
+    return { width: 420, height: 630 }; // Added 30px to default height
   });
   const [isResizing, setIsResizing] = useState(false);
   const chatContainerRef = useRef(null);
-  const location = useLocation();
 
   // Rotate hints every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentHint(prev => (prev + 1) % AI_HINTS.length);
+      setCurrentHint(prev => (prev + 1) % hints.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hints.length]);
 
   // Hide hint when chat is open
   useEffect(() => {
@@ -91,17 +110,8 @@ const FloatingAIAssistant = () => {
     };
   }, [isResizing]);
 
-  // Don't show on certain pages
-  const hideOnPages = ['/checkout', '/order-confirmation'];
-  if (hideOnPages.includes(location.pathname)) {
-    return null;
-  }
-
-  // Don't show floating button on Products page when AI Dashboard tab is active
-  // (AI chat is shown inline instead)
-  const isProductsPage = location.pathname === '/products';
-  const isAiDashboardTab = isProductsPage && (new URLSearchParams(location.search).get('tab') === 'ai' || new URLSearchParams(location.search).get('ai_results'));
-  if (isAiDashboardTab) {
+  // Only show on cart page
+  if (location.pathname !== '/cart') {
     return null;
   }
 
@@ -117,12 +127,14 @@ const FloatingAIAssistant = () => {
           }
         }}
       >
-        <div className="ai-button-icon">🤖</div>
+        <div className="ai-button-icon">
+          <Logo size="small" />
+        </div>
         <div className="ai-button-text">AI Assistant</div>
         {showHint && (
           <div className="ai-hint-bubble">
             <div className="hint-arrow"></div>
-            <p className="hint-text">{AI_HINTS[currentHint]}</p>
+            <p className="hint-text">{hints[currentHint]}</p>
             <button 
               className="hint-close"
               onClick={(e) => {

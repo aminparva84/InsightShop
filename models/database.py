@@ -15,6 +15,11 @@ def init_db(app):
         from models.cart import CartItem
         from models.order import Order, OrderItem
         from models.payment import Payment
+        try:
+            from models.sale import Sale
+        except ImportError:
+            print("Warning: Sale model not found, sales feature will be disabled")
+            Sale = None
         
         # Create database directory if it doesn't exist
         db_dir = os.path.dirname(Config.DB_PATH) if os.path.dirname(Config.DB_PATH) else '.'
@@ -29,6 +34,23 @@ def init_db(app):
         # Create all tables with new schema
         db.create_all()
         print(f"Database tables created at: {Config.DB_PATH}")
+        
+        # Verify Sale table was created
+        try:
+            # Try a simple query to verify table exists
+            try:
+                Sale.query.limit(1).all()
+                print("✅ Sales table verified")
+            except Exception as e:
+                print(f"⚠️ Warning: Sales table may not exist: {e}")
+                # Try to create it explicitly
+                try:
+                    Sale.__table__.create(db.engine, checkfirst=True)
+                    print("✅ Sales table created")
+                except Exception as e2:
+                    print(f"⚠️ Could not create Sales table: {e2}")
+        except Exception as e:
+            print(f"⚠️ Could not verify Sales table: {e}")
         
         # Initialize vector database (skip in test mode)
         if not app.config.get('TESTING'):

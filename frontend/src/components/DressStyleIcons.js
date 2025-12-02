@@ -78,6 +78,12 @@ export const StopIcon = ({ size = 20, className = '' }) => (
   </svg>
 );
 
+export const PlayIcon = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={`dress-icon ${className}`} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 5V19L19 12L8 5Z"/>
+  </svg>
+);
+
 // Icon mapping for styles
 export const getDressStyleIcon = (style) => {
   const styleLower = (style || '').toLowerCase();

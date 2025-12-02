@@ -4,9 +4,12 @@ from models.database import db
 from models.user import User
 from models.payment_log import PaymentLog
 from models.order import Order
+from models.sale import Sale
 from routes.auth import require_auth
 from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
+from utils.seasonal_events import get_upcoming_holidays, get_current_holidays_and_events
 from functools import wraps
+from datetime import date, datetime
 import json
 import os
 

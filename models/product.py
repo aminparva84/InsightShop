@@ -51,6 +51,51 @@ class Product(db.Model):
         Index('idx_is_active_category', 'is_active', 'category'),
     )
     
+    def get_sale_price(self):
+        """Get the sale price if product is on sale, otherwise return original price."""
+        try:
+            from models.sale import Sale
+            from datetime import date
+            
+            # Check if Sale table exists
+            try:
+                # Find active sales that apply to this product
+                active_sales = Sale.query.filter_by(is_active=True).all()
+            except Exception as e:
+                # Sale table might not exist yet, return None
+                return None
+            
+            current_date = date.today()
+            
+            best_discount = 0.0
+            sale_info = None
+            
+            for sale in active_sales:
+                try:
+                    if sale.is_currently_active(current_date) and sale.matches_product(self):
+                        discount = float(sale.discount_percentage) if sale.discount_percentage else 0.0
+                        if discount > best_discount:
+                            best_discount = discount
+                            sale_info = sale
+                except Exception:
+                    # Skip this sale if there's an error
+                    continue
+            
+            if best_discount > 0:
+                original_price = float(self.price) if self.price else 0.0
+                sale_price = original_price * (1 - best_discount / 100)
+                return {
+                    'original_price': original_price,
+                    'sale_price': round(sale_price, 2),
+                    'discount_percentage': best_discount,
+                    'sale': sale_info.to_dict() if sale_info else None
+                }
+        except Exception:
+            # If anything fails, just return None (no sale)
+            pass
+        
+        return None
+    
     def to_dict(self):
         """Convert product to dictionary."""
         # Parse available colors and sizes from JSON
@@ -68,11 +113,23 @@ class Product(db.Model):
             if self.size:
                 available_sizes_list = [self.size]
         
-        return {
+        # Get sale price if on sale (with error handling)
+        sale_data = None
+        try:
+            sale_data = self.get_sale_price()
+        except Exception:
+            # If get_sale_price fails (e.g., Sale table doesn't exist), continue without sale
+            pass
+        
+        original_price = float(self.price) if self.price else 0.0
+        current_price = sale_data['sale_price'] if sale_data else original_price
+        
+        result = {
             'id': self.id,
             'name': self.name,
             'description': self.description,
-            'price': float(self.price) if self.price else 0.0,
+            'price': current_price,  # Current price (sale price if on sale)
+            'original_price': original_price,  # Always include original price
             'category': self.category,
             'color': self.color,
             'size': self.size,
@@ -93,6 +150,16 @@ class Product(db.Model):
             'meta_description': self.meta_description,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+        
+        # Add sale information if on sale
+        if sale_data and isinstance(sale_data, dict):
+            result['on_sale'] = True
+            result['discount_percentage'] = sale_data.get('discount_percentage', 0)
+            result['sale'] = sale_data.get('sale')
+        else:
+            result['on_sale'] = False
+        
+        return result
     
     def to_dict_for_ai(self):
         """Convert product to dictionary with full details for AI agent."""

@@ -6,11 +6,14 @@ const SizeSelector = ({ sizes = [], selectedSize, onSizeSelect, stockBySize = {}
     return null;
   }
 
+  // Show all sizes - no limit
+  const displaySizes = sizes;
+
   return (
     <div className="size-selector">
-      <label className="size-label">Size:</label>
+      <label className="size-label">Available Sizes ({displaySizes.length}):</label>
       <div className="size-options">
-        {sizes.map((size, index) => {
+        {displaySizes.map((size, index) => {
           const isOutOfStock = stockBySize[size] === 0 || stockBySize[size] === undefined;
           return (
             <button

@@ -20,14 +20,36 @@ class CartItem(db.Model):
     
     def to_dict(self):
         """Convert cart item to dictionary."""
+        try:
+            product_dict = self.product.to_dict() if self.product else None
+        except Exception:
+            # If to_dict fails, create basic product dict
+            if self.product:
+                product_dict = {
+                    'id': self.product.id,
+                    'name': self.product.name,
+                    'price': float(self.product.price) if self.product.price else 0.0,
+                    'original_price': float(self.product.price) if self.product.price else 0.0,
+                    'on_sale': False
+                }
+            else:
+                product_dict = None
+        
+        # Calculate subtotal using current price (sale price if on sale)
+        if self.product and product_dict:
+            current_price = product_dict.get('price', float(self.product.price) if self.product.price else 0.0)
+            subtotal = current_price * self.quantity
+        else:
+            subtotal = 0.0
+        
         return {
             'id': self.id,
             'user_id': self.user_id,
-            'product': self.product.to_dict() if self.product else None,
+            'product': product_dict,
             'quantity': self.quantity,
             'selected_color': self.selected_color,
             'selected_size': self.selected_size,
-            'subtotal': float(self.product.price * self.quantity) if self.product else 0.0,
+            'subtotal': subtotal,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

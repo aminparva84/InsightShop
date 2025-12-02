@@ -2,13 +2,64 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from './ProductCard';
-import { ScoopIcon, BowIcon, PaddingIcon, SlitIcon, getDressStyleIcon, MicrophoneIcon, SpeakerIcon, SpeakerOffIcon, StopIcon } from './DressStyleIcons';
+import { ScoopIcon, BowIcon, PaddingIcon, SlitIcon, getDressStyleIcon, MicrophoneIcon, SpeakerIcon, SpeakerOffIcon, StopIcon, PlayIcon } from './DressStyleIcons';
 import './AIChat.css';
 
 const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialMessage = "Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!";
+  const [initialMessage, setInitialMessage] = useState("Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!");
+  
+  // Load current date and sales context for initial message
+  useEffect(() => {
+    const loadSalesContext = async () => {
+      try {
+        const response = await axios.get('/api/sales/current-context');
+        if (response.data) {
+          const { current_date_formatted, active_sales, upcoming_holidays, current_events } = response.data;
+          
+          let message = `Hi! I'm your AI shopping assistant. Today is ${current_date_formatted}. `;
+          
+          // Celebrate active sales
+          if (active_sales && active_sales.length > 0) {
+            message += `🎉 Great news! We have ${active_sales.length} special ${active_sales.length === 1 ? 'sale' : 'sales'} running right now! `;
+            active_sales.forEach((sale, index) => {
+              message += `${sale.name} - ${sale.discount_percentage}% off`;
+              if (index < active_sales.length - 1) message += ', ';
+            });
+            message += '! ';
+          }
+          
+          // Celebrate current holidays/events
+          if (current_events && current_events.length > 0) {
+            const eventNames = current_events.map(e => e.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())).join(', ');
+            message += `We're celebrating ${eventNames}! `;
+          }
+          
+          // Mention upcoming holidays
+          if (upcoming_holidays && upcoming_holidays.length > 0) {
+            const nextHoliday = upcoming_holidays[0];
+            const holidayName = nextHoliday.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+            if (nextHoliday.days_until === 0) {
+              message += `Today is ${holidayName}! `;
+            } else if (nextHoliday.days_until === 1) {
+              message += `${holidayName} is tomorrow! `;
+            } else if (nextHoliday.days_until <= 7) {
+              message += `${holidayName} is coming up in ${nextHoliday.days_until} days! `;
+            }
+          }
+          
+          message += "How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!";
+          setInitialMessage(message);
+        }
+      } catch (error) {
+        console.error('Error loading sales context:', error);
+        // Use default message if error
+      }
+    };
+    
+    loadSalesContext();
+  }, []);
   
   // Load chat history from localStorage
   const loadChatHistory = () => {
@@ -24,11 +75,19 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     } catch (error) {
       console.error('Error loading chat history:', error);
     }
-    // Return default initial message
+    // Return default initial message (will be updated by useEffect)
     return [{ role: 'assistant', content: initialMessage }];
   };
   
   const [messages, setMessages] = useState(loadChatHistory);
+  
+  // Update messages when initial message changes
+  useEffect(() => {
+    if (messages.length === 1 && messages[0].role === 'assistant') {
+      setMessages([{ role: 'assistant', content: initialMessage }]);
+      localStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
+    }
+  }, [initialMessage]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState([]);
@@ -36,6 +95,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   const [isListening, setIsListening] = useState(false);
   const [usedSpeechInput, setUsedSpeechInput] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentlyPlayingMessageId, setCurrentlyPlayingMessageId] = useState(null); // Track which message is playing
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     // Load voice preference from localStorage
     const saved = localStorage.getItem('aiVoiceEnabled');
@@ -126,11 +186,20 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
   // Function to speak text with natural-sounding voice
   // Function to speak text using AWS Polly (natural, excited voice)
-  const speakText = async (text) => {
-    console.log('speakText called:', { voiceEnabled, pollyAvailable, hasAudioRef: !!audioRef.current, textLength: text?.length });
+  const speakText = async (text, messageId = null) => {
+    console.log('speakText called:', { voiceEnabled, pollyAvailable, hasAudioRef: !!audioRef.current, textLength: text?.length, messageId });
     
-    if (!voiceEnabled) {
-      console.log('Voice is disabled');
+    // If voice is disabled but user used mic, enable it
+    if (!voiceEnabled && usedSpeechInput) {
+      console.log('Auto-enabling voice because user used microphone');
+      setVoiceEnabled(true);
+      localStorage.setItem('aiVoiceEnabled', 'true');
+    }
+    
+    // Check if we should speak (voice enabled OR user used mic)
+    const shouldSpeak = voiceEnabled || usedSpeechInput;
+    if (!shouldSpeak) {
+      console.log('Voice is disabled and user did not use mic');
       return;
     }
     
@@ -152,6 +221,9 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
     try {
       setIsSpeaking(true);
+      if (messageId) {
+        setCurrentlyPlayingMessageId(messageId);
+      }
       console.log('Calling TTS API with text length:', text.length);
       
       // Call backend to get audio from AWS Polly
@@ -178,6 +250,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         // Set up event handlers first
         const handleEnded = () => {
           setIsSpeaking(false);
+          setCurrentlyPlayingMessageId(null);
           URL.revokeObjectURL(audioUrl);
           // Remove listeners
           audioRef.current.removeEventListener('ended', handleEnded);
@@ -193,6 +266,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             readyState: audioRef.current?.readyState
           });
           setIsSpeaking(false);
+          setCurrentlyPlayingMessageId(null);
           URL.revokeObjectURL(audioUrl);
           // Remove listeners
           audioRef.current?.removeEventListener('ended', handleEnded);
@@ -236,6 +310,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               } catch (retryError) {
                 console.error('❌ Retry also failed:', retryError);
                 setIsSpeaking(false);
+                setCurrentlyPlayingMessageId(null);
                 URL.revokeObjectURL(audioUrl);
               }
             }, 200);
@@ -298,6 +373,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             } catch (playError) {
               console.error('Fallback play error:', playError);
               setIsSpeaking(false);
+              setCurrentlyPlayingMessageId(null);
               URL.revokeObjectURL(audioUrl);
               audioRef.current?.removeEventListener('ended', handleEnded);
               audioRef.current?.removeEventListener('error', handleError);
@@ -315,9 +391,11 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         // No audio data
         console.error('No audio data in response:', response.data);
         setIsSpeaking(false);
+        setCurrentlyPlayingMessageId(null);
       }
     } catch (error) {
       setIsSpeaking(false);
+      setCurrentlyPlayingMessageId(null);
       // Log all TTS errors for debugging
       console.error('TTS Error:', error);
       console.error('Error details:', {
@@ -340,7 +418,21 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       setIsSpeaking(false);
+      setCurrentlyPlayingMessageId(null);
     }
+  };
+  
+  // Play specific message
+  const playMessage = (messageContent, messageId) => {
+    // Stop any currently playing audio
+    stopSpeaking();
+    // Enable voice if not already enabled
+    if (!voiceEnabled) {
+      setVoiceEnabled(true);
+      localStorage.setItem('aiVoiceEnabled', 'true');
+    }
+    // Speak the message
+    speakText(messageContent, messageId);
   };
 
   // Toggle voice on/off
@@ -615,7 +707,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
       setMessages(prev => [...prev, aiMessage]);
       
-      // Speak the AI's response if voice is enabled
+      // Speak the AI's response if voice is enabled OR user used mic
       // Auto-enable voice if user used speech input (they clearly want voice interaction)
       const shouldSpeak = voiceEnabled || usedSpeechInput;
       if (shouldSpeak && response.data.response && audioRef.current) {
@@ -627,7 +719,9 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               setVoiceEnabled(true);
               localStorage.setItem('aiVoiceEnabled', 'true');
             }
-            speakText(response.data.response);
+            // Use message index as ID for tracking
+            const messageId = `msg-${messages.length + 1}`; // +1 because we just added the AI message
+            speakText(response.data.response, messageId);
           }
         }, 300);
       }
@@ -923,9 +1017,49 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       </div>
 
       <div className="ai-chat-messages">
-        {messages.map((msg, idx) => (
+        {messages.map((msg, idx) => {
+          const messageId = `msg-${idx}`;
+          const isCurrentlyPlaying = currentlyPlayingMessageId === messageId;
+          return (
           <div key={idx} className={`message ${msg.role}`}>
-            <div className="message-content">
+            <div className="message-content" style={{ position: 'relative' }}>
+              {/* Play button for assistant messages */}
+              {msg.role === 'assistant' && pollyAvailable && (
+                <button
+                  onClick={() => playMessage(msg.content, messageId)}
+                  className="message-play-btn"
+                  title={isCurrentlyPlaying ? "Playing..." : "Play voice"}
+                  disabled={isCurrentlyPlaying}
+                  style={{
+                    position: 'absolute',
+                    top: '8px',
+                    right: '8px',
+                    background: isCurrentlyPlaying ? '#10b981' : 'transparent',
+                    border: '1px solid #d4af37',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    cursor: isCurrentlyPlaying ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '12px',
+                    color: '#1a2332',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {isCurrentlyPlaying ? (
+                    <>
+                      <StopIcon size={14} />
+                      <span>Playing</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlayIcon size={14} />
+                      <span>Play</span>
+                    </>
+                  )}
+                </button>
+              )}
               {msg.image && (
                 <div style={{ marginBottom: '10px' }}>
                   <img 
@@ -960,7 +1094,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                     {lineIdx < msg.content.split('\n').length - 1 && <br />}
                   </React.Fragment>
                 );
-              })}
+                    })}
               {msg.similarProducts && msg.similarProducts.length > 0 && (
                 <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                   <p style={{ marginBottom: '10px', fontWeight: 'bold' }}>Similar Products:</p>
@@ -1013,7 +1147,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
         {loading && (
           <div className="message assistant">
             <div className="message-content">

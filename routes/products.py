@@ -112,8 +112,32 @@ def get_products():
         
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         
+        # Convert products to dict with error handling
+        products_list = []
+        for p in pagination.items:
+            try:
+                products_list.append(p.to_dict())
+            except Exception as e:
+                # If to_dict fails (e.g., Sale table issue), create basic dict
+                import traceback
+                print(f"Error converting product {p.id} to dict: {e}")
+                print(traceback.format_exc())
+                # Return basic product info without sale data
+                products_list.append({
+                    'id': p.id,
+                    'name': p.name,
+                    'description': p.description,
+                    'price': float(p.price) if p.price else 0.0,
+                    'original_price': float(p.price) if p.price else 0.0,
+                    'on_sale': False,
+                    'category': p.category,
+                    'color': p.color,
+                    'image_url': p.image_url,
+                    'is_active': p.is_active
+                })
+        
         return jsonify({
-            'products': [p.to_dict() for p in pagination.items],
+            'products': products_list,
             'total': pagination.total,
             'page': page,
             'per_page': per_page,
@@ -121,6 +145,9 @@ def get_products():
         }), 200
         
     except Exception as e:
+        import traceback
+        print(f"Error in get_products: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 # IMPORTANT: Specific routes must come BEFORE the dynamic route to avoid conflicts

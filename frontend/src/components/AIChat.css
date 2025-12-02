@@ -95,6 +95,27 @@
   position: relative;
 }
 
+.message-play-btn {
+  opacity: 0.7;
+  transition: all 0.2s ease;
+}
+
+.message-play-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(212, 175, 55, 0.1) !important;
+  border-color: #1a2332 !important;
+  transform: scale(1.05);
+}
+
+.message-play-btn:disabled {
+  opacity: 0.8;
+  cursor: default;
+}
+
+.message-content {
+  padding-right: 80px; /* Make room for play button */
+}
+
 .voice-btn.polly-unavailable::after {
   content: '⚠️';
   position: absolute;

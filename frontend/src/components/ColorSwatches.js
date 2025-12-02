@@ -28,11 +28,14 @@ const ColorSwatches = ({ colors = [], selectedColor, onColorSelect }) => {
     return colorMap[colorName?.toLowerCase()] || '#CCCCCC';
   };
 
+  // Show all colors - no limit
+  const displayColors = colors;
+
   return (
     <div className="color-swatches">
-      <label className="swatch-label">Color:</label>
+      <label className="swatch-label">Available Colors ({displayColors.length}):</label>
       <div className="swatch-container">
-        {colors.map((color, index) => (
+        {displayColors.map((color, index) => (
           <button
             key={index}
             className={`color-swatch ${selectedColor === color ? 'selected' : ''}`}

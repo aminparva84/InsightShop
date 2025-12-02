@@ -31,7 +31,16 @@ def get_cart():
                     user = User.query.get(payload['user_id'])
                     if user:
                         cart_items = CartItem.query.filter_by(user_id=user.id).all()
-                        total = sum(item.product.price * item.quantity for item in cart_items if item.product)
+                        # Calculate total using sale prices if available
+                        total = 0.0
+                        for item in cart_items:
+                            if item.product:
+                                try:
+                                    product_dict = item.product.to_dict()
+                                    current_price = product_dict.get('price', float(item.product.price) if item.product.price else 0.0)
+                                except Exception:
+                                    current_price = float(item.product.price) if item.product.price else 0.0
+                                total += current_price * item.quantity
                         return jsonify({
                             'items': [item.to_dict() for item in cart_items],
                             'total': float(total),
@@ -48,7 +57,22 @@ def get_cart():
         for index, cart_item in enumerate(guest_cart):
             product = Product.query.get(cart_item['product_id'])
             if product and product.is_active:
-                item_total = float(product.price) * cart_item['quantity']
+                try:
+                    product_dict = product.to_dict()
+                    current_price = product_dict.get('price', float(product.price) if product.price else 0.0)
+                except Exception:
+                    # If to_dict fails, use basic product info
+                    product_dict = {
+                        'id': product.id,
+                        'name': product.name,
+                        'price': float(product.price) if product.price else 0.0,
+                        'original_price': float(product.price) if product.price else 0.0,
+                        'on_sale': False,
+                        'image_url': product.image_url
+                    }
+                    current_price = float(product.price) if product.price else 0.0
+                
+                item_total = current_price * cart_item['quantity']
                 total += item_total
                 
                 # Create unique ID that includes product_id, color, size, and index
@@ -60,7 +84,7 @@ def get_cart():
                 items.append({
                     'id': unique_id,
                     'product_id': cart_item['product_id'],
-                    'product': product.to_dict(),
+                    'product': product_dict,
                     'quantity': cart_item['quantity'],
                     'selected_color': cart_item.get('selected_color'),
                     'selected_size': cart_item.get('selected_size'),

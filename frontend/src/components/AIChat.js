@@ -818,9 +818,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           // Navigate to show matched products
           if (location.pathname === '/' && onProductsUpdate) {
             onProductsUpdate(matchedIds);
+            // Keep focus on chat input instead of scrolling
             setTimeout(() => {
-              document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
+              if (inputRef.current) {
+                inputRef.current.focus();
+              }
+            }, 100);
           } else {
             const idsParam = matchedIds.join(',');
             navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
@@ -897,8 +900,13 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     setInput('');
     setLoading(true);
     
-    // Keep input focused after sending
+    // Scroll chat messages to bottom and keep input focused
     setTimeout(() => {
+      // Scroll chat messages container to show new message
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      // Keep input focused
       if (inputRef.current) {
         inputRef.current.focus();
       }
@@ -923,6 +931,16 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      
+      // Scroll chat to show new AI message and keep input focused
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
       
       // Speak the AI's response if voice is enabled OR user used mic
       // Auto-enable voice if user used speech input (they clearly want voice interaction)
@@ -1111,10 +1129,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               return newMessages;
             });
             
-            // Scroll to products section
+            // Keep focus on chat input instead of scrolling to products
             setTimeout(() => {
-              document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
+              if (inputRef.current) {
+                inputRef.current.focus();
+              }
+            }, 100);
             return;
           }
           
@@ -1361,9 +1381,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                                   
                                   if (location.pathname === '/' && onProductsUpdate) {
                                     onProductsUpdate(ids);
+                                    // Keep focus on chat input instead of scrolling
                                     setTimeout(() => {
-                                      document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                    }, 300);
+                                      if (inputRef.current) {
+                                        inputRef.current.focus();
+                                      }
+                                    }, 100);
                                   } else {
                                     const idsParam = ids.join(',');
                                     navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
@@ -1394,9 +1417,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                                 
                                 if (location.pathname === '/' && onProductsUpdate) {
                                   onProductsUpdate(productIds);
+                                  // Keep focus on chat input instead of scrolling
                                   setTimeout(() => {
-                                    document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                  }, 300);
+                                    if (inputRef.current) {
+                                      inputRef.current.focus();
+                                    }
+                                  }, 100);
                                 } else {
                                   const idsParam = productIds.join(',');
                                   navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
@@ -1460,9 +1486,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                                 
                                 if (location.pathname === '/' && onProductsUpdate) {
                                   onProductsUpdate(matchedIds);
+                                  // Keep focus on chat input instead of scrolling
                                   setTimeout(() => {
-                                    document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                  }, 300);
+                                    if (inputRef.current) {
+                                      inputRef.current.focus();
+                                    }
+                                  }, 100);
                                 } else {
                                   const idsParam = matchedIds.join(',');
                                   navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
@@ -1535,9 +1564,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                         const productIds = msg.similarProducts.map(p => p.id);
                         if (location.pathname === '/' && onProductsUpdate) {
                           onProductsUpdate(productIds);
+                          // Keep focus on chat input instead of scrolling
                           setTimeout(() => {
-                            document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                          }, 300);
+                            if (inputRef.current) {
+                              inputRef.current.focus();
+                            }
+                          }, 100);
                         } else {
                           const idsParam = productIds.join(',');
                           navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
@@ -1843,6 +1875,25 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                   <option value="Salli">Salli (Clear)</option>
                   <option value="Joanna">Joanna (Neural)</option>
                   <option value="Ivy">Ivy (Young)</option>
+                </select>
+              )}
+              {voiceGender === 'man' && (
+                <select
+                  className="voice-gender-select"
+                  value={voiceId}
+                  onChange={(e) => {
+                    setVoiceId(e.target.value);
+                    if (isSpeaking) stopSpeaking();
+                  }}
+                  title="Select men's voice"
+                  style={{ minWidth: '100px' }}
+                >
+                  <option value="Joey">Joey (Energetic)</option>
+                  <option value="Justin">Justin (Expressive)</option>
+                  <option value="Matthew">Matthew (Calm)</option>
+                  <option value="Kevin">Kevin (Neural)</option>
+                  <option value="Brian">Brian (British)</option>
+                  <option value="Russell">Russell (Australian)</option>
                 </select>
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 4px' }}>

@@ -162,14 +162,39 @@ class Product(db.Model):
         return result
     
     def to_dict_for_ai(self):
-        """Convert product to dictionary with full details for AI agent."""
+        """Convert product to dictionary with full details for AI agent, including reviews and ratings."""
+        from models.review import Review
+        
         fabric_info = f", Fabric: {self.fabric}" if self.fabric else ""
         clothing_type_info = f", Type: {self.clothing_type}" if self.clothing_type else ""
         dress_style_info = f", Style: {self.dress_style}" if self.dress_style else ""
         occasion_info = f", Occasion: {self.occasion}" if self.occasion else ""
         age_group_info = f", Age Group: {self.age_group}" if self.age_group else ""
+        
+        # Get recent reviews (last 5) for AI context
+        recent_reviews = Review.query.filter_by(product_id=self.id).order_by(Review.created_at.desc()).limit(5).all()
+        reviews_summary = []
+        if recent_reviews:
+            for review in recent_reviews:
+                review_text = f"Rating: {float(review.rating)}/5.0"
+                if review.comment:
+                    review_text += f", Comment: {review.comment[:100]}"  # Limit comment length
+                reviews_summary.append(review_text)
+        
+        rating_info = ""
+        if self.rating and float(self.rating) > 0:
+            rating_info = f", Average Rating: {float(self.rating):.1f}/5.0 ({self.review_count} review{'s' if self.review_count != 1 else ''})"
+            if reviews_summary:
+                rating_info += f", Recent Reviews: {'; '.join(reviews_summary)}"
+        
         return {
             **self.to_dict(),
-            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{dress_style_info}{occasion_info}{age_group_info}, Price: ${self.price}"
+            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{dress_style_info}{occasion_info}{age_group_info}, Price: ${self.price}{rating_info}",
+            'reviews': [r.to_dict() for r in recent_reviews],
+            'rating_summary': {
+                'average_rating': float(self.rating) if self.rating else 0.0,
+                'review_count': self.review_count,
+                'recent_reviews': reviews_summary
+            }
         }
 

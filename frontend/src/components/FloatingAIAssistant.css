@@ -133,7 +133,7 @@
   bottom: 20px;
   right: 20px;
   min-width: 320px;
-  min-height: 400px;
+  min-height: 440px;
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 40px);
   z-index: 10000;

@@ -157,6 +157,14 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Initialize audio element for AWS Polly playback
   useEffect(() => {
     audioRef.current = new Audio();
+    // Set default volume to middle (0.5) if not set
+    const savedVolume = localStorage.getItem('aiVoiceVolume');
+    if (savedVolume) {
+      audioRef.current.volume = parseFloat(savedVolume);
+    } else {
+      audioRef.current.volume = 0.5; // Default to middle
+      localStorage.setItem('aiVoiceVolume', '0.5');
+    }
     
     // Check Polly status on mount (only once, silently)
     const checkPollyStatus = async () => {
@@ -447,7 +455,9 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         // Set new source and properties
         console.log('[FRONTEND] Setting audio source and properties...');
         audioRef.current.src = audioUrl;
-        audioRef.current.volume = 0.95;
+        // Use saved volume or default to 0.5 (middle)
+        const savedVolume = localStorage.getItem('aiVoiceVolume');
+        audioRef.current.volume = savedVolume ? parseFloat(savedVolume) : 0.5;
         audioRef.current.preload = 'auto';
         console.log('[FRONTEND]   - src set to:', audioUrl.substring(0, 50) + '...');
         console.log('[FRONTEND]   - volume:', audioRef.current.volume);
@@ -644,10 +654,32 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     setVoiceEnabled(prev => !prev);
   };
 
-  // Clear chat history
+  // Clear chat history and reset voice settings to defaults
   const handleClearHistory = () => {
     setMessages([{ role: 'assistant', content: initialMessage }]);
     localStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
+    
+    // Reset voice settings to defaults: woman, Salli, speed 1.0, volume 0.5 (middle)
+    setVoiceGender('woman');
+    setVoiceId('Salli');
+    setSpeechSpeed(1.0);
+    
+    // Reset audio volume to middle (0.5)
+    if (audioRef.current) {
+      audioRef.current.volume = 0.5;
+    }
+    
+    // Save defaults to localStorage
+    localStorage.setItem('aiVoiceGender', 'woman');
+    localStorage.setItem('aiVoiceId', 'Salli');
+    localStorage.setItem('aiSpeechSpeed', '1.0');
+    localStorage.setItem('aiVoiceVolume', '0.5');
+    
+    // Stop any ongoing speech
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+    
     setShowClearConfirm(false);
   };
 

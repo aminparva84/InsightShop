@@ -44,10 +44,10 @@ const FloatingAIAssistant = () => {
       try {
         return JSON.parse(saved);
       } catch {
-        return { width: 420, height: 660 }; // Default height with 30px added
+        return { width: 420, height: 700 }; // Default height
       }
     }
-    return { width: 420, height: 660 }; // Default height with 30px added
+    return { width: 420, height: 700 }; // Default height
   });
   const [isResizing, setIsResizing] = useState(false);
   const chatContainerRef = useRef(null);
@@ -88,7 +88,7 @@ const FloatingAIAssistant = () => {
       // Set minimum and maximum sizes
       const minWidth = 320;
       const maxWidth = window.innerWidth - 40;
-      const minHeight = 400;
+      const minHeight = 440;
       const maxHeight = window.innerHeight - 40;
 
       setChatSize({

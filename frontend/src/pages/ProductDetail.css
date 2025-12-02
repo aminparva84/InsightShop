@@ -54,6 +54,32 @@
   font-size: 32px;
   font-weight: 700;
   color: #7c3aed;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.product-price .original-price {
+  text-decoration: line-through;
+  color: #9ca3af;
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.product-price .sale-price {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.product-price .discount-badge {
+  background: #dc2626;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-left: 4px;
 }
 
 .product-description {

@@ -130,3 +130,30 @@ def get_events_for_sales():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@admin_sales_bp.route('/sales/run-automation', methods=['POST'])
+@require_admin
+def run_sale_automation():
+    """Run sale automation tasks (admin only)."""
+    try:
+        from utils.sale_automation import run_sale_automation
+        
+        with db.session.begin():
+            results = run_sale_automation()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Sale automation completed successfully',
+            'results': results
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error in sale automation: {e}")
+        print(error_trace)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+

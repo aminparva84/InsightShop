@@ -7,10 +7,14 @@ from flask import Flask
 from models.database import db
 from models.sale import Sale
 from datetime import date, timedelta
+import os
+from config import Config
 
 # Create minimal app context
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/insightshop.db'
+app = Flask(__name__, instance_path=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'instance'))
+# Use instance folder for database
+db_path = os.path.join(app.instance_path, Config.DB_PATH) if not os.path.isabs(Config.DB_PATH) else Config.DB_PATH
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 

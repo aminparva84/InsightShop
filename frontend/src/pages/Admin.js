@@ -345,6 +345,42 @@ const Admin = () => {
     await handleUpdateSale(sale.id, { is_active: !sale.is_active });
   };
 
+  const handleRunSaleAutomation = async () => {
+    if (!window.confirm('Run sale automation? This will activate sales based on their start dates and sync holiday sales.')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await axios.post('/api/admin/sales/run-automation', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const results = response.data.results;
+        let message = 'Sale automation completed successfully!\n\n';
+        
+        if (results.auto_activate) {
+          message += `Activated: ${results.auto_activate.activated} sale(s)\n`;
+        }
+        if (results.sync_holidays) {
+          message += `Created: ${results.sync_holidays.created} sale(s)\n`;
+          message += `Updated: ${results.sync_holidays.updated} sale(s)\n`;
+        }
+        
+        setMessage({ type: 'success', text: message });
+        loadSales(); // Refresh sales list
+      } else {
+        setMessage({ type: 'error', text: response.data.error || 'Failed to run automation' });
+      }
+    } catch (error) {
+      console.error('Error running sale automation:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to run sale automation' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const loadProducts = async () => {
     setProductsLoading(true);
     try {
@@ -845,9 +881,24 @@ const Admin = () => {
           <div className="admin-section">
             <div className="admin-section-header">
               <h2>Sales Management</h2>
-              <button className="save-btn" onClick={() => setShowSaleForm(!showSaleForm)}>
-                {showSaleForm ? 'Cancel' : '+ Create New Sale'}
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  className="save-btn" 
+                  onClick={handleRunSaleAutomation}
+                  disabled={saving}
+                  style={{ 
+                    background: '#10b981', 
+                    fontSize: '14px',
+                    padding: '10px 20px'
+                  }}
+                  title="Run sale automation to activate sales based on dates and sync holiday sales"
+                >
+                  {saving ? 'Running...' : '🔄 Run Sale Automation'}
+                </button>
+                <button className="save-btn" onClick={() => setShowSaleForm(!showSaleForm)}>
+                  {showSaleForm ? 'Cancel' : '+ Create New Sale'}
+                </button>
+              </div>
             </div>
 
             {/* Upcoming Events Section */}

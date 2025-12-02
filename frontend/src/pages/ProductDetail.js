@@ -148,7 +148,19 @@ const ProductDetail = () => {
               {product.fabric && <span className="product-fabric">{product.fabric}</span>}
             </div>
 
-            <div className="product-price">${product.price.toFixed(2)}</div>
+            <div className="product-price">
+              {product.on_sale ? (
+                <>
+                  <span className="original-price">${product.original_price.toFixed(2)}</span>
+                  <span className="sale-price">${product.price.toFixed(2)}</span>
+                  {product.discount_percentage && (
+                    <span className="discount-badge">-{product.discount_percentage.toFixed(0)}%</span>
+                  )}
+                </>
+              ) : (
+                <span>${product.price.toFixed(2)}</span>
+              )}
+            </div>
             
             {/* Color Selection - Only show if multiple colors available */}
             {product.available_colors && product.available_colors.length > 1 && (

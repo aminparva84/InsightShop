@@ -34,34 +34,50 @@ def create_order():
             except:
                 pass
         
-        # Get cart items
+        # Get cart items and calculate prices using sale prices
         cart_items_data = []
         if user and not is_guest:
             # Authenticated user
             cart_items = CartItem.query.filter_by(user_id=user.id).all()
             for cart_item in cart_items:
                 if cart_item.product and cart_item.product.is_active:
+                    # Get sale price if available
+                    try:
+                        product_dict = cart_item.product.to_dict()
+                        current_price = product_dict.get('price', float(cart_item.product.price) if cart_item.product.price else 0.0)
+                    except Exception:
+                        current_price = float(cart_item.product.price) if cart_item.product.price else 0.0
+                    
                     cart_items_data.append({
                         'product': cart_item.product,
                         'quantity': cart_item.quantity,
-                        'price': cart_item.product.price
+                        'price': Decimal(str(current_price))  # Use sale price if on sale
                     })
         else:
             # Guest cart
+            from models.product import Product
             guest_cart = get_guest_cart()
             for cart_item in guest_cart:
                 product = Product.query.get(cart_item['product_id'])
                 if product and product.is_active:
+                    # Get sale price if available
+                    try:
+                        product_dict = product.to_dict()
+                        current_price = product_dict.get('price', float(product.price) if product.price else 0.0)
+                    except Exception:
+                        current_price = float(product.price) if product.price else 0.0
+                    
                     cart_items_data.append({
                         'product': product,
                         'quantity': cart_item['quantity'],
-                        'price': product.price
+                        'price': Decimal(str(current_price))  # Use sale price if on sale
                     })
         
         if not cart_items_data:
             return jsonify({'error': 'Cart is empty'}), 400
         
         # Shipping information
+        email = data.get('email', '')
         shipping_name = data.get('shipping_name', '')
         shipping_address = data.get('shipping_address', '')
         shipping_city = data.get('shipping_city', '')
@@ -73,24 +89,25 @@ def create_order():
         if not all([shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip]):
             return jsonify({'error': 'Shipping information is required'}), 400
         
-        # Calculate totals
+        # Calculate totals using sale prices
         subtotal = Decimal('0.00')
         order_items_data = []
         
-        for cart_item in cart_items:
-            if not cart_item.product or not cart_item.product.is_active:
-                continue
+        for item_data in cart_items_data:
+            product = item_data['product']
+            quantity = item_data['quantity']
+            price = item_data['price']  # Already includes sale price if applicable
             
-            if cart_item.product.stock_quantity < cart_item.quantity:
-                return jsonify({'error': f'Insufficient stock for {cart_item.product.name}'}), 400
+            if product.stock_quantity < quantity:
+                return jsonify({'error': f'Insufficient stock for {product.name}'}), 400
             
-            item_total = Decimal(str(cart_item.product.price)) * cart_item.quantity
+            item_total = price * quantity
             subtotal += item_total
             
             order_items_data.append({
-                'product': cart_item.product,
-                'quantity': cart_item.quantity,
-                'price': cart_item.product.price
+                'product': product,
+                'quantity': quantity,
+                'price': price  # Store sale price at time of order
             })
         
         # Calculate tax (8% example)

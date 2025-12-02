@@ -1429,15 +1429,19 @@ def upload_image():
         image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         
         # Analyze image with AI and extract metadata
-        analysis_prompt = """Analyze this fashion image and provide a structured response in the following format:
+        analysis_prompt = """Analyze this fashion image and provide a structured response in the following format. Be thorough and extract ALL available information:
 
-ITEM_TYPE: [e.g., dress, shirt, t-shirt, pants, jeans, blouse, etc.]
-COLOR: [primary color, e.g., blue, red, black, white, etc.]
+ITEM_TYPE: [e.g., dress, shirt, t-shirt, pants, jeans, blouse, jacket, etc.]
+COLOR: [primary color, e.g., blue, red, black, white, navy, etc.]
+SECONDARY_COLOR: [if applicable, e.g., white stripes, black buttons, etc.]
 CATEGORY: [men, women, or kids]
-CLOTHING_TYPE: [specific type like "T-Shirt", "Dress", "Jeans", etc.]
-STYLE_FEATURES: [e.g., v-neck, long sleeve, casual, formal, etc.]
-OCCASION: [e.g., casual, business, date night, etc.]
-FABRIC: [if visible, e.g., cotton, denim, etc.]
+CLOTHING_TYPE: [specific type like "T-Shirt", "Dress", "Jeans", "Polo Shirt", etc.]
+STYLE_FEATURES: [comma-separated list: e.g., v-neck, long sleeve, casual, formal, fitted, loose, etc.]
+OCCASION: [e.g., casual, business, date night, wedding, party, etc.]
+FABRIC: [if visible, e.g., cotton, denim, polyester, silk, wool, etc.]
+PATTERN: [if visible, e.g., solid, striped, floral, plaid, etc.]
+SIZE_INDICATOR: [if visible, e.g., small, medium, large, etc.]
+SEASON: [if applicable, e.g., spring, summer, fall, winter, all-season]
 
 Then provide a natural, enthusiastic description of the item in 2-3 sentences, highlighting its key features and style."""
         
@@ -1447,29 +1451,51 @@ Then provide a natural, enthusiastic description of the item in 2-3 sentences, h
         similar_products = []
         
         if bedrock_runtime:
-            # Use Bedrock to analyze the image
-            # Note: For Claude 3.5 Sonnet with image support, you would use:
-            # body = {
-            #     "anthropic_version": "bedrock-2023-05-31",
-            #     "max_tokens": 1024,
-            #     "messages": [{
-            #         "role": "user",
-            #         "content": [
-            #             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
-            #             {"type": "text", "text": analysis_prompt}
-            #         ]
-            #     }]
-            # }
-            
-            # For now, use text-based analysis with a prompt asking user to describe
-            response = call_bedrock(
-                "Please analyze this fashion image. " + analysis_prompt,
-                system_prompt="You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis."
-            )
-            analysis_text = response.get('content', '')
-            
-            # Extract metadata from analysis
-            if analysis_text:
+            # Use Bedrock to analyze the image with Claude 3.5 Sonnet image support
+            try:
+                body = {
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": 2048,
+                    "system": "You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis in the exact format requested. Be thorough and extract ALL available information from the image.",
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
+                            {"type": "text", "text": analysis_prompt}
+                        ]
+                    }]
+                }
+                
+                response = bedrock_runtime.invoke_model(
+                    modelId=Config.BEDROCK_MODEL_ID,
+                    body=json.dumps(body)
+                )
+                
+                response_body = json.loads(response['body'].read())
+                content = response_body.get('content', [])
+                
+                if content and len(content) > 0:
+                    analysis_text = content[0].get('text', '')
+                    print(f"[IMAGE ANALYSIS] Successfully analyzed image, response length: {len(analysis_text)}")
+                else:
+                    analysis_text = ''
+                    print("[IMAGE ANALYSIS] No content in response")
+            except Exception as e:
+                print(f"Error calling Bedrock with image: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback to text-only analysis
+                response = call_bedrock(
+                    "Please analyze this fashion image. " + analysis_prompt,
+                    system_prompt="You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis."
+                )
+                analysis_text = response.get('content', '')
+        else:
+            analysis_text = ""
+            print("[IMAGE ANALYSIS] Bedrock not available, skipping image analysis")
+        
+        # Extract metadata from analysis (regardless of whether Bedrock was used)
+        if analysis_text:
                 # Extract ITEM_TYPE or CLOTHING_TYPE
                 item_match = re.search(r'(?:ITEM_TYPE|CLOTHING_TYPE):\s*([^\n]+)', analysis_text, re.IGNORECASE)
                 if item_match:
@@ -1567,14 +1593,64 @@ Then provide a natural, enthusiastic description of the item in 2-3 sentences, h
                     else:
                         metadata['fabric'] = fabric
                 
+                # Extract STYLE_FEATURES
+                style_match = re.search(r'STYLE_FEATURES:\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if style_match:
+                    style_features = style_match.group(1).strip()
+                    # Split by comma and clean up
+                    metadata['style_features'] = [s.strip() for s in style_features.split(',') if s.strip()]
+                
+                # Extract SECONDARY_COLOR
+                secondary_color_match = re.search(r'SECONDARY_COLOR:\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if secondary_color_match:
+                    secondary_color = secondary_color_match.group(1).strip()
+                    if secondary_color and secondary_color.lower() != 'none' and secondary_color.lower() != 'n/a':
+                        metadata['secondary_color'] = secondary_color
+                
+                # Extract PATTERN
+                pattern_match = re.search(r'PATTERN:\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if pattern_match:
+                    pattern = pattern_match.group(1).strip().lower()
+                    pattern_map = {
+                        'solid': 'Solid', 'plain': 'Solid',
+                        'striped': 'Striped', 'stripe': 'Striped',
+                        'floral': 'Floral', 'flower': 'Floral',
+                        'plaid': 'Plaid', 'checkered': 'Plaid',
+                        'polka dot': 'Polka Dot', 'polkadot': 'Polka Dot',
+                        'geometric': 'Geometric', 'abstract': 'Geometric'
+                    }
+                    for key, value in pattern_map.items():
+                        if key in pattern:
+                            metadata['pattern'] = value
+                            break
+                    if 'pattern' not in metadata:
+                        metadata['pattern'] = pattern_match.group(1).strip()
+                
+                # Extract SEASON
+                season_match = re.search(r'SEASON:\s*([^\n]+)', analysis_text, re.IGNORECASE)
+                if season_match:
+                    season = season_match.group(1).strip().lower()
+                    season_map = {
+                        'spring': 'Spring', 'summer': 'Summer',
+                        'fall': 'Fall', 'autumn': 'Fall',
+                        'winter': 'Winter', 'all-season': 'All Season',
+                        'all season': 'All Season'
+                    }
+                    for key, value in season_map.items():
+                        if key in season:
+                            metadata['season'] = value
+                            break
+                
                 # Extract the natural description (text after the structured data)
                 # Remove structured metadata lines
                 lines = analysis_text.split('\n')
                 desc_lines = []
                 skip_next = False
+                metadata_prefixes = ['ITEM_TYPE:', 'COLOR:', 'SECONDARY_COLOR:', 'CATEGORY:', 'CLOTHING_TYPE:', 
+                                    'STYLE_FEATURES:', 'OCCASION:', 'FABRIC:', 'PATTERN:', 'SIZE_INDICATOR:', 'SEASON:']
                 for i, line in enumerate(lines):
                     line_stripped = line.strip()
-                    if any(line_stripped.startswith(prefix) for prefix in ['ITEM_TYPE:', 'COLOR:', 'CATEGORY:', 'CLOTHING_TYPE:', 'STYLE_FEATURES:', 'OCCASION:', 'FABRIC:']):
+                    if any(line_stripped.startswith(prefix) for prefix in metadata_prefixes):
                         skip_next = True
                         continue
                     if skip_next and not line_stripped:
@@ -1588,10 +1664,6 @@ Then provide a natural, enthusiastic description of the item in 2-3 sentences, h
                 elif not any(line.strip().startswith(('ITEM_TYPE:', 'COLOR:', 'CATEGORY:')) for line in lines):
                     # If no structured format, use the whole text
                     analysis_text = analysis_text.strip()
-        else:
-            # Fallback message
-            analysis_text = "I can see you've uploaded an image! To get detailed fashion analysis, AWS Bedrock needs to be configured."
-            metadata = {}
         
         # Search for similar products based on extracted metadata
         search_criteria = {}
@@ -1793,4 +1865,139 @@ For now, you can describe the item to me and I'll help you find similar products
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Failed to analyze image: {str(e)}'}), 500
+
+@ai_agent_bp.route('/find-matches-for-image', methods=['POST'])
+def find_matches_for_image():
+    """Find matching products for an uploaded image using fashion match table and rules."""
+    try:
+        data = request.get_json()
+        metadata = data.get('metadata', {})
+        similar_product_ids = data.get('similar_product_ids', [])
+        
+        if not metadata and not similar_product_ids:
+            return jsonify({'error': 'No metadata or product IDs provided'}), 400
+        
+        matched_products = []
+        match_explanations = []
+        
+        # If we have similar products, use the first one as primary for fashion matching
+        if similar_product_ids:
+            primary_product_id = similar_product_ids[0]
+            primary_product = Product.query.get(primary_product_id)
+            
+            if primary_product:
+                primary_name = primary_product.name
+                
+                # Use ProductRelation table for fashion matches
+                from models.product_relation import ProductRelation
+                from utils.product_relations import ensure_product_relations
+                
+                # Ensure product relations exist
+                ensure_product_relations(primary_product_id, primary_product.clothing_type)
+                
+                # Get fashion matches from database
+                relations = ProductRelation.query.filter_by(
+                    product_id=primary_product_id,
+                    is_fashion_match=True
+                ).order_by(ProductRelation.match_score.desc()).limit(6).all()
+                
+                for relation in relations:
+                    if relation.related_product and relation.related_product.is_active:
+                        matched_products.append(relation.related_product.to_dict())
+                        match_explanations.append(f"Fashion match (score: {relation.match_score:.2f})")
+                
+                # Also use fashion match rules as enhancement
+                fashion_matches = find_matching_products(primary_name, primary_product_id)
+                
+                if fashion_matches:
+                    # Try to find products matching the fashion match rules
+                    existing_ids = {p['id'] for p in matched_products}
+                    
+                    for match in fashion_matches[:4]:  # Top 4 matches
+                        matched_product_name = match['matched_product']
+                        match_type = match['match_type']
+                        priority = match['priority']
+                        
+                        # Search for products matching this name/type
+                        search_terms = matched_product_name.lower().split()
+                        query = Product.query.filter_by(is_active=True)
+                        
+                        # Try to find products matching the suggested item
+                        for term in search_terms:
+                            if len(term) > 2:  # Skip very short terms
+                                query = query.filter(
+                                    or_(
+                                        Product.name.ilike(f'%{term}%'),
+                                        Product.clothing_type.ilike(f'%{term}%'),
+                                        Product.description.ilike(f'%{term}%')
+                                    )
+                                )
+                        
+                        matching_products = query.limit(2).all()
+                        
+                        for product in matching_products:
+                            if product.id not in existing_ids and product.id != primary_product_id:
+                                matched_products.append(product.to_dict())
+                                explanation = get_match_explanation(match_type)
+                                match_explanations.append(f"{match_type}: {explanation}")
+                                existing_ids.add(product.id)
+                                
+                                if len(matched_products) >= 8:
+                                    break
+                        
+                        if len(matched_products) >= 8:
+                            break
+        
+        # If no matches found via product relations, use metadata to find matches
+        if not matched_products and metadata:
+            # Use metadata to search for complementary items
+            if metadata.get('clothing_type'):
+                clothing_type = metadata['clothing_type']
+                # Use fashion match rules to find what matches this clothing type
+                fashion_matches = find_matching_products(clothing_type)
+                
+                for match in fashion_matches[:6]:
+                    matched_product_name = match['matched_product']
+                    # Search for products matching this name
+                    search_terms = matched_product_name.lower().split()
+                    query = Product.query.filter_by(is_active=True)
+                    
+                    for term in search_terms:
+                        if len(term) > 2:
+                            query = query.filter(
+                                or_(
+                                    Product.name.ilike(f'%{term}%'),
+                                    Product.clothing_type.ilike(f'%{term}%')
+                                )
+                            )
+                    
+                    matching_products = query.limit(2).all()
+                    existing_ids = {p['id'] for p in matched_products}
+                    
+                    for product in matching_products:
+                        if product.id not in existing_ids:
+                            matched_products.append(product.to_dict())
+                            match_type = match['match_type']
+                            explanation = get_match_explanation(match_type)
+                            match_explanations.append(f"{match_type}: {explanation}")
+                            existing_ids.add(product.id)
+                            
+                            if len(matched_products) >= 8:
+                                break
+                    
+                    if len(matched_products) >= 8:
+                        break
+        
+        return jsonify({
+            'success': True,
+            'matched_products': matched_products[:8],  # Limit to 8
+            'match_explanations': match_explanations[:8],
+            'count': len(matched_products)
+        })
+        
+    except Exception as e:
+        print(f"Error finding matches for image: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to find matches: {str(e)}'}), 500
 

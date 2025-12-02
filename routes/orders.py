@@ -113,8 +113,17 @@ def create_order():
         # Calculate tax (8% example)
         tax = subtotal * Decimal('0.08')
         
-        # Calculate shipping (free over $50, otherwise $5)
-        shipping_cost = Decimal('0.00') if subtotal >= Decimal('50.00') else Decimal('5.00')
+        # Calculate shipping - use API if shipping method provided, otherwise use default
+        shipping_method = data.get('shipping_method', 'Standard Shipping')
+        shipping_carrier = data.get('shipping_carrier', 'Standard')
+        shipping_cost_input = data.get('shipping_cost')
+        
+        if shipping_cost_input is not None:
+            # Use provided shipping cost from API
+            shipping_cost = Decimal(str(shipping_cost_input))
+        else:
+            # Fallback to default calculation (free over $50, otherwise $5)
+            shipping_cost = Decimal('0.00') if subtotal >= Decimal('50.00') else Decimal('5.00')
         
         total = subtotal + tax + shipping_cost
         

@@ -88,6 +88,31 @@
   font-size: 18px;
   font-weight: 600;
   color: #7c3aed;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cart-item-price .original-price {
+  text-decoration: line-through;
+  color: #9ca3af;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.cart-item-price .sale-price {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.cart-item-price .discount-badge {
+  background: #dc2626;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .cart-item-actions {
@@ -130,6 +155,22 @@
   font-size: 20px;
   font-weight: 700;
   color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.cart-item-subtotal .original-subtotal {
+  text-decoration: line-through;
+  color: #9ca3af;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.cart-item-subtotal .discounted-subtotal {
+  color: #dc2626;
+  font-weight: 700;
 }
 
 .btn-remove {
@@ -178,6 +219,21 @@
   padding-top: 16px;
   border-top: 2px solid #e5e7eb;
   margin-top: 8px;
+}
+
+.summary-row .original-price {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+.summary-row.savings {
+  color: #059669;
+  font-weight: 600;
+}
+
+.summary-row .savings-amount {
+  color: #059669;
+  font-weight: 700;
 }
 
 .btn-checkout {

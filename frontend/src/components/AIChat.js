@@ -110,6 +110,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageMetadata, setImageMetadata] = useState(null);
+  const [imageSimilarProductIds, setImageSimilarProductIds] = useState([]);
+  const [findingMatches, setFindingMatches] = useState(false);
+  const [matchedProducts, setMatchedProducts] = useState([]);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const audioRef = useRef(null); // For AWS Polly audio playback
@@ -714,6 +718,11 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           format: response.data.image_format,
           filename: file.name
         });
+        
+        // Store metadata and similar product IDs for match finding
+        setImageMetadata(response.data.metadata || {});
+        setImageSimilarProductIds(response.data.similar_product_ids || []);
+        setMatchedProducts([]); // Reset matched products
 
         // Add user message showing image was uploaded
         const imageMessage = {
@@ -724,10 +733,14 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         setMessages(prev => [...prev, imageMessage]);
 
         // Add AI response with analysis and metadata
+        // Always show buttons after image upload, even if no similar products found
         const aiResponse = {
           role: 'assistant',
           content: response.data.message || response.data.metadata_sentence || 'Image analyzed successfully!',
-          similarProducts: response.data.similar_products || []
+          similarProducts: response.data.similar_products || [],
+          showMatchButtons: true, // Always show match buttons after upload
+          metadata: response.data.metadata,
+          hasImageUpload: true // Additional flag to ensure buttons show
         };
         setMessages(prev => [...prev, aiResponse]);
 
@@ -799,6 +812,62 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  // Find matching products for uploaded image
+  const findMatchesForImage = async () => {
+    if (!uploadedImage || (!imageMetadata && imageSimilarProductIds.length === 0)) {
+      alert('Please upload an image first');
+      return;
+    }
+
+    setFindingMatches(true);
+
+    try {
+      const response = await axios.post('/api/ai/find-matches-for-image', {
+        metadata: imageMetadata,
+        similar_product_ids: imageSimilarProductIds
+      });
+
+      if (response.data.success) {
+        const matched = response.data.matched_products || [];
+        setMatchedProducts(matched);
+
+        // Add message with matched products
+        const matchMessage = {
+          role: 'assistant',
+          content: `I found ${matched.length} matching item${matched.length !== 1 ? 's' : ''} that would go great with your uploaded image!`,
+          matchedProducts: matched,
+          matchExplanations: response.data.match_explanations || []
+        };
+        setMessages(prev => [...prev, matchMessage]);
+
+        // Update selected products
+        if (matched.length > 0) {
+          const matchedIds = matched.map(p => p.id);
+          setSelectedProductIds(prev => {
+            const combined = [...new Set([...prev, ...matchedIds])];
+            return combined;
+          });
+
+          // Navigate to show matched products
+          if (location.pathname === '/' && onProductsUpdate) {
+            onProductsUpdate(matchedIds);
+            setTimeout(() => {
+              document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+          } else {
+            const idsParam = matchedIds.join(',');
+            navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error finding matches:', error);
+      alert(error.response?.data?.error || 'Failed to find matches. Please try again.');
+    } finally {
+      setFindingMatches(false);
     }
   };
 
@@ -1284,6 +1353,71 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                   />
                 </div>
               )}
+              
+              {/* Show match buttons after image upload analysis - show if this is an assistant message after an image upload */}
+              {msg.role === 'assistant' && uploadedImage && (msg.showMatchButtons || msg.hasImageUpload || idx === messages.length - 1) && (
+                <div style={{ marginTop: '12px', marginBottom: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={findMatchesForImage}
+                    disabled={findingMatches}
+                    style={{
+                      padding: '8px 16px',
+                      background: findingMatches ? '#9ca3af' : '#667eea',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: findingMatches ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!findingMatches) e.target.style.background = '#5568d3';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!findingMatches) e.target.style.background = '#667eea';
+                    }}
+                  >
+                    {findingMatches ? '🔍 Finding Matches...' : '🎯 Find Matching Items'}
+                  </button>
+                  {msg.similarProducts && msg.similarProducts.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const productIds = msg.similarProducts.map(p => p.id);
+                        if (location.pathname === '/' && onProductsUpdate) {
+                          onProductsUpdate(productIds);
+                          setTimeout(() => {
+                            document.querySelector('.featured-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }, 300);
+                        } else {
+                          const idsParam = productIds.join(',');
+                          navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+                        }
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        background: 'rgba(102, 126, 234, 0.1)',
+                        color: '#667eea',
+                        border: '1px solid #667eea',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = 'rgba(102, 126, 234, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = 'rgba(102, 126, 234, 0.1)';
+                      }}
+                    >
+                      👀 View Similar Items ({msg.similarProducts.length})
+                    </button>
+                  )}
+                </div>
+              )}
+              
               {msg.content.split('\n').map((line, lineIdx) => {
                 // Highlight product IDs in the format "Product #ID:"
                 const parts = line.split(/(Product\s*#\d+)/gi);
@@ -1352,6 +1486,79 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                     <p style={{ marginTop: '10px', fontSize: '12px', fontStyle: 'italic' }}>
                       And {msg.similarProducts.length - 4} more... Click to see all!
                     </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Display matched products */}
+              {msg.matchedProducts && msg.matchedProducts.length > 0 && (
+                <div style={{ marginTop: '16px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ 
+                    fontSize: '14px', 
+                    fontWeight: '600', 
+                    color: '#faf0e6', 
+                    marginBottom: '12px' 
+                  }}>
+                    🎯 Matching Items:
+                  </div>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
+                    gap: '12px' 
+                  }}>
+                    {msg.matchedProducts.slice(0, 4).map((product) => (
+                      <div
+                        key={product.id}
+                        onClick={() => navigate(`/products/${product.id}`)}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '8px',
+                          background: 'rgba(255,255,255,0.05)',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
+                        {product.image_url && (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            style={{
+                              width: '100%',
+                              height: '80px',
+                              objectFit: 'cover',
+                              borderRadius: '4px',
+                              marginBottom: '5px'
+                            }}
+                          />
+                        )}
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#faf0e6' }}>
+                          {product.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#fbbf24' }}>
+                          ${product.price?.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {msg.matchedProducts.length > 4 && (
+                    <div style={{ 
+                      marginTop: '12px', 
+                      fontSize: '12px', 
+                      color: '#faf0e6',
+                      textAlign: 'center',
+                      fontStyle: 'italic'
+                    }}>
+                      And {msg.matchedProducts.length - 4} more matching items...
+                    </div>
                   )}
                 </div>
               )}

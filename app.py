@@ -51,6 +51,7 @@ from routes.admin_sales import admin_sales_bp
 from routes.sales import sales_bp
 from routes.sale_automation import sale_automation_bp
 from routes.reviews import reviews_bp
+from routes.shipping import shipping_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(products_bp, url_prefix='/api/products')
@@ -64,6 +65,7 @@ app.register_blueprint(admin_sales_bp, url_prefix='/api/admin')
 app.register_blueprint(sales_bp, url_prefix='/api/sales')
 app.register_blueprint(sale_automation_bp, url_prefix='/api/sale-automation')
 app.register_blueprint(reviews_bp, url_prefix='/api')
+app.register_blueprint(shipping_bp, url_prefix='/api/shipping')
 
 # Serve React static files in production
 @app.route('/', defaults={'path': ''})

@@ -32,6 +32,10 @@ const Checkout = () => {
     create_account: false,
     password: ''
   });
+  const [shippingRates, setShippingRates] = useState([]);
+  const [selectedShipping, setSelectedShipping] = useState(null);
+  const [loadingRates, setLoadingRates] = useState(false);
+  const [shippingError, setShippingError] = useState(null);
 
   if (cartItems.length === 0) {
     navigate('/cart');
@@ -40,6 +44,69 @@ const Checkout = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    
+    // Fetch shipping rates when ZIP code and state are entered
+    if ((e.target.name === 'shipping_zip' || e.target.name === 'shipping_state') && 
+        formData.shipping_zip && formData.shipping_state) {
+      fetchShippingRates();
+    }
+  };
+  
+  const fetchShippingRates = async () => {
+    if (!formData.shipping_zip || !formData.shipping_state) {
+      return;
+    }
+    
+    setLoadingRates(true);
+    setShippingError(null);
+    
+    try {
+      const response = await axios.post('/api/shipping/rates/quick', {
+        zip: formData.shipping_zip,
+        state: formData.shipping_state,
+        country: formData.shipping_country || 'US'
+      });
+      
+      if (response.data.rates && response.data.rates.length > 0) {
+        setShippingRates(response.data.rates);
+        // Auto-select cheapest option
+        if (!selectedShipping) {
+          setSelectedShipping(response.data.rates[0]);
+        }
+      } else {
+        // Use fallback rates
+        setShippingRates([{
+          service: 'Standard Shipping',
+          carrier: 'Standard',
+          price: subtotal >= 50 ? 0 : 5,
+          estimated_days: 5
+        }]);
+        setSelectedShipping({
+          service: 'Standard Shipping',
+          carrier: 'Standard',
+          price: subtotal >= 50 ? 0 : 5,
+          estimated_days: 5
+        });
+      }
+      
+      if (response.data.errors && response.data.errors.length > 0) {
+        setShippingError('Some shipping rates unavailable, using standard rates');
+      }
+    } catch (error) {
+      console.error('Error fetching shipping rates:', error);
+      setShippingError('Unable to fetch shipping rates, using standard rates');
+      // Use fallback
+      const fallbackRate = {
+        service: 'Standard Shipping',
+        carrier: 'Standard',
+        price: subtotal >= 50 ? 0 : 5,
+        estimated_days: 5
+      };
+      setShippingRates([fallbackRate]);
+      setSelectedShipping(fallbackRate);
+    } finally {
+      setLoadingRates(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -47,8 +114,16 @@ const Checkout = () => {
     setLoading(true);
 
     try {
+      // Include selected shipping method in order data
+      const orderData = {
+        ...formData,
+        shipping_method: selectedShipping?.service || 'Standard Shipping',
+        shipping_carrier: selectedShipping?.carrier || 'Standard',
+        shipping_cost: shipping
+      };
+      
       // Create order (works for both authenticated and guest)
-      const orderResponse = await axios.post('/api/orders', formData);
+      const orderResponse = await axios.post('/api/orders', orderData);
       const order = orderResponse.data.order;
 
       // Process payment based on selected method
@@ -117,7 +192,7 @@ const Checkout = () => {
 
   const subtotal = cartTotal;
   const tax = subtotal * 0.08;
-  const shipping = subtotal >= 50 ? 0 : 5;
+  const shipping = selectedShipping ? selectedShipping.price : (subtotal >= 50 ? 0 : 5);
   const total = subtotal + tax + shipping;
 
   return (
@@ -247,6 +322,71 @@ const Checkout = () => {
                 />
               </div>
             </div>
+            
+            {/* Shipping Options */}
+            {formData.shipping_zip && formData.shipping_state && (
+              <div className="form-group" style={{marginTop: '20px', padding: '20px', background: '#f9fafb', borderRadius: '8px'}}>
+                <label className="form-label">Shipping Method *</label>
+                {loadingRates ? (
+                  <div style={{padding: '20px', textAlign: 'center', color: '#6b7280'}}>
+                    Loading shipping rates...
+                  </div>
+                ) : shippingRates.length > 0 ? (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+                    {shippingRates.map((rate, index) => (
+                      <label
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '16px',
+                          border: selectedShipping?.service === rate.service ? '2px solid #7c3aed' : '2px solid #e5e7eb',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          background: selectedShipping?.service === rate.service ? '#f3f4f6' : 'white',
+                          transition: 'all 0.2s'
+                        }}
+                        onClick={() => setSelectedShipping(rate)}
+                      >
+                        <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                          <input
+                            type="radio"
+                            name="shipping_method"
+                            value={rate.service}
+                            checked={selectedShipping?.service === rate.service}
+                            onChange={() => setSelectedShipping(rate)}
+                            style={{margin: 0}}
+                          />
+                          <div>
+                            <div style={{fontWeight: 600, color: '#1f2937'}}>
+                              {rate.service} {rate.carrier && `(${rate.carrier})`}
+                            </div>
+                            {rate.estimated_days && (
+                              <div style={{fontSize: '12px', color: '#6b7280'}}>
+                                Estimated {rate.estimated_days} {rate.estimated_days === 1 ? 'day' : 'days'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{fontWeight: 700, color: '#1f2937', fontSize: '18px'}}>
+                          ${rate.price.toFixed(2)}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{padding: '16px', background: '#fef3c7', borderRadius: '8px', color: '#92400e'}}>
+                    {shippingError || 'Unable to load shipping rates. Standard shipping will be applied.'}
+                  </div>
+                )}
+                {shippingError && shippingRates.length > 0 && (
+                  <div style={{marginTop: '8px', fontSize: '12px', color: '#92400e'}}>
+                    ⚠️ {shippingError}
+                  </div>
+                )}
+              </div>
+            )}
 
             <h3 style={{marginTop: '30px', marginBottom: '20px', color: '#7c3aed'}}>Payment Information</h3>
             

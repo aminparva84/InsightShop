@@ -79,4 +79,26 @@ class Config:
     # S3 Backup Configuration
     S3_BACKUP_BUCKET = os.getenv('S3_BACKUP_BUCKET', 'insightshop-backups')
     INSTANCE_ID = os.getenv('INSTANCE_ID', None)  # For multi-tenant SaaS
+    
+    # Shipping API Configuration
+    # FedEx API Credentials
+    FEDEX_API_KEY = os.getenv('FEDEX_API_KEY', '')
+    FEDEX_SECRET_KEY = os.getenv('FEDEX_SECRET_KEY', '')
+    FEDEX_ACCOUNT_NUMBER = os.getenv('FEDEX_ACCOUNT_NUMBER', '')
+    FEDEX_METER_NUMBER = os.getenv('FEDEX_METER_NUMBER', '')
+    FEDEX_USE_PRODUCTION = os.getenv('FEDEX_USE_PRODUCTION', 'false').lower() == 'true'
+    
+    # UPS API Credentials
+    UPS_API_KEY = os.getenv('UPS_API_KEY', '')
+    UPS_USERNAME = os.getenv('UPS_USERNAME', '')
+    UPS_PASSWORD = os.getenv('UPS_PASSWORD', '')
+    UPS_ACCOUNT_NUMBER = os.getenv('UPS_ACCOUNT_NUMBER', '')
+    UPS_USE_PRODUCTION = os.getenv('UPS_USE_PRODUCTION', 'false').lower() == 'true'
+    
+    # Shipping Origin Address
+    SHIPPING_ORIGIN_STREET = os.getenv('SHIPPING_ORIGIN_STREET', '123 Main St')
+    SHIPPING_ORIGIN_CITY = os.getenv('SHIPPING_ORIGIN_CITY', 'New York')
+    SHIPPING_ORIGIN_STATE = os.getenv('SHIPPING_ORIGIN_STATE', 'NY')
+    SHIPPING_ORIGIN_ZIP = os.getenv('SHIPPING_ORIGIN_ZIP', '10001')
+    SHIPPING_ORIGIN_COUNTRY = os.getenv('SHIPPING_ORIGIN_COUNTRY', 'US')
 

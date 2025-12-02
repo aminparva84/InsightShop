@@ -1203,15 +1203,15 @@ def text_to_speech():
             return jsonify({'error': 'No valid text to convert'}), 400
         
         # Select voice based on gender preference
-        # Using more expressive voices with better intonation
+        # Using attractive, warm American voices with appealing tone
         if voice_gender == 'woman':
-            # Amy - very expressive, warm, friendly, great for shopping assistant
-            # Alternative: Emma (British), Ivy (child-like), Kendra (friendly)
-            voice_id = 'Amy'  # Very expressive and natural
+            # Kendra - warm, friendly, attractive American voice (very appealing)
+            # Alternative: Amy (expressive), Kimberly (smooth), Salli (clear, warm)
+            voice_id = 'Kendra'  # Warm, attractive, American accent
         else:
-            # Justin - expressive, friendly male voice
-            # Alternative: Matthew (calm), Joey (young, energetic)
-            voice_id = 'Justin'  # More expressive than Matthew
+            # Joey - young, energetic, attractive American male voice
+            # Alternative: Justin (expressive), Matthew (calm, professional)
+            voice_id = 'Joey'  # Attractive, energetic American accent
         
         print(f"[AWS POLLY] Voice selection: {voice_id} (gender: {voice_gender})")
         
@@ -1229,23 +1229,24 @@ def text_to_speech():
         excitement_level = sum(1 for indicator in excitement_indicators if indicator.lower() in text.lower())
         has_exclamation = '!' in text
         
-        # Create SSML with prosody for softer, slower, more expressive speech
-        # Rate: slower for softer feel (85-90% = slower, more gentle)
-        # Pitch: slightly higher for more expression (+3% to +5%)
-        # Volume: normal to slightly softer
+        # Create SSML with prosody for attractive, warm, appealing American voice
+        # Rate: slower for more appealing, seductive feel (82-85% = slower, more alluring)
+        # Pitch: slightly lower for warmer, more attractive tone (-1% to +1%)
+        # Volume: medium for clear but intimate feel
+        # Phonation: soft for appealing, warm, attractive tone
         
         if excitement_level > 2 or has_exclamation:
-            # More excited: slightly faster but still soft, higher pitch for expression
-            ssml_text = f'<speak><prosody rate="88%" pitch="+4%" volume="medium">' \
+            # More excited: slightly faster but still appealing, warmer pitch
+            ssml_text = f'<speak><prosody rate="85%" pitch="+1%" volume="medium">' \
                        f'<amazon:effect phonation="soft">{escaped_text}</amazon:effect>' \
                        f'</prosody></speak>'
-            print("[AWS POLLY] Using excited SSML (rate: 88%, pitch: +4%, soft phonation)")
+            print("[AWS POLLY] Using excited appealing SSML (rate: 85%, pitch: +1%, soft phonation)")
         else:
-            # Normal: slower, softer, gentle tone
-            ssml_text = f'<speak><prosody rate="85%" pitch="+2%" volume="medium">' \
+            # Normal: slower, warmer, more attractive and appealing tone
+            ssml_text = f'<speak><prosody rate="82%" pitch="-1%" volume="medium">' \
                        f'<amazon:effect phonation="soft">{escaped_text}</amazon:effect>' \
                        f'</prosody></speak>'
-            print("[AWS POLLY] Using soft SSML (rate: 85%, pitch: +2%, soft phonation)")
+            print("[AWS POLLY] Using warm appealing SSML (rate: 82%, pitch: -1%, soft phonation)")
         
         print(f"[AWS POLLY] SSML length: {len(ssml_text)} characters")
         print(f"[AWS POLLY] Text preview: {clean_text[:200]}..." if len(clean_text) > 200 else f"[AWS POLLY] Text: {clean_text}")

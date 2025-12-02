@@ -53,8 +53,11 @@ Thumbs.db
 .dockerignore
 
 # Generated images and assets
-generated_images/
+# Keep generated_images JPG files (compressed/web-ready)
+generated_images/*.png
+!generated_images/*.jpg
 *.png
 !frontend/public/*.png
 !frontend/src/components/*.png
+!static/images/*.jpg
 

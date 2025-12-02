@@ -101,20 +101,20 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     const saved = localStorage.getItem('aiVoiceEnabled');
     return saved === 'true';
   });
-  const [voiceGender, setVoiceGender] = useState(() => {
-    // Load voice gender preference from localStorage, default to 'woman'
-    const saved = localStorage.getItem('aiVoiceGender');
-    return saved || 'woman';
-  });
   const [voiceId, setVoiceId] = useState(() => {
-    // Load voice ID preference from localStorage, default to 'Kendra' for women
+    // Load voice ID preference from localStorage, default to 'Joanna'
     const saved = localStorage.getItem('aiVoiceId');
-    return saved || 'Kendra';
+    return saved || 'Joanna';
   });
   const [speechSpeed, setSpeechSpeed] = useState(() => {
-    // Load speech speed preference from localStorage, default to 1.0 (normal speed)
+    // Load speech speed preference from localStorage, default to 1.1
     const saved = localStorage.getItem('aiSpeechSpeed');
-    return saved ? parseFloat(saved) : 1.0;
+    return saved ? parseFloat(saved) : 1.1;
+  });
+  const [voiceVolume, setVoiceVolume] = useState(() => {
+    // Load voice volume preference from localStorage, default to 0.5 (middle)
+    const saved = localStorage.getItem('aiVoiceVolume');
+    return saved ? parseFloat(saved) : 0.5;
   });
   const [pollyAvailable, setPollyAvailable] = useState(true); // Assume available by default
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -157,14 +157,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Initialize audio element for AWS Polly playback
   useEffect(() => {
     audioRef.current = new Audio();
-    // Set default volume to middle (0.5) if not set
-    const savedVolume = localStorage.getItem('aiVoiceVolume');
-    if (savedVolume) {
-      audioRef.current.volume = parseFloat(savedVolume);
-    } else {
-      audioRef.current.volume = 0.5; // Default to middle
-      localStorage.setItem('aiVoiceVolume', '0.5');
-    }
+    // Set volume from state
+    audioRef.current.volume = voiceVolume;
     
     // Check Polly status on mount (only once, silently)
     const checkPollyStatus = async () => {
@@ -201,16 +195,20 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   }, [voiceEnabled]);
 
   useEffect(() => {
-    localStorage.setItem('aiVoiceGender', voiceGender);
-  }, [voiceGender]);
-
-  useEffect(() => {
     localStorage.setItem('aiVoiceId', voiceId);
   }, [voiceId]);
 
   useEffect(() => {
     localStorage.setItem('aiSpeechSpeed', speechSpeed.toString());
   }, [speechSpeed]);
+
+  useEffect(() => {
+    localStorage.setItem('aiVoiceVolume', voiceVolume.toString());
+    // Update audio volume when it changes
+    if (audioRef.current) {
+      audioRef.current.volume = voiceVolume;
+    }
+  }, [voiceVolume]);
 
   // Speak initial greeting when voice is enabled on mount
   useEffect(() => {
@@ -228,14 +226,14 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     console.log('='.repeat(80));
     console.log('[FRONTEND] speakText called');
     console.log('='.repeat(80));
-    console.log('[FRONTEND] Initial state:', { 
+      console.log('[FRONTEND] Initial state:', { 
       voiceEnabled, 
       pollyAvailable, 
       hasAudioRef: !!audioRef.current, 
       textLength: text?.length, 
       messageId, 
       usedSpeechInput,
-      voiceGender 
+      voiceId 
     });
     
     // If voice is disabled but user used mic, enable it
@@ -303,10 +301,14 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       
       console.log('[FRONTEND] Preparing TTS API request...');
       console.log(`[FRONTEND]   - Text length: ${textToSpeak.length} characters`);
-      console.log(`[FRONTEND]   - Voice gender: ${voiceGender}`);
+      console.log(`[FRONTEND]   - Voice ID: ${voiceId}`);
       console.log(`[FRONTEND]   - Text preview: ${textToSpeak.substring(0, 100)}${textToSpeak.length > 100 ? '...' : ''}`);
       
       const requestStartTime = performance.now();
+      
+      // Determine gender from voice ID for backend compatibility
+      const womanVoices = ['Kendra', 'Amy', 'Kimberly', 'Salli', 'Joanna', 'Ivy'];
+      const voiceGender = womanVoices.includes(voiceId) ? 'woman' : 'man';
       
       // Call backend to get audio from AWS Polly
       console.log('[FRONTEND] 📤 Sending POST request to /api/ai/text-to-speech...');
@@ -455,9 +457,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         // Set new source and properties
         console.log('[FRONTEND] Setting audio source and properties...');
         audioRef.current.src = audioUrl;
-        // Use saved volume or default to 0.5 (middle)
-        const savedVolume = localStorage.getItem('aiVoiceVolume');
-        audioRef.current.volume = savedVolume ? parseFloat(savedVolume) : 0.5;
+        // Use current volume from state
+        audioRef.current.volume = voiceVolume;
         audioRef.current.preload = 'auto';
         console.log('[FRONTEND]   - src set to:', audioUrl.substring(0, 50) + '...');
         console.log('[FRONTEND]   - volume:', audioRef.current.volume);
@@ -659,10 +660,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     setMessages([{ role: 'assistant', content: initialMessage }]);
     localStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
     
-    // Reset voice settings to defaults: woman, Salli, speed 1.0, volume 0.5 (middle)
-    setVoiceGender('woman');
-    setVoiceId('Salli');
-    setSpeechSpeed(1.0);
+    // Reset voice settings to defaults: Joanna, speed 1.1, volume 0.5 (middle)
+    setVoiceId('Joanna');
+    setSpeechSpeed(1.1);
+    setVoiceVolume(0.5);
     
     // Reset audio volume to middle (0.5)
     if (audioRef.current) {
@@ -670,9 +671,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     }
     
     // Save defaults to localStorage
-    localStorage.setItem('aiVoiceGender', 'woman');
-    localStorage.setItem('aiVoiceId', 'Salli');
-    localStorage.setItem('aiSpeechSpeed', '1.0');
+    localStorage.setItem('aiVoiceId', 'Joanna');
+    localStorage.setItem('aiSpeechSpeed', '1.1');
     localStorage.setItem('aiVoiceVolume', '0.5');
     
     // Stop any ongoing speech
@@ -1873,61 +1873,31 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             <>
               <select
                 className="voice-gender-select"
-                value={voiceGender}
+                value={voiceId}
                 onChange={(e) => {
-                  setVoiceGender(e.target.value);
-                  // Reset voice ID when gender changes
-                  if (e.target.value === 'woman') {
-                    setVoiceId('Kendra');
-                  } else {
-                    setVoiceId('Joey');
-                  }
+                  setVoiceId(e.target.value);
                   if (isSpeaking) stopSpeaking();
                 }}
-                title="Select voice gender"
-                style={{ minWidth: '80px' }}
+                title="Select voice"
+                style={{ minWidth: '140px' }}
               >
-                <option value="woman">Woman</option>
-                <option value="man">Man</option>
-              </select>
-              {voiceGender === 'woman' && (
-                <select
-                  className="voice-gender-select"
-                  value={voiceId}
-                  onChange={(e) => {
-                    setVoiceId(e.target.value);
-                    if (isSpeaking) stopSpeaking();
-                  }}
-                  title="Select women's voice"
-                  style={{ minWidth: '100px' }}
-                >
+                <optgroup label="Women's Voices">
+                  <option value="Joanna">Joanna (Neural) - Default</option>
                   <option value="Kendra">Kendra (Warm)</option>
                   <option value="Amy">Amy (Expressive)</option>
                   <option value="Kimberly">Kimberly (Smooth)</option>
                   <option value="Salli">Salli (Clear)</option>
-                  <option value="Joanna">Joanna (Neural)</option>
                   <option value="Ivy">Ivy (Young)</option>
-                </select>
-              )}
-              {voiceGender === 'man' && (
-                <select
-                  className="voice-gender-select"
-                  value={voiceId}
-                  onChange={(e) => {
-                    setVoiceId(e.target.value);
-                    if (isSpeaking) stopSpeaking();
-                  }}
-                  title="Select men's voice"
-                  style={{ minWidth: '100px' }}
-                >
+                </optgroup>
+                <optgroup label="Men's Voices">
                   <option value="Joey">Joey (Energetic)</option>
                   <option value="Justin">Justin (Expressive)</option>
                   <option value="Matthew">Matthew (Calm)</option>
                   <option value="Kevin">Kevin (Neural)</option>
                   <option value="Brian">Brian (British)</option>
                   <option value="Russell">Russell (Australian)</option>
-                </select>
-              )}
+                </optgroup>
+              </select>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 4px' }}>
                 <label style={{ fontSize: '11px', color: '#1a2332', whiteSpace: 'nowrap' }}>Speed:</label>
                 <input
@@ -1944,6 +1914,23 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                   style={{ width: '60px', cursor: 'pointer' }}
                 />
                 <span style={{ fontSize: '11px', color: '#1a2332', minWidth: '30px' }}>{speechSpeed.toFixed(1)}x</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 4px' }}>
+                <label style={{ fontSize: '11px', color: '#1a2332', whiteSpace: 'nowrap' }}>Volume:</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={voiceVolume}
+                  onChange={(e) => {
+                    setVoiceVolume(parseFloat(e.target.value));
+                    if (isSpeaking) stopSpeaking();
+                  }}
+                  title={`Volume: ${Math.round(voiceVolume * 100)}%`}
+                  style={{ width: '60px', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '11px', color: '#1a2332', minWidth: '35px' }}>{Math.round(voiceVolume * 100)}%</span>
               </div>
             </>
           )}

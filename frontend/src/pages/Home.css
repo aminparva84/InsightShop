@@ -362,7 +362,7 @@
 
 @media (max-width: 768px) {
   .hero {
-    min-height: 250px;
+    min-height: 300px;
   }
 
   .hero-content {
@@ -372,14 +372,24 @@
   .hero-title {
     font-size: 42px;
     letter-spacing: 1px;
+    margin-bottom: 16px;
   }
 
   .hero-subtitle {
     font-size: 20px;
+    margin-bottom: 24px;
   }
 
   .hero-buttons {
     flex-direction: column;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .hero-buttons .btn {
+    width: 100%;
+    max-width: 100%;
+    min-width: auto;
   }
 
   .section-title {
@@ -389,9 +399,60 @@
   .floating-ai-button {
     bottom: 20px;
     right: 20px;
-    width: 50px;
-    height: 50px;
+    width: 56px;
+    height: 56px;
     font-size: 20px;
+    min-width: 56px;
+    min-height: 56px;
+  }
+
+  .ai-chat-container {
+    max-width: 100%;
+    max-height: 95vh;
+    margin: 0;
+    border-radius: 12px;
+  }
+
+  .ai-chat-overlay {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    min-height: 250px;
+  }
+
+  .hero-content {
+    padding: 30px 16px;
+  }
+
+  .hero-title {
+    font-size: 32px;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  .hero-subtitle {
+    font-size: 16px;
+    margin-bottom: 20px;
+  }
+
+  .hero-buttons .btn {
+    padding: 14px 24px;
+    font-size: 16px;
+  }
+
+  .section-title {
+    font-size: 24px;
+  }
+
+  .floating-ai-button {
+    bottom: 16px;
+    right: 16px;
+    width: 52px;
+    height: 52px;
+    font-size: 18px;
   }
 }
 

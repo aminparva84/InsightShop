@@ -248,6 +248,43 @@
   .products-tab {
     padding: 10px 16px;
     font-size: 14px;
+    min-height: 44px; /* Better touch target */
+  }
+
+  .ai-chat-inline {
+    height: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .products-tabs {
+    gap: 8px;
+  }
+
+  .products-tab {
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+
+  .ai-chat-inline-container {
+    margin: 0 0 16px 0;
+  }
+
+  .ai-chat-inline {
+    height: 280px;
+  }
+}
+
+@media (max-width: 480px) {
+  .products-tab {
+    padding: 10px 12px;
+    font-size: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ai-chat-inline {
+    height: 250px;
   }
 }
 

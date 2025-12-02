@@ -4,7 +4,6 @@
 
 .hero {
   background: #1a2332;
-  background-image: url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1920&h=800&fit=crop&q=80');
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
@@ -28,7 +27,6 @@
   bottom: 0;
   width: 100%;
   height: 100%;
-  background-image: url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1920&h=800&fit=crop&q=80');
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;

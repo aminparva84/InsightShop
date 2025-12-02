@@ -86,6 +86,18 @@ def serve_image(filename):
         from flask import abort
         abort(404)
 
+# Serve background images from generated_images directory
+@app.route('/api/images/generated/<filename>')
+def serve_generated_image(filename):
+    """Serve images from generated_images directory."""
+    from flask import send_from_directory
+    generated_images_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'generated_images')
+    if os.path.exists(generated_images_dir) and os.path.exists(os.path.join(generated_images_dir, filename)):
+        return send_from_directory(generated_images_dir, filename)
+    else:
+        from flask import abort
+        abort(404)
+
 # Health check endpoint
 @app.route('/api/health')
 def health():

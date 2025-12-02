@@ -82,7 +82,28 @@ const Home = () => {
   return (
     <div className="home">
       {/* Hero Section */}
-      <section className="hero">
+      <section 
+        className="hero"
+        style={{
+          backgroundImage: `url('/BackGround.png')`,
+        }}
+      >
+        <div 
+          className="hero-overlay"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundImage: `url('/BackGround.png')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center center',
+            backgroundRepeat: 'no-repeat',
+            opacity: 0.85,
+            zIndex: 0
+          }}
+        />
         <div className="hero-content">
           <h1 className="hero-title">Welcome to InsightShop - Get AI Help</h1>
           <p className="hero-subtitle">Discover Fashion That Fits Your Style</p>

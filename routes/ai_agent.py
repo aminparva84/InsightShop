@@ -6,6 +6,7 @@ from utils.fashion_kb import get_fashion_knowledge_base_text, get_color_matching
 from utils.spelling_tolerance import normalize_clothing_type, normalize_category, normalize_color_spelling
 from utils.fashion_match_rules import find_matching_products, get_match_explanation
 from utils.seasonal_events import get_seasonal_context_text, get_current_season, get_upcoming_holidays, get_seasonal_recommendations
+from utils.product_relations import ensure_product_relations, get_related_clothing_types
 from routes.auth import require_auth
 from config import Config
 import boto3
@@ -910,19 +911,49 @@ Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find
             print(f"RETURNING - First ID in array: {ids_to_return[0]}")
         
         # Add fashion match suggestions if products were found
+        # This now uses both fashion match rules AND database product relations
         fashion_match_suggestions = None
         if len(products_to_return) > 0:
             primary_product = products_to_return[0]
             primary_name = primary_product.get('name', '')
             primary_id = primary_product.get('id', '')
             
-            # Find matching products using fashion match rules
+            matched_products = []
+            
+            # First, try to get related products from database relations
+            try:
+                from models.product_relation import ProductRelation
+                # Ensure relations exist for this product
+                product_obj = Product.query.get(primary_id)
+                if product_obj:
+                    ensure_product_relations(primary_id, product_obj.clothing_type)
+                    
+                    # Get related products from database
+                    relations = ProductRelation.query.filter_by(
+                        product_id=primary_id,
+                        is_fashion_match=True
+                    ).limit(4).all()
+                    
+                    for relation in relations:
+                        if relation.related_product and relation.related_product.is_active:
+                            matched_products.append({
+                                'product': relation.related_product.to_dict(),
+                                'match_type': 'Database Relation',
+                                'priority': 1,
+                                'explanation': 'Complements this item based on product relations'
+                            })
+            except Exception as e:
+                print(f"Error getting product relations: {e}")
+            
+            # Also use fashion match rules as fallback/enhancement
             fashion_matches = find_matching_products(primary_name, primary_id)
             
-            if fashion_matches:
+            if fashion_matches and len(matched_products) < 4:
                 # Try to find actual products in database that match the suggestions
-                matched_products = []
                 for match in fashion_matches[:4]:  # Top 4 matches
+                    if len(matched_products) >= 4:
+                        break
+                    
                     matched_name = match['matched_product']
                     # Search for products that match the suggested item name
                     matched_product_query = Product.query.filter(
@@ -933,21 +964,23 @@ Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find
                     ).filter_by(is_active=True).limit(1).first()
                     
                     if matched_product_query:
-                        matched_products.append({
-                            'product': matched_product_query.to_dict(),
-                            'match_type': match['match_type'],
-                            'priority': match['priority'],
-                            'explanation': get_match_explanation(match['match_type'])
-                        })
-                
-                if matched_products:
-                    fashion_match_suggestions = {
-                        'primary_product': {
-                            'id': primary_id,
-                            'name': primary_name
-                        },
-                        'matches': matched_products
-                    }
+                        # Check if already added
+                        if not any(mp['product']['id'] == matched_product_query.id for mp in matched_products):
+                            matched_products.append({
+                                'product': matched_product_query.to_dict(),
+                                'match_type': match['match_type'],
+                                'priority': match['priority'],
+                                'explanation': get_match_explanation(match['match_type'])
+                            })
+            
+            if matched_products:
+                fashion_match_suggestions = {
+                    'primary_product': {
+                        'id': primary_id,
+                        'name': primary_name
+                    },
+                    'matches': matched_products[:4]  # Limit to 4 matches
+                }
         
         return jsonify({
             'response': final_response,
@@ -1103,13 +1136,35 @@ def tts_status():
 @ai_agent_bp.route('/text-to-speech', methods=['POST'])
 def text_to_speech():
     """Convert text to speech using AWS Polly with natural, excited voices."""
+    import re
+    import html
+    import base64
+    import traceback
+    
+    print("=" * 80)
+    print("[AWS POLLY] Text-to-Speech Request Received")
+    print("=" * 80)
+    
     try:
         data = request.get_json()
         text = data.get('text', '')
         voice_gender = data.get('voice_gender', 'woman')  # 'woman' or 'man'
         
+        print(f"[AWS POLLY] Request Details:")
+        print(f"  - Text length: {len(text)} characters")
+        print(f"  - Voice gender: {voice_gender}")
+        print(f"  - Text preview: {text[:100]}..." if len(text) > 100 else f"  - Text: {text}")
+        
         if not text:
+            print("[AWS POLLY] ❌ ERROR: No text provided")
             return jsonify({'error': 'Text is required'}), 400
+        
+        print(f"[AWS POLLY] Checking Polly availability...")
+        print(f"  - polly_client exists: {polly_client is not None}")
+        print(f"  - polly_available: {polly_available}")
+        print(f"  - AWS_ACCESS_KEY_ID configured: {bool(Config.AWS_ACCESS_KEY_ID)}")
+        print(f"  - AWS_SECRET_ACCESS_KEY configured: {bool(Config.AWS_SECRET_ACCESS_KEY)}")
+        print(f"  - AWS_REGION: {Config.AWS_REGION}")
         
         if not polly_client or not polly_available:
             error_msg = 'Polly client not available. '
@@ -1117,13 +1172,16 @@ def text_to_speech():
                 error_msg += 'Please configure AWS credentials via .env file (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) or AWS CLI (aws configure).'
             else:
                 error_msg += 'Please check your AWS credentials and Polly permissions.'
+            print(f"[AWS POLLY] ❌ ERROR: {error_msg}")
             # Return 503 Service Unavailable instead of 500 for missing service
             return jsonify({'error': error_msg, 'service_unavailable': True}), 503
         
+        print("[AWS POLLY] ✅ Polly client is available, proceeding with text processing...")
+        
         # Clean text for better speech
-        import re
-        import html
         clean_text = text
+        original_length = len(clean_text)
+        
         # Remove product IDs but keep context
         clean_text = re.sub(r'Product\s*#\d+', '', clean_text, flags=re.IGNORECASE)
         # Remove URLs
@@ -1135,7 +1193,13 @@ def text_to_speech():
         # Clean up spacing
         clean_text = ' '.join(clean_text.split())
         
+        print(f"[AWS POLLY] Text cleaning:")
+        print(f"  - Original length: {original_length} characters")
+        print(f"  - Cleaned length: {len(clean_text)} characters")
+        print(f"  - Cleaned text preview: {clean_text[:100]}..." if len(clean_text) > 100 else f"  - Cleaned text: {clean_text}")
+        
         if not clean_text:
+            print("[AWS POLLY] ❌ ERROR: No valid text after cleaning")
             return jsonify({'error': 'No valid text to convert'}), 400
         
         # Select voice based on gender preference
@@ -1147,45 +1211,117 @@ def text_to_speech():
             # Matthew - natural, friendly male voice
             voice_id = 'Matthew'  # Neural voice, great for excited tone
         
-        # Escape XML/SSML special characters
-        escaped_text = html.escape(clean_text)
+        print(f"[AWS POLLY] Voice selection: {voice_id} (gender: {voice_gender})")
         
-        # Use SSML to add excitement and natural intonation
-        # Adjust speed and pitch for excitement
-        excitement_level = (text.count('!') + text.count('OMG') + text.count('wow') + 
-                            text.count('awesome') + text.count('amazing')) > 0
+        # For neural engine, we cannot use prosody tags (rate/pitch)
+        # Neural voices are already natural and expressive
+        # Use plain text with neural engine for best quality
+        print("[AWS POLLY] Preparing text for neural engine (no prosody tags - not supported)")
         
-        if excitement_level:
-            # More excited: slightly faster, higher pitch
-            ssml_text = f'<speak><prosody rate="105%" pitch="+5%">{escaped_text}</prosody></speak>'
-        else:
-            # Normal conversational tone
-            ssml_text = f'<speak><prosody rate="100%" pitch="+2%">{escaped_text}</prosody></speak>'
+        # Clean text to remove any potential SSML-like characters that might confuse AWS
+        # Remove any angle brackets that might be interpreted as SSML
+        import re
+        text_for_speech = clean_text
+        # Remove any remaining angle brackets (could be interpreted as SSML)
+        text_for_speech = re.sub(r'[<>]', '', text_for_speech)
+        # Ensure no SSML-like patterns
+        text_for_speech = text_for_speech.strip()
+        
+        print(f"[AWS POLLY] Text after SSML cleanup: {len(text_for_speech)} characters")
+        print(f"[AWS POLLY] Text preview: {text_for_speech[:200]}..." if len(text_for_speech) > 200 else f"[AWS POLLY] Text: {text_for_speech}")
         
         # Call Polly with neural engine for best quality
-        response = polly_client.synthesize_speech(
-            Text=ssml_text,
-            OutputFormat='mp3',
-            VoiceId=voice_id,
-            Engine='neural',  # Use neural engine for natural, expressive speech
-            TextType='ssml'  # We're using SSML for prosody control
-        )
+        # Try neural first, fall back to standard if neural fails
+        import time
+        start_time = time.time()
+        response = None
+        engine_used = 'neural'
+        
+        # First try: Neural engine (best quality)
+        try:
+            print(f"[AWS POLLY] Attempting with neural engine...")
+            print(f"  - VoiceId: {voice_id}")
+            print(f"  - Engine: neural")
+            print(f"  - OutputFormat: mp3")
+            print(f"  - TextType: text (plain text, no SSML)")
+            print(f"  - Text length: {len(text_for_speech)} characters")
+            
+            response = polly_client.synthesize_speech(
+                Text=text_for_speech,
+                OutputFormat='mp3',
+                VoiceId=voice_id,
+                Engine='neural'  # Use neural engine for natural, expressive speech
+                # Note: Neural engine doesn't support SSML prosody tags
+                # Neural voices are already natural and expressive
+            )
+            elapsed_time = time.time() - start_time
+            print(f"[AWS POLLY] ✅ Polly API call successful with neural engine (took {elapsed_time:.2f}s)")
+        except Exception as neural_error:
+            elapsed_time = time.time() - start_time
+            error_msg = str(neural_error)
+            print(f"[AWS POLLY] ⚠️ Neural engine failed after {elapsed_time:.2f}s")
+            print(f"[AWS POLLY] Error: {error_msg}")
+            
+            # Check if it's a neural-specific error
+            if 'Neural' in error_msg or 'neural' in error_msg.lower():
+                print(f"[AWS POLLY] Neural engine not supported, falling back to standard engine...")
+                start_time = time.time()
+                try:
+                    response = polly_client.synthesize_speech(
+                        Text=text_for_speech,
+                        OutputFormat='mp3',
+                        VoiceId=voice_id
+                        # Standard engine (no Engine parameter = standard)
+                    )
+                    elapsed_time = time.time() - start_time
+                    engine_used = 'standard'
+                    print(f"[AWS POLLY] ✅ Polly API call successful with standard engine (took {elapsed_time:.2f}s)")
+                except Exception as standard_error:
+                    elapsed_time = time.time() - start_time
+                    print(f"[AWS POLLY] ❌ ERROR: Standard engine also failed after {elapsed_time:.2f}s")
+                    print(f"[AWS POLLY] Error type: {type(standard_error).__name__}")
+                    print(f"[AWS POLLY] Error message: {str(standard_error)}")
+                    print(f"[AWS POLLY] Error traceback:")
+                    traceback.print_exc()
+                    raise
+            else:
+                # Some other error, re-raise it
+                print(f"[AWS POLLY] ❌ ERROR: Polly API call failed after {elapsed_time:.2f}s")
+                print(f"[AWS POLLY] Error type: {type(neural_error).__name__}")
+                print(f"[AWS POLLY] Error message: {str(neural_error)}")
+                print(f"[AWS POLLY] Error traceback:")
+                traceback.print_exc()
+                raise
         
         # Get audio stream
+        print("[AWS POLLY] Reading audio stream from response...")
         audio_stream = response['AudioStream'].read()
+        audio_size = len(audio_stream)
+        print(f"[AWS POLLY] ✅ Audio stream received: {audio_size} bytes ({audio_size / 1024:.2f} KB)")
         
         # Return as base64 encoded audio
-        import base64
+        print("[AWS POLLY] Encoding audio to base64...")
         audio_base64 = base64.b64encode(audio_stream).decode('utf-8')
+        base64_size = len(audio_base64)
+        print(f"[AWS POLLY] ✅ Base64 encoding complete: {base64_size} characters")
+        
+        print("[AWS POLLY] ✅ SUCCESS: Returning audio response to client")
+        print("=" * 80)
         
         return jsonify({
             'audio': audio_base64,
             'format': 'mp3',
-            'voice': voice_id
+            'voice': voice_id,
+            'engine': engine_used
         })
         
     except Exception as e:
-        print(f"Error in text-to-speech: {e}")
+        print(f"[AWS POLLY] ❌ EXCEPTION in text-to-speech endpoint")
+        print(f"[AWS POLLY] Error type: {type(e).__name__}")
+        print(f"[AWS POLLY] Error message: {str(e)}")
+        print(f"[AWS POLLY] Full traceback:")
+        traceback.print_exc()
+        print("=" * 80)
         return jsonify({'error': f'Failed to generate speech: {str(e)}'}), 500
 
 @ai_agent_bp.route('/upload-image', methods=['POST'])

@@ -19,7 +19,7 @@ const Cart = () => {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [confirmationState, setConfirmationState] = useState(null); // { itemId, itemName }
 
-  // Fetch suggested products based on cart items
+  // Fetch suggested products based on cart items using related products from database
   // IMPORTANT: This hook must be called before any early returns
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -30,31 +30,38 @@ const Cart = () => {
 
       try {
         setLoadingSuggestions(true);
-        // Get categories and colors from cart items
-        const categories = [...new Set(cartItems.map(item => item.product?.category).filter(Boolean))];
-        const colors = [...new Set(cartItems.map(item => item.product?.color || item.selected_color).filter(Boolean))];
         
-        // Build query params
-        const params = new URLSearchParams();
-        if (categories.length > 0) {
-          params.append('category', categories[0]); // Use first category
-        }
-        if (colors.length > 0) {
-          params.append('color', colors[0]); // Use first color
-        }
-        params.append('per_page', '8');
-
+        // Fetch related products from database based on product relations
+        const response = await axios.get('/api/cart/suggestions');
+        const relatedProducts = response.data.products || [];
+        
         // Exclude products already in cart
         const cartProductIds = cartItems.map(item => item.product_id || item.product?.id).filter(Boolean);
-        if (cartProductIds.length > 0) {
-          // Fetch all products and filter out cart items
-          const response = await axios.get(`/api/products?${params.toString()}`);
-          const allProducts = response.data.products || [];
-          const filtered = allProducts.filter(p => !cartProductIds.includes(p.id));
+        const filtered = relatedProducts.filter(p => !cartProductIds.includes(p.id));
+        
+        // If we have related products, use them; otherwise fallback to category/color-based
+        if (filtered.length > 0) {
           setSuggestedProducts(filtered.slice(0, 8));
         } else {
-          const response = await axios.get(`/api/products?${params.toString()}`);
-          setSuggestedProducts((response.data.products || []).slice(0, 8));
+          // Fallback: Get categories and colors from cart items
+          const categories = [...new Set(cartItems.map(item => item.product?.category).filter(Boolean))];
+          const colors = [...new Set(cartItems.map(item => item.product?.color || item.selected_color).filter(Boolean))];
+          
+          // Build query params
+          const params = new URLSearchParams();
+          if (categories.length > 0) {
+            params.append('category', categories[0]); // Use first category
+          }
+          if (colors.length > 0) {
+            params.append('color', colors[0]); // Use first color
+          }
+          params.append('per_page', '8');
+
+          // Fetch all products and filter out cart items
+          const fallbackResponse = await axios.get(`/api/products?${params.toString()}`);
+          const allProducts = fallbackResponse.data.products || [];
+          const fallbackFiltered = allProducts.filter(p => !cartProductIds.includes(p.id));
+          setSuggestedProducts(fallbackFiltered.slice(0, 8));
         }
       } catch (error) {
         console.error('Error fetching suggestions:', error);

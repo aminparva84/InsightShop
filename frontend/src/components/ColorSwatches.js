@@ -2,7 +2,8 @@ import React from 'react';
 import './ColorSwatches.css';
 
 const ColorSwatches = ({ colors = [], selectedColor, onColorSelect }) => {
-  if (!colors || colors.length === 0) {
+  // Only show color selector if there are multiple colors available
+  if (!colors || colors.length <= 1) {
     return null;
   }
 

@@ -96,13 +96,16 @@
 }
 
 .message-play-btn {
-  opacity: 0.7;
+  opacity: 0.9 !important;
   transition: all 0.2s ease;
+  visibility: visible !important;
+  display: flex !important;
+  pointer-events: auto !important;
 }
 
 .message-play-btn:hover:not(:disabled) {
-  opacity: 1;
-  background: rgba(212, 175, 55, 0.1) !important;
+  opacity: 1 !important;
+  background: rgba(212, 175, 55, 0.2) !important;
   border-color: #1a2332 !important;
   transform: scale(1.05);
 }
@@ -113,7 +116,9 @@
 }
 
 .message-content {
-  padding-right: 80px; /* Make room for play button */
+  padding-right: 100px !important; /* Make room for play button - increased from 80px */
+  position: relative !important;
+  min-height: 40px; /* Ensure minimum height for button visibility */
 }
 
 .voice-btn.polly-unavailable::after {

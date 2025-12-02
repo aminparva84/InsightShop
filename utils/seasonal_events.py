@@ -1,6 +1,6 @@
 """Seasonal Events and Holiday Detection - Based on Current Date."""
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import calendar
 
 # Get current date
@@ -56,6 +56,7 @@ HOLIDAYS = {
     # Fall Holidays
     'halloween': {'month': 10, 'day': 31, 'season': 'fall', 'type': 'celebration'},
     'thanksgiving': {'month': 11, 'day': None, 'season': 'fall', 'type': 'family', 'calculated': True},  # Fourth Thursday in November
+    'cyber_monday': {'month': 11, 'day': None, 'season': 'fall', 'type': 'shopping', 'calculated': True},  # Monday after Thanksgiving
     
     # Winter Holidays
     'hanukkah': {'month': None, 'day': None, 'season': 'winter', 'type': 'religious', 'calculated': True},  # Varies
@@ -145,6 +146,16 @@ def get_thanksgiving(year):
     fourth_thursday = nov_first.replace(day=1 + days_to_thursday + 21)
     return fourth_thursday
 
+def get_cyber_monday(year):
+    """Get Cyber Monday (Monday after Thanksgiving)."""
+    thanksgiving = get_thanksgiving(year)
+    # Cyber Monday is the Monday after Thanksgiving
+    days_after = (7 - thanksgiving.weekday()) % 7
+    if days_after == 0:
+        days_after = 7
+    cyber_monday = thanksgiving + timedelta(days=days_after)
+    return cyber_monday
+
 def get_upcoming_holidays(current_date=None, days_ahead=30):
     """Get upcoming holidays within the next N days."""
     if current_date is None:
@@ -160,6 +171,7 @@ def get_upcoming_holidays(current_date=None, days_ahead=30):
     memorial_day = get_memorial_day(year)
     labor_day = get_labor_day(year)
     thanksgiving = get_thanksgiving(year)
+    cyber_monday = get_cyber_monday(year)
     
     # Check fixed holidays
     for holiday_name, holiday_info in HOLIDAYS.items():
@@ -177,6 +189,8 @@ def get_upcoming_holidays(current_date=None, days_ahead=30):
                 holiday_date = labor_day
             elif holiday_name == 'thanksgiving':
                 holiday_date = thanksgiving
+            elif holiday_name == 'cyber_monday':
+                holiday_date = cyber_monday
             else:
                 continue
         else:
@@ -225,6 +239,7 @@ def get_current_holidays_and_events(current_date=None):
     memorial_day = get_memorial_day(year)
     labor_day = get_labor_day(year)
     thanksgiving = get_thanksgiving(year)
+    cyber_monday = get_cyber_monday(year)
     
     # Check fixed holidays
     for holiday_name, holiday_info in HOLIDAYS.items():
@@ -241,6 +256,8 @@ def get_current_holidays_and_events(current_date=None):
                 holiday_date = labor_day
             elif holiday_name == 'thanksgiving':
                 holiday_date = thanksgiving
+            elif holiday_name == 'cyber_monday':
+                holiday_date = cyber_monday
             else:
                 continue
         else:

@@ -140,8 +140,8 @@ const Compare = () => {
                       <h3>{product.name}</h3>
                       <div className="product-price">${parseFloat(product.price).toFixed(2)}</div>
                       
-                      {/* Color Selection */}
-                      {product.available_colors && product.available_colors.length > 0 && (
+                      {/* Color Selection - Only show if multiple colors available */}
+                      {product.available_colors && product.available_colors.length > 1 && (
                         <div style={{ margin: '8px 0' }}>
                           <ColorSwatches 
                             colors={product.available_colors} 
@@ -151,8 +151,8 @@ const Compare = () => {
                         </div>
                       )}
                       
-                      {/* Size Selection */}
-                      {product.available_sizes && product.available_sizes.length > 0 && (
+                      {/* Size Selection - Only show if multiple sizes available */}
+                      {product.available_sizes && product.available_sizes.length > 1 && (
                         <div style={{ margin: '8px 0' }}>
                           <SizeSelector 
                             sizes={product.available_sizes} 

@@ -2,7 +2,8 @@ import React from 'react';
 import './SizeSelector.css';
 
 const SizeSelector = ({ sizes = [], selectedSize, onSizeSelect, stockBySize = {} }) => {
-  if (!sizes || sizes.length === 0) {
+  // Only show size selector if there are multiple sizes available
+  if (!sizes || sizes.length <= 1) {
     return null;
   }
 

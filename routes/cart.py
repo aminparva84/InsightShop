@@ -9,6 +9,7 @@ from utils.guest_cart import (
     get_guest_cart, add_to_guest_cart, update_guest_cart_item,
     remove_from_guest_cart, clear_guest_cart
 )
+from utils.product_relations import get_related_products_for_cart
 
 cart_bp = Blueprint('cart', __name__)
 
@@ -117,40 +118,32 @@ def add_to_cart():
         if not product or not product.is_active:
             return jsonify({'error': 'Product not found'}), 404
         
-        # If color/size specified, try to find matching product variant
-        if selected_color or selected_size:
-            # Find product with matching color and size
-            query = Product.query.filter_by(
-                category=product.category,
-                is_active=True
-            )
+        # Validate selected color/size against available options
+        if selected_color:
+            import json
+            available_colors = []
+            try:
+                if product.available_colors:
+                    available_colors = json.loads(product.available_colors) if isinstance(product.available_colors, str) else product.available_colors
+            except:
+                if product.color:
+                    available_colors = [product.color]
             
-            # Extract base product name (remove color from name)
-            base_name_parts = product.name.split(' for ')
-            if len(base_name_parts) > 1:
-                base_name = base_name_parts[1] if len(base_name_parts) > 1 else product.name
-            else:
-                # Try to extract clothing type
-                for clothing_type in ['T-Shirt', 'Polo Shirt', 'Dress Shirt', 'Jeans', 'Chinos', 'Shorts', 
-                                     'Blouse', 'Dress', 'Skirt', 'Leggings', 'Hoodie', 'Sweater', 
-                                     'Jacket', 'Blazer', 'Coat', 'Suit', 'Shoes', 'Sneakers', 'Heels', 
-                                     'Sandals', 'Pajamas']:
-                    if clothing_type in product.name:
-                        base_name = clothing_type
-                        break
-                else:
-                    base_name = product.name
+            if available_colors and selected_color not in available_colors:
+                return jsonify({'error': f'Selected color "{selected_color}" is not available for this product'}), 400
+        
+        if selected_size:
+            import json
+            available_sizes = []
+            try:
+                if product.available_sizes:
+                    available_sizes = json.loads(product.available_sizes) if isinstance(product.available_sizes, str) else product.available_sizes
+            except:
+                if product.size:
+                    available_sizes = [product.size]
             
-            if selected_color:
-                query = query.filter_by(color=selected_color)
-            if selected_size:
-                query = query.filter_by(size=selected_size)
-            
-            # Try to find matching variant
-            variant = query.first()
-            if variant:
-                product = variant
-                product_id = variant.id
+            if available_sizes and selected_size not in available_sizes:
+                return jsonify({'error': f'Selected size "{selected_size}" is not available for this product'}), 400
         
         if product.stock_quantity < quantity:
             return jsonify({'error': 'Insufficient stock'}), 400
@@ -452,4 +445,51 @@ def clear_cart():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@cart_bp.route('/suggestions', methods=['GET'])
+def get_cart_suggestions():
+    """Get related product suggestions based on items in cart."""
+    try:
+        # Get cart items (authenticated or guest)
+        auth_header = request.headers.get('Authorization')
+        cart_product_ids = []
+        
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                from routes.auth import verify_jwt_token
+                token = auth_header[7:]
+                payload = verify_jwt_token(token)
+                if payload:
+                    from models.user import User
+                    user = User.query.get(payload['user_id'])
+                    if user:
+                        cart_items = CartItem.query.filter_by(user_id=user.id).all()
+                        cart_product_ids = [item.product_id for item in cart_items if item.product_id]
+            except:
+                pass
+        
+        # If no authenticated cart, check guest cart
+        if not cart_product_ids:
+            guest_cart = get_guest_cart()
+            cart_product_ids = [item['product_id'] for item in guest_cart if item.get('product_id')]
+        
+        if not cart_product_ids:
+            return jsonify({'products': []}), 200
+        
+        # Get related products
+        related_products = get_related_products_for_cart(cart_product_ids)
+        
+        # Convert to dict format
+        products_data = [p.to_dict() for p in related_products]
+        
+        return jsonify({
+            'products': products_data,
+            'count': len(products_data)
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_cart_suggestions: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'products': []}), 500
 

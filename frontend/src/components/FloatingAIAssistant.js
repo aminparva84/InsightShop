@@ -44,10 +44,10 @@ const FloatingAIAssistant = () => {
       try {
         return JSON.parse(saved);
       } catch {
-        return { width: 420, height: 630 }; // Added 30px to default height
+        return { width: 420, height: 660 }; // Default height with 30px added
       }
     }
-    return { width: 420, height: 630 }; // Added 30px to default height
+    return { width: 420, height: 660 }; // Default height with 30px added
   });
   const [isResizing, setIsResizing] = useState(false);
   const chatContainerRef = useRef(null);

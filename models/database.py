@@ -15,11 +15,17 @@ def init_db(app):
         from models.cart import CartItem
         from models.order import Order, OrderItem
         from models.payment import Payment
+        from models.review import Review
         try:
             from models.sale import Sale
         except ImportError:
             print("Warning: Sale model not found, sales feature will be disabled")
             Sale = None
+        try:
+            from models.product_relation import ProductRelation
+        except ImportError:
+            print("Warning: ProductRelation model not found, product relations feature will be disabled")
+            ProductRelation = None
         
         # Create database directory if it doesn't exist
         db_dir = os.path.dirname(Config.DB_PATH) if os.path.dirname(Config.DB_PATH) else '.'

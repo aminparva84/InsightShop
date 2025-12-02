@@ -5,6 +5,8 @@ from models.user import User
 from models.payment_log import PaymentLog
 from models.order import Order
 from models.sale import Sale
+from models.product import Product
+from models.review import Review
 from routes.auth import require_auth
 from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
 from utils.seasonal_events import get_upcoming_holidays, get_current_holidays_and_events
@@ -337,5 +339,296 @@ def get_payment_log_detail(log_id):
         }), 200
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ==================== PRODUCT MANAGEMENT ROUTES ====================
+
+@admin_bp.route('/products', methods=['GET'])
+@require_admin
+def list_products():
+    """List all products (including inactive) for admin."""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        category = request.args.get('category', None)
+        search = request.args.get('search', None)
+        
+        query = Product.query
+        
+        if category:
+            query = query.filter_by(category=category)
+        
+        if search:
+            from sqlalchemy import or_
+            query = query.filter(
+                or_(
+                    Product.name.ilike(f'%{search}%'),
+                    Product.description.ilike(f'%{search}%')
+                )
+            )
+        
+        pagination = query.order_by(Product.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        return jsonify({
+            'success': True,
+            'products': [p.to_dict() for p in pagination.items],
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': pagination.total,
+                'pages': pagination.pages
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/products/<int:product_id>', methods=['GET'])
+@require_admin
+def get_product(product_id):
+    """Get a single product by ID (admin only, includes inactive)."""
+    try:
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'product': product.to_dict()
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/products', methods=['POST'])
+@require_admin
+def create_product():
+    """Create a new product."""
+    try:
+        data = request.get_json()
+        
+        # Required fields
+        if not data.get('name') or not data.get('price') or not data.get('category'):
+            return jsonify({'error': 'Name, price, and category are required'}), 400
+        
+        # Parse available_colors and available_sizes
+        available_colors = data.get('available_colors', [])
+        available_sizes = data.get('available_sizes', [])
+        
+        # Convert to JSON strings if they're lists
+        if isinstance(available_colors, list):
+            available_colors = json.dumps(available_colors) if available_colors else None
+        if isinstance(available_sizes, list):
+            available_sizes = json.dumps(available_sizes) if available_sizes else None
+        
+        product = Product(
+            name=data.get('name'),
+            description=data.get('description'),
+            price=float(data.get('price')),
+            category=data.get('category'),
+            color=data.get('color'),
+            size=data.get('size'),
+            available_colors=available_colors,
+            available_sizes=available_sizes,
+            fabric=data.get('fabric'),
+            clothing_type=data.get('clothing_type'),
+            dress_style=data.get('dress_style'),
+            occasion=data.get('occasion'),
+            age_group=data.get('age_group'),
+            image_url=data.get('image_url'),
+            stock_quantity=int(data.get('stock_quantity', 0)),
+            is_active=data.get('is_active', True),
+            rating=float(data.get('rating', 0.0)),
+            review_count=int(data.get('review_count', 0)),
+            slug=data.get('slug'),
+            meta_title=data.get('meta_title'),
+            meta_description=data.get('meta_description')
+        )
+        
+        db.session.add(product)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Product created successfully',
+            'product': product.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/products/<int:product_id>', methods=['PUT'])
+@require_admin
+def update_product(product_id):
+    """Update an existing product."""
+    try:
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        data = request.get_json()
+        
+        # Update fields
+        if 'name' in data:
+            product.name = data['name']
+        if 'description' in data:
+            product.description = data.get('description')
+        if 'price' in data:
+            product.price = float(data['price'])
+        if 'category' in data:
+            product.category = data['category']
+        if 'color' in data:
+            product.color = data.get('color')
+        if 'size' in data:
+            product.size = data.get('size')
+        if 'available_colors' in data:
+            colors = data['available_colors']
+            if isinstance(colors, list):
+                product.available_colors = json.dumps(colors) if colors else None
+            else:
+                product.available_colors = colors
+        if 'available_sizes' in data:
+            sizes = data['available_sizes']
+            if isinstance(sizes, list):
+                product.available_sizes = json.dumps(sizes) if sizes else None
+            else:
+                product.available_sizes = sizes
+        if 'fabric' in data:
+            product.fabric = data.get('fabric')
+        if 'clothing_type' in data:
+            product.clothing_type = data.get('clothing_type')
+        if 'dress_style' in data:
+            product.dress_style = data.get('dress_style')
+        if 'occasion' in data:
+            product.occasion = data.get('occasion')
+        if 'age_group' in data:
+            product.age_group = data.get('age_group')
+        if 'image_url' in data:
+            product.image_url = data.get('image_url')
+        if 'stock_quantity' in data:
+            product.stock_quantity = int(data.get('stock_quantity', 0))
+        if 'is_active' in data:
+            product.is_active = bool(data.get('is_active', True))
+        if 'rating' in data:
+            product.rating = float(data.get('rating', 0.0))
+        if 'review_count' in data:
+            product.review_count = int(data.get('review_count', 0))
+        if 'slug' in data:
+            product.slug = data.get('slug')
+        if 'meta_title' in data:
+            product.meta_title = data.get('meta_title')
+        if 'meta_description' in data:
+            product.meta_description = data.get('meta_description')
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Product updated successfully',
+            'product': product.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/products/<int:product_id>', methods=['DELETE'])
+@require_admin
+def delete_product(product_id):
+    """Delete a product (soft delete by setting is_active=False)."""
+    try:
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        # Soft delete - set is_active to False
+        product.is_active = False
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Product deleted successfully (deactivated)'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# ==================== REVIEW MANAGEMENT ROUTES ====================
+
+@admin_bp.route('/reviews', methods=['GET'])
+@require_admin
+def list_reviews():
+    """List all reviews (admin only)."""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        product_id = request.args.get('product_id', None, type=int)
+        user_id = request.args.get('user_id', None, type=int)
+        
+        query = Review.query
+        
+        if product_id:
+            query = query.filter_by(product_id=product_id)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        
+        pagination = query.order_by(Review.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        # Get related product and user info
+        reviews_data = []
+        for review in pagination.items:
+            review_dict = review.to_dict()
+            if review.product:
+                review_dict['product'] = {
+                    'id': review.product.id,
+                    'name': review.product.name
+                }
+            reviews_data.append(review_dict)
+        
+        return jsonify({
+            'success': True,
+            'reviews': reviews_data,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': pagination.total,
+                'pages': pagination.pages
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/reviews/<int:review_id>', methods=['DELETE'])
+@require_admin
+def delete_review_admin(review_id):
+    """Delete a review (admin only)."""
+    try:
+        review = Review.query.get(review_id)
+        if not review:
+            return jsonify({'error': 'Review not found'}), 404
+        
+        product_id = review.product_id
+        db.session.delete(review)
+        db.session.commit()
+        
+        # Update product rating
+        from routes.reviews import update_product_rating
+        update_product_rating(product_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Review deleted successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 

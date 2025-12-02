@@ -195,11 +195,22 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Function to speak text with natural-sounding voice
   // Function to speak text using AWS Polly (natural, excited voice)
   const speakText = async (text, messageId = null) => {
-    console.log('speakText called:', { voiceEnabled, pollyAvailable, hasAudioRef: !!audioRef.current, textLength: text?.length, messageId, usedSpeechInput });
+    console.log('='.repeat(80));
+    console.log('[FRONTEND] speakText called');
+    console.log('='.repeat(80));
+    console.log('[FRONTEND] Initial state:', { 
+      voiceEnabled, 
+      pollyAvailable, 
+      hasAudioRef: !!audioRef.current, 
+      textLength: text?.length, 
+      messageId, 
+      usedSpeechInput,
+      voiceGender 
+    });
     
     // If voice is disabled but user used mic, enable it
     if (!voiceEnabled && usedSpeechInput) {
-      console.log('Auto-enabling voice because user used microphone');
+      console.log('[FRONTEND] Auto-enabling voice because user used microphone');
       setVoiceEnabled(true);
       localStorage.setItem('aiVoiceEnabled', 'true');
     }
@@ -207,19 +218,22 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     // Check if we should speak (voice enabled OR user used mic)
     const shouldSpeak = voiceEnabled || usedSpeechInput;
     if (!shouldSpeak) {
-      console.log('Voice is disabled and user did not use mic');
+      console.log('[FRONTEND] ⚠️ Voice is disabled and user did not use mic - aborting');
+      console.log('='.repeat(80));
       return;
     }
     
     // Try to use Polly, but don't block if it's not available - try anyway
     // The backend will handle the error gracefully
     if (!audioRef.current) {
-      console.log('Audio ref is not initialized');
+      console.log('[FRONTEND] ❌ ERROR: Audio ref is not initialized');
+      console.log('='.repeat(80));
       return;
     }
 
     // Stop any ongoing speech
     if (audioRef.current && !audioRef.current.paused) {
+      console.log('[FRONTEND] Stopping any currently playing audio...');
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
@@ -228,10 +242,18 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       setIsSpeaking(true);
       if (messageId) {
         setCurrentlyPlayingMessageId(messageId);
+        console.log(`[FRONTEND] Set currently playing message ID: ${messageId}`);
       }
-      console.log('Calling TTS API with text length:', text.length);
+      
+      console.log('[FRONTEND] Preparing TTS API request...');
+      console.log(`[FRONTEND]   - Text length: ${text.length} characters`);
+      console.log(`[FRONTEND]   - Voice gender: ${voiceGender}`);
+      console.log(`[FRONTEND]   - Text preview: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`);
+      
+      const requestStartTime = performance.now();
       
       // Call backend to get audio from AWS Polly
+      console.log('[FRONTEND] 📤 Sending POST request to /api/ai/text-to-speech...');
       const response = await axios.post('/api/ai/text-to-speech', {
         text: text,
         voice_gender: voiceGender
@@ -239,36 +261,57 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         responseType: 'json'
       });
       
-      console.log('TTS API response received:', { hasAudio: !!response.data?.audio, format: response.data?.format });
+      const requestTime = performance.now() - requestStartTime;
+      console.log(`[FRONTEND] ✅ TTS API response received (took ${requestTime.toFixed(2)}ms)`);
+      console.log('[FRONTEND] Response details:', { 
+        hasAudio: !!response.data?.audio, 
+        format: response.data?.format,
+        voice: response.data?.voice,
+        audioLength: response.data?.audio?.length || 0
+      });
 
       if (response.data && response.data.audio) {
         // Convert base64 to blob URL
+        console.log('[FRONTEND] Converting base64 audio to blob...');
         const audioData = response.data.audio;
+        const base64Length = audioData.length;
+        console.log(`[FRONTEND]   - Base64 length: ${base64Length} characters`);
+        
+        const decodeStartTime = performance.now();
         const binaryString = atob(audioData);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
+        const decodeTime = performance.now() - decodeStartTime;
+        console.log(`[FRONTEND] ✅ Base64 decoded (took ${decodeTime.toFixed(2)}ms): ${bytes.length} bytes`);
+        
         const blob = new Blob([bytes], { type: 'audio/mpeg' });
         const audioUrl = URL.createObjectURL(blob);
+        console.log(`[FRONTEND] ✅ Blob created: ${blob.size} bytes, URL: ${audioUrl.substring(0, 50)}...`);
 
         // Set up event handlers first
         const handleEnded = () => {
+          console.log('[FRONTEND] 🎵 Audio playback ended');
           setIsSpeaking(false);
           setCurrentlyPlayingMessageId(null);
           URL.revokeObjectURL(audioUrl);
+          console.log('[FRONTEND] Cleaned up audio URL and state');
           // Remove listeners
           audioRef.current.removeEventListener('ended', handleEnded);
           audioRef.current.removeEventListener('error', handleError);
+          console.log('='.repeat(80));
         };
 
         const handleError = (error) => {
-          console.error('Audio playback error:', error);
-          console.error('Audio error details:', {
+          console.error('[FRONTEND] ❌ Audio playback error:', error);
+          console.error('[FRONTEND] Audio error details:', {
             error: audioRef.current?.error,
             code: audioRef.current?.error?.code,
             message: audioRef.current?.error?.message,
-            readyState: audioRef.current?.readyState
+            readyState: audioRef.current?.readyState,
+            networkState: audioRef.current?.networkState,
+            src: audioRef.current?.src?.substring(0, 100)
           });
           setIsSpeaking(false);
           setCurrentlyPlayingMessageId(null);
@@ -276,29 +319,40 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           // Remove listeners
           audioRef.current?.removeEventListener('ended', handleEnded);
           audioRef.current?.removeEventListener('error', handleError);
+          console.log('='.repeat(80));
         };
 
         const handleCanPlay = async () => {
-          console.log('Audio canplay event fired, readyState:', audioRef.current?.readyState);
+          console.log('[FRONTEND] 🎵 Audio canplay event fired');
+          console.log('[FRONTEND]   - readyState:', audioRef.current?.readyState, `(${['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'][audioRef.current?.readyState] || 'UNKNOWN'})`);
+          console.log('[FRONTEND]   - networkState:', audioRef.current?.networkState);
+          console.log('[FRONTEND]   - duration:', audioRef.current?.duration, 'seconds');
+          console.log('[FRONTEND]   - paused:', audioRef.current?.paused);
+          
           try {
             // Play audio - user has already interacted (sent message), so this should work
-            console.log('Attempting to play audio...');
-            console.log('Audio state before play:', {
+            console.log('[FRONTEND] ▶️ Attempting to play audio...');
+            console.log('[FRONTEND] Audio state before play:', {
               paused: audioRef.current?.paused,
               readyState: audioRef.current?.readyState,
+              currentTime: audioRef.current?.currentTime,
+              duration: audioRef.current?.duration,
               src: audioRef.current?.src?.substring(0, 100)
             });
             
+            const playStartTime = performance.now();
             const playPromise = audioRef.current.play();
             if (playPromise !== undefined) {
               await playPromise;
-              console.log('✅ Audio play promise resolved successfully - audio should be playing now');
+              const playTime = performance.now() - playStartTime;
+              console.log(`[FRONTEND] ✅ Audio play() promise resolved successfully (took ${playTime.toFixed(2)}ms)`);
+              console.log('[FRONTEND] Audio is now playing!');
               setIsSpeaking(true); // Ensure speaking state is set
             }
           } catch (playError) {
             // Log all errors for debugging
-            console.error('❌ Error playing audio in canplay handler:', playError);
-            console.error('Error details:', {
+            console.error('[FRONTEND] ❌ Error playing audio in canplay handler:', playError);
+            console.error('[FRONTEND] Error details:', {
               name: playError.name,
               message: playError.message,
               readyState: audioRef.current?.readyState,
@@ -309,11 +363,11 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             // Try one more time after a short delay
             setTimeout(async () => {
               try {
-                console.log('Retrying audio play after error...');
+                console.log('[FRONTEND] 🔄 Retrying audio play after error...');
                 await audioRef.current.play();
-                console.log('✅ Retry successful');
+                console.log('[FRONTEND] ✅ Retry successful');
               } catch (retryError) {
-                console.error('❌ Retry also failed:', retryError);
+                console.error('[FRONTEND] ❌ Retry also failed:', retryError);
                 setIsSpeaking(false);
                 setCurrentlyPlayingMessageId(null);
                 URL.revokeObjectURL(audioUrl);
@@ -323,23 +377,36 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         };
 
         // Clear previous source
+        console.log('[FRONTEND] Clearing previous audio source...');
         audioRef.current.src = '';
         audioRef.current.load();
         
         // Add event listeners
+        console.log('[FRONTEND] Setting up audio event listeners...');
         audioRef.current.addEventListener('ended', handleEnded);
         audioRef.current.addEventListener('error', handleError);
         audioRef.current.addEventListener('canplay', handleCanPlay);
+        audioRef.current.addEventListener('loadstart', () => console.log('[FRONTEND] 🎵 Audio loadstart event'));
+        audioRef.current.addEventListener('loadeddata', () => console.log('[FRONTEND] 🎵 Audio loadeddata event'));
+        audioRef.current.addEventListener('loadedmetadata', () => console.log('[FRONTEND] 🎵 Audio loadedmetadata event'));
+        audioRef.current.addEventListener('playing', () => console.log('[FRONTEND] 🎵 Audio playing event'));
+        audioRef.current.addEventListener('pause', () => console.log('[FRONTEND] 🎵 Audio pause event'));
+        audioRef.current.addEventListener('waiting', () => console.log('[FRONTEND] 🎵 Audio waiting event'));
+        audioRef.current.addEventListener('stalled', () => console.log('[FRONTEND] 🎵 Audio stalled event'));
         
         // Set new source and properties
+        console.log('[FRONTEND] Setting audio source and properties...');
         audioRef.current.src = audioUrl;
         audioRef.current.volume = 0.95;
         audioRef.current.preload = 'auto';
-        
-        console.log('Audio source set, loading...');
+        console.log('[FRONTEND]   - src set to:', audioUrl.substring(0, 50) + '...');
+        console.log('[FRONTEND]   - volume:', audioRef.current.volume);
+        console.log('[FRONTEND]   - preload:', audioRef.current.preload);
         
         // Load the audio
+        console.log('[FRONTEND] Calling audio.load()...');
         audioRef.current.load();
+        console.log('[FRONTEND] ✅ Audio load() called, waiting for canplay event...');
         
         // Fallback: try playing after a short delay if canplay doesn't fire
         let playTimeout;
@@ -347,20 +414,23 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           if (playTimeout) {
             clearTimeout(playTimeout);
             playTimeout = null;
+            console.log('[FRONTEND] Cleaned up play timeout');
           }
         };
         
         // Also try playing immediately if ready
         const tryPlayImmediate = async () => {
           if (audioRef.current && audioRef.current.readyState >= 4) {
-            console.log('Audio is ready (HAVE_ENOUGH_DATA), attempting immediate play');
+            console.log('[FRONTEND] ⚡ Audio is ready (HAVE_ENOUGH_DATA), attempting immediate play');
             try {
               await audioRef.current.play();
-              console.log('Immediate play successful');
+              console.log('[FRONTEND] ✅ Immediate play successful');
               cleanup();
             } catch (playError) {
-              console.log('Immediate play failed, will wait for canplay:', playError.name);
+              console.log('[FRONTEND] ⚠️ Immediate play failed, will wait for canplay:', playError.name);
             }
+          } else {
+            console.log(`[FRONTEND] ⏳ Audio not ready yet (readyState: ${audioRef.current?.readyState}), waiting for canplay...`);
           }
         };
         
@@ -369,14 +439,16 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         
         playTimeout = setTimeout(async () => {
           cleanup();
-          console.log('Fallback timeout fired, readyState:', audioRef.current?.readyState);
+          console.log('[FRONTEND] ⏰ Fallback timeout fired');
+          console.log('[FRONTEND]   - readyState:', audioRef.current?.readyState);
+          console.log('[FRONTEND]   - paused:', audioRef.current?.paused);
           if (audioRef.current && audioRef.current.readyState >= 2 && audioRef.current.paused) {
             try {
-              console.log('Attempting fallback play...');
+              console.log('[FRONTEND] 🔄 Attempting fallback play...');
               await audioRef.current.play();
-              console.log('Fallback play successful');
+              console.log('[FRONTEND] ✅ Fallback play successful');
             } catch (playError) {
-              console.error('Fallback play error:', playError);
+              console.error('[FRONTEND] ❌ Fallback play error:', playError);
               setIsSpeaking(false);
               setCurrentlyPlayingMessageId(null);
               URL.revokeObjectURL(audioUrl);
@@ -384,59 +456,86 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               audioRef.current?.removeEventListener('error', handleError);
               audioRef.current?.removeEventListener('canplay', handleCanPlay);
             }
+          } else {
+            console.log('[FRONTEND] ⚠️ Fallback play skipped (audio not ready or already playing)');
           }
         }, 1000); // Increased timeout to 1 second
         
         // Cleanup timeout if audio starts playing before timeout
         audioRef.current.addEventListener('play', () => {
-          console.log('Audio play event fired');
+          console.log('[FRONTEND] 🎵 Audio play event fired - audio is now playing');
           cleanup();
         });
       } else {
         // No audio data
-        console.error('No audio data in response:', response.data);
+        console.error('[FRONTEND] ❌ ERROR: No audio data in response');
+        console.error('[FRONTEND] Response data:', response.data);
         setIsSpeaking(false);
         setCurrentlyPlayingMessageId(null);
+        console.log('='.repeat(80));
       }
     } catch (error) {
       setIsSpeaking(false);
       setCurrentlyPlayingMessageId(null);
       // Log all TTS errors for debugging
-      console.error('TTS Error:', error);
-      console.error('Error details:', {
+      console.error('[FRONTEND] ❌ EXCEPTION in speakText');
+      console.error('[FRONTEND] Error type:', error.name);
+      console.error('[FRONTEND] Error message:', error.message);
+      console.error('[FRONTEND] Error details:', {
         status: error.response?.status,
         statusText: error.response?.statusText,
         error: error.response?.data?.error || error.message,
-        serviceUnavailable: error.response?.status === 503
+        serviceUnavailable: error.response?.status === 503,
+        hasResponse: !!error.response,
+        responseData: error.response?.data
       });
       
       // Show user-friendly message if it's not a service unavailable error
       if (error.response?.status && error.response.status !== 503) {
-        console.error('TTS Error:', error.response?.data?.error || error.message);
+        console.error('[FRONTEND] TTS Error:', error.response?.data?.error || error.message);
       }
+      console.log('='.repeat(80));
     }
   };
 
   // Stop speaking
   const stopSpeaking = () => {
+    console.log('[FRONTEND] 🛑 stopSpeaking called');
     if (audioRef.current && !audioRef.current.paused) {
+      console.log('[FRONTEND] Pausing audio and resetting state...');
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       setIsSpeaking(false);
       setCurrentlyPlayingMessageId(null);
+      console.log('[FRONTEND] ✅ Audio stopped');
+    } else {
+      console.log('[FRONTEND] ⚠️ No audio playing to stop');
     }
   };
   
   // Play specific message
   const playMessage = (messageContent, messageId) => {
+    console.log('[FRONTEND] 🎵 playMessage called');
+    console.log('[FRONTEND]   - messageId:', messageId);
+    console.log('[FRONTEND]   - messageContent length:', messageContent?.length);
+    console.log('[FRONTEND]   - current voiceEnabled:', voiceEnabled);
+    console.log('[FRONTEND]   - current pollyAvailable:', pollyAvailable);
+    
     // Stop any currently playing audio
-    stopSpeaking();
+    if (audioRef.current && !audioRef.current.paused) {
+      console.log('[FRONTEND] Stopping currently playing audio...');
+      stopSpeaking();
+    }
+    
     // Enable voice if not already enabled
     if (!voiceEnabled) {
+      console.log('[FRONTEND] Auto-enabling voice for manual play');
       setVoiceEnabled(true);
       localStorage.setItem('aiVoiceEnabled', 'true');
     }
+    
     // Speak the message
+    console.log('[FRONTEND] Calling speakText with messageId:', messageId);
     speakText(messageContent, messageId);
   };
 
@@ -1032,21 +1131,36 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         {messages.map((msg, idx) => {
           const messageId = `msg-${idx}`;
           const isCurrentlyPlaying = currentlyPlayingMessageId === messageId;
+          
+          // Debug log for assistant messages
+          if (msg.role === 'assistant' && idx === messages.length - 1) {
+            console.log('[FRONTEND] 🎨 Rendering assistant message:', {
+              messageId,
+              idx,
+              contentLength: msg.content?.length,
+              isCurrentlyPlaying,
+              totalMessages: messages.length
+            });
+          }
+          
           return (
           <div key={idx} className={`message ${msg.role}`}>
             <div className="message-content" style={{ position: 'relative' }}>
               {/* Play button for assistant messages - always show, handle errors gracefully */}
               {msg.role === 'assistant' && (
                 <button
-                  onClick={() => playMessage(msg.content, messageId)}
+                  onClick={() => {
+                    console.log('[FRONTEND] 🎵 Play button clicked for message:', messageId);
+                    playMessage(msg.content, messageId);
+                  }}
                   className="message-play-btn"
-                  title={isCurrentlyPlaying ? "Playing..." : "Play voice"}
+                  title={isCurrentlyPlaying ? "Playing... Click to stop" : "Play voice"}
                   disabled={isCurrentlyPlaying || loading}
                   style={{
                     position: 'absolute',
                     top: '8px',
                     right: '8px',
-                    background: isCurrentlyPlaying ? '#10b981' : 'rgba(212, 175, 55, 0.1)',
+                    background: isCurrentlyPlaying ? '#10b981' : 'rgba(212, 175, 55, 0.15)',
                     border: '1px solid #d4af37',
                     borderRadius: '4px',
                     padding: '4px 8px',
@@ -1057,7 +1171,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                     fontSize: '12px',
                     color: '#1a2332',
                     transition: 'all 0.2s',
-                    zIndex: 10
+                    zIndex: 100,
+                    visibility: 'visible',
+                    opacity: 0.9,
+                    minWidth: '60px',
+                    fontWeight: '500',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                   }}
                 >
                   {isCurrentlyPlaying ? (
@@ -1176,15 +1295,6 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         <div ref={messagesEndRef} />
       </div>
 
-      {selectedProductIds.length > 0 && (
-        <div className="selected-products-info">
-          <p><strong>Selected Products:</strong> {selectedProductIds.join(', ')}</p>
-          <p className="help-text">
-            <strong>What I can do:</strong> Compare products, find similar items, get styling advice, 
-            search by color/size/category/dress style (scoop, bow, padding, slit, v-neck, etc.), or ask "show me blue shirts for women"
-          </p>
-        </div>
-      )}
 
       <form onSubmit={handleSend} className="ai-chat-input">
         <input

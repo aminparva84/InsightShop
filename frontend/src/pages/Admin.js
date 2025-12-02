@@ -19,6 +19,30 @@ const Admin = () => {
   const [salesLoading, setSalesLoading] = useState(false);
   const [showSaleForm, setShowSaleForm] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    description: '',
+    price: '',
+    category: 'men',
+    color: '',
+    size: '',
+    available_colors: [],
+    available_sizes: [],
+    fabric: '',
+    clothing_type: '',
+    dress_style: '',
+    occasion: '',
+    age_group: '',
+    image_url: '',
+    stock_quantity: 0,
+    is_active: true
+  });
   const [newSale, setNewSale] = useState({
     name: '',
     description: '',
@@ -47,6 +71,12 @@ const Admin = () => {
     if (activeTab === 'sales') {
       loadSales();
       loadUpcomingEvents();
+    }
+    if (activeTab === 'products') {
+      loadProducts();
+    }
+    if (activeTab === 'reviews') {
+      loadReviews();
     }
   }, [user, navigate, activeTab]);
 
@@ -315,6 +345,200 @@ const Admin = () => {
     await handleUpdateSale(sale.id, { is_active: !sale.is_active });
   };
 
+  const loadProducts = async () => {
+    setProductsLoading(true);
+    try {
+      const response = await axios.get('/api/admin/products', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { per_page: 100 }
+      });
+      if (response.data.success) {
+        setProducts(response.data.products || []);
+      }
+    } catch (error) {
+      console.error('Error loading products:', error);
+      setMessage({ type: 'error', text: 'Failed to load products' });
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const handleCreateProduct = async () => {
+    if (!newProduct.name || !newProduct.price || !newProduct.category) {
+      setMessage({ type: 'error', text: 'Please fill in name, price, and category' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await axios.post('/api/admin/products', newProduct, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Product created successfully!' });
+        setShowProductForm(false);
+        setNewProduct({
+          name: '',
+          description: '',
+          price: '',
+          category: 'men',
+          color: '',
+          size: '',
+          available_colors: [],
+          available_sizes: [],
+          fabric: '',
+          clothing_type: '',
+          dress_style: '',
+          occasion: '',
+          age_group: '',
+          image_url: '',
+          stock_quantity: 0,
+          is_active: true
+        });
+        loadProducts();
+      }
+    } catch (error) {
+      console.error('Error creating product:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to create product' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateProduct = async (productId, updates) => {
+    setSaving(true);
+    try {
+      const response = await axios.put(`/api/admin/products/${productId}`, updates, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Product updated successfully!' });
+        setEditingProduct(null);
+        loadProducts();
+      }
+    } catch (error) {
+      console.error('Error updating product:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to update product' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Are you sure you want to delete this product?')) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(`/api/admin/products/${productId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Product deleted successfully!' });
+        loadProducts();
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to delete product' });
+    }
+  };
+
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setNewProduct({
+      name: product.name || '',
+      description: product.description || '',
+      price: product.price || '',
+      category: product.category || 'men',
+      color: product.color || '',
+      size: product.size || '',
+      available_colors: product.available_colors || [],
+      available_sizes: product.available_sizes || [],
+      fabric: product.fabric || '',
+      clothing_type: product.clothing_type || '',
+      dress_style: product.dress_style || '',
+      occasion: product.occasion || '',
+      age_group: product.age_group || '',
+      image_url: product.image_url || '',
+      stock_quantity: product.stock_quantity || 0,
+      is_active: product.is_active !== undefined ? product.is_active : true
+    });
+    setShowProductForm(true);
+  };
+
+  const addColorToProduct = (color) => {
+    if (color && !newProduct.available_colors.includes(color)) {
+      setNewProduct({
+        ...newProduct,
+        available_colors: [...newProduct.available_colors, color]
+      });
+    }
+  };
+
+  const removeColorFromProduct = (color) => {
+    setNewProduct({
+      ...newProduct,
+      available_colors: newProduct.available_colors.filter(c => c !== color)
+    });
+  };
+
+  const addSizeToProduct = (size) => {
+    if (size && !newProduct.available_sizes.includes(size)) {
+      setNewProduct({
+        ...newProduct,
+        available_sizes: [...newProduct.available_sizes, size]
+      });
+    }
+  };
+
+  const removeSizeFromProduct = (size) => {
+    setNewProduct({
+      ...newProduct,
+      available_sizes: newProduct.available_sizes.filter(s => s !== size)
+    });
+  };
+
+  const loadReviews = async () => {
+    setReviewsLoading(true);
+    try {
+      const response = await axios.get('/api/admin/reviews', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { per_page: 100 }
+      });
+      if (response.data.success) {
+        setReviews(response.data.reviews || []);
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+      setMessage({ type: 'error', text: 'Failed to load reviews' });
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId) => {
+    if (!window.confirm('Are you sure you want to delete this review?')) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(`/api/admin/reviews/${reviewId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Review deleted successfully!' });
+        loadReviews();
+      }
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to delete review' });
+    }
+  };
+
   const createThanksgivingSale = async () => {
     const today = new Date();
     const nextYear = new Date(today.getFullYear() + 1, 10, 1); // November next year
@@ -327,6 +551,26 @@ const Admin = () => {
       sale_type: 'holiday',
       event_name: 'thanksgiving',
       discount_percentage: '40',
+      start_date: startDate,
+      end_date: endDate,
+      product_filters: {},
+      is_active: true
+    });
+    setShowSaleForm(true);
+  };
+
+  const createCyberMondaySale = async () => {
+    const today = new Date();
+    const nextYear = new Date(today.getFullYear() + 1, 10, 1); // November next year
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = nextYear.toISOString().split('T')[0];
+
+    setNewSale({
+      name: 'Cyber Monday Sale',
+      description: 'Get amazing deals on Cyber Monday! 45% off on all products!',
+      sale_type: 'holiday',
+      event_name: 'cyber_monday',
+      discount_percentage: '45',
       start_date: startDate,
       end_date: endDate,
       product_filters: {},
@@ -386,6 +630,24 @@ const Admin = () => {
             }}
           >
             Sales Management
+          </button>
+          <button
+            className={activeTab === 'products' ? 'active' : ''}
+            onClick={() => {
+              setActiveTab('products');
+              loadProducts();
+            }}
+          >
+            Product Management
+          </button>
+          <button
+            className={activeTab === 'reviews' ? 'active' : ''}
+            onClick={() => {
+              setActiveTab('reviews');
+              loadReviews();
+            }}
+          >
+            Reviews & Ratings
           </button>
         </div>
 
@@ -630,6 +892,13 @@ const Admin = () => {
                   >
                     🦃 Create Thanksgiving Sale (40% off)
                   </button>
+                  <button
+                    className="save-btn"
+                    style={{ fontSize: '12px', padding: '8px 16px', background: '#1a2332' }}
+                    onClick={createCyberMondaySale}
+                  >
+                    💻 Create Cyber Monday Sale (45% off)
+                  </button>
                 </div>
               </div>
             )}
@@ -807,6 +1076,478 @@ const Admin = () => {
                                 Delete
                               </button>
                             </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'products' && (
+          <div className="admin-section">
+            <div className="admin-section-header">
+              <h2>Product Management</h2>
+              <button className="save-btn" onClick={() => {
+                setShowProductForm(!showProductForm);
+                if (showProductForm) {
+                  setEditingProduct(null);
+                  setNewProduct({
+                    name: '',
+                    description: '',
+                    price: '',
+                    category: 'men',
+                    color: '',
+                    size: '',
+                    available_colors: [],
+                    available_sizes: [],
+                    fabric: '',
+                    clothing_type: '',
+                    dress_style: '',
+                    occasion: '',
+                    age_group: '',
+                    image_url: '',
+                    stock_quantity: 0,
+                    is_active: true
+                  });
+                }
+              }}>
+                {showProductForm ? 'Cancel' : '+ Create New Product'}
+              </button>
+            </div>
+
+            {/* Create/Edit Product Form */}
+            {showProductForm && (
+              <div className="sale-form" style={{ marginBottom: '30px', padding: '20px', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+                <h3>{editingProduct ? 'Edit Product' : 'Create New Product'}</h3>
+                <div style={{ display: 'grid', gap: '15px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                      <label>Product Name *</label>
+                      <input
+                        type="text"
+                        value={newProduct.name}
+                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                        placeholder="e.g., Classic T-Shirt"
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <div>
+                      <label>Price *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newProduct.price}
+                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                        placeholder="29.99"
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label>Description</label>
+                    <textarea
+                      value={newProduct.description}
+                      onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                      placeholder="Product description..."
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+                    <div>
+                      <label>Category *</label>
+                      <select
+                        value={newProduct.category}
+                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      >
+                        <option value="men">Men</option>
+                        <option value="women">Women</option>
+                        <option value="kids">Kids</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Stock Quantity</label>
+                      <input
+                        type="number"
+                        value={newProduct.stock_quantity}
+                        onChange={(e) => setNewProduct({ ...newProduct, stock_quantity: parseInt(e.target.value) || 0 })}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <div>
+                      <label>Image URL</label>
+                      <input
+                        type="text"
+                        value={newProduct.image_url}
+                        onChange={(e) => setNewProduct({ ...newProduct, image_url: e.target.value })}
+                        placeholder="https://..."
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Available Colors Section */}
+                  <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '4px' }}>
+                    <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>Available Colors</label>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                      {newProduct.available_colors.map((color, idx) => (
+                        <span key={idx} style={{ 
+                          padding: '5px 10px', 
+                          background: '#1a2332', 
+                          color: 'white', 
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}>
+                          {color}
+                          <button 
+                            onClick={() => removeColorFromProduct(color)}
+                            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                          >×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input
+                        type="text"
+                        placeholder="Add color (e.g., Red, Blue)"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addColorToProduct(e.target.value.trim());
+                            e.target.value = '';
+                          }
+                        }}
+                        style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const input = e.target.previousElementSibling;
+                          addColorToProduct(input.value.trim());
+                          input.value = '';
+                        }}
+                        className="save-btn"
+                        style={{ padding: '8px 16px' }}
+                      >
+                        Add Color
+                      </button>
+                    </div>
+                    <div style={{ marginTop: '10px' }}>
+                      <label>Default Color</label>
+                      <input
+                        type="text"
+                        value={newProduct.color}
+                        onChange={(e) => setNewProduct({ ...newProduct, color: e.target.value })}
+                        placeholder="Primary/default color"
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Available Sizes Section */}
+                  <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '4px' }}>
+                    <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>Available Sizes</label>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                      {newProduct.available_sizes.map((size, idx) => (
+                        <span key={idx} style={{ 
+                          padding: '5px 10px', 
+                          background: '#1a2332', 
+                          color: 'white', 
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}>
+                          {size}
+                          <button 
+                            onClick={() => removeSizeFromProduct(size)}
+                            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                          >×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input
+                        type="text"
+                        placeholder="Add size (e.g., S, M, L, XL)"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addSizeToProduct(e.target.value.trim());
+                            e.target.value = '';
+                          }
+                        }}
+                        style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const input = e.target.previousElementSibling;
+                          addSizeToProduct(input.value.trim());
+                          input.value = '';
+                        }}
+                        className="save-btn"
+                        style={{ padding: '8px 16px' }}
+                      >
+                        Add Size
+                      </button>
+                    </div>
+                    <div style={{ marginTop: '10px' }}>
+                      <label>Default Size</label>
+                      <input
+                        type="text"
+                        value={newProduct.size}
+                        onChange={(e) => setNewProduct({ ...newProduct, size: e.target.value })}
+                        placeholder="Primary/default size"
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                      <label>Fabric</label>
+                      <input
+                        type="text"
+                        value={newProduct.fabric}
+                        onChange={(e) => setNewProduct({ ...newProduct, fabric: e.target.value })}
+                        placeholder="e.g., 100% Cotton"
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <div>
+                      <label>Clothing Type</label>
+                      <input
+                        type="text"
+                        value={newProduct.clothing_type}
+                        onChange={(e) => setNewProduct({ ...newProduct, clothing_type: e.target.value })}
+                        placeholder="e.g., T-Shirt, Dress, Jeans"
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={newProduct.is_active}
+                        onChange={(e) => setNewProduct({ ...newProduct, is_active: e.target.checked })}
+                        style={{ marginRight: '8px' }}
+                      />
+                      Active (Product will be visible to customers)
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="save-btn" onClick={editingProduct ? () => handleUpdateProduct(editingProduct.id, newProduct) : handleCreateProduct} disabled={saving}>
+                      {saving ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
+                    </button>
+                    <button
+                      className="save-btn"
+                      style={{ background: '#6c757d' }}
+                      onClick={() => {
+                        setShowProductForm(false);
+                        setEditingProduct(null);
+                        setNewProduct({
+                          name: '',
+                          description: '',
+                          price: '',
+                          category: 'men',
+                          color: '',
+                          size: '',
+                          available_colors: [],
+                          available_sizes: [],
+                          fabric: '',
+                          clothing_type: '',
+                          dress_style: '',
+                          occasion: '',
+                          age_group: '',
+                          image_url: '',
+                          stock_quantity: 0,
+                          is_active: true
+                        });
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Products List */}
+            {productsLoading ? (
+              <div>Loading products...</div>
+            ) : (
+              <div className="sales-table">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Name</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Category</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Price</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Colors</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Sizes</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Stock</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Status</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                          No products found. Create your first product above!
+                        </td>
+                      </tr>
+                    ) : (
+                      products.map(product => (
+                        <tr key={product.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <td style={{ padding: '12px' }}>{product.name}</td>
+                          <td style={{ padding: '12px', textTransform: 'capitalize' }}>{product.category}</td>
+                          <td style={{ padding: '12px' }}>${parseFloat(product.price).toFixed(2)}</td>
+                          <td style={{ padding: '12px' }}>
+                            {product.available_colors && product.available_colors.length > 0 
+                              ? product.available_colors.join(', ') 
+                              : product.color || '-'}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            {product.available_sizes && product.available_sizes.length > 0 
+                              ? product.available_sizes.join(', ') 
+                              : product.size || '-'}
+                          </td>
+                          <td style={{ padding: '12px' }}>{product.stock_quantity}</td>
+                          <td style={{ padding: '12px' }}>
+                            <span style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              background: product.is_active ? '#d4edda' : '#f8d7da',
+                              color: product.is_active ? '#155724' : '#721c24',
+                              fontSize: '12px',
+                              fontWeight: 'bold'
+                            }}>
+                              {product.is_active ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                className="save-btn"
+                                style={{ fontSize: '12px', padding: '6px 12px', background: '#28a745' }}
+                                onClick={() => handleEditProduct(product)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="save-btn"
+                                style={{ fontSize: '12px', padding: '6px 12px', background: '#dc2626' }}
+                                onClick={() => handleDeleteProduct(product.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'reviews' && (
+          <div className="admin-section">
+            <h2>Reviews & Ratings Management</h2>
+            <p style={{color: '#6b7280', marginBottom: '24px'}}>
+              View and manage all product reviews and ratings submitted by customers.
+            </p>
+            
+            {reviewsLoading ? (
+              <div>Loading reviews...</div>
+            ) : (
+              <div className="sales-table">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Product</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>User</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Rating</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Comment</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Date</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviews.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                          No reviews found yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      reviews.map(review => (
+                        <tr key={review.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <td style={{ padding: '12px' }}>
+                            {review.product ? review.product.name : `Product #${review.product_id}`}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            {review.user_name || review.user_email || 'Anonymous'}
+                            {review.user_email && (
+                              <div style={{ fontSize: '11px', color: '#666' }}>{review.user_email}</div>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ fontWeight: 'bold' }}>{review.rating}</span>
+                              <div style={{ display: 'flex', gap: '2px' }}>
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <span
+                                    key={star}
+                                    style={{
+                                      fontSize: '14px',
+                                      color: star <= review.rating ? '#d4af37' : '#d1d5db'
+                                    }}
+                                  >
+                                    ★
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px', maxWidth: '300px' }}>
+                            {review.comment ? (
+                              <div style={{ 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                whiteSpace: 'nowrap',
+                                maxWidth: '300px'
+                              }}>
+                                {review.comment}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#999', fontStyle: 'italic' }}>No comment</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px', fontSize: '12px', color: '#666' }}>
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <button
+                              className="save-btn"
+                              style={{ fontSize: '12px', padding: '6px 12px', background: '#dc2626' }}
+                              onClick={() => handleDeleteReview(review.id)}
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       ))

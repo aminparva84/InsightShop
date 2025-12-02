@@ -49,6 +49,7 @@ from routes.members import members_bp
 from routes.admin import admin_bp
 from routes.admin_sales import admin_sales_bp
 from routes.sales import sales_bp
+from routes.reviews import reviews_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(products_bp, url_prefix='/api/products')
@@ -60,6 +61,7 @@ app.register_blueprint(members_bp, url_prefix='/api/members')
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
 app.register_blueprint(admin_sales_bp, url_prefix='/api/admin')
 app.register_blueprint(sales_bp, url_prefix='/api/sales')
+app.register_blueprint(reviews_bp, url_prefix='/api')
 
 # Serve React static files in production
 @app.route('/', defaults={'path': ''})

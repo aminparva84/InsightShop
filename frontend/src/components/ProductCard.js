@@ -55,7 +55,8 @@ const ProductCard = ({ product, compact = false }) => {
         <div className="product-meta">
           <span className="product-category">{product.category}</span>
         </div>
-        {product.available_colors && product.available_colors.length > 0 && (
+        {/* Only show color selector if multiple colors available */}
+        {product.available_colors && product.available_colors.length > 1 && (
           <ColorSwatches 
             colors={product.available_colors} 
             selectedColor={selectedColor}
@@ -64,7 +65,8 @@ const ProductCard = ({ product, compact = false }) => {
             }}
           />
         )}
-        {product.available_sizes && product.available_sizes.length > 0 && (
+        {/* Only show size selector if multiple sizes available */}
+        {product.available_sizes && product.available_sizes.length > 1 && (
           <SizeSelector 
             sizes={product.available_sizes} 
             selectedSize={selectedSize}

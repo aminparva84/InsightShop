@@ -223,3 +223,154 @@ def get_order(order_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@orders_bp.route('/status', methods=['POST'])
+def get_order_status():
+    """
+    Get order status by order_id and email validation.
+    Input: order_id (string), email (string)
+    Output: Current status, order date, and list of items
+    """
+    try:
+        data = request.get_json()
+        order_id = data.get('order_id')
+        email = data.get('email', '').strip().lower()
+        
+        if not order_id:
+            return jsonify({'error': 'order_id is required'}), 400
+        
+        if not email:
+            return jsonify({'error': 'email is required'}), 400
+        
+        # Convert order_id to int if it's a string
+        try:
+            order_id = int(order_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid order_id format'}), 400
+        
+        # Query the order
+        order = Order.query.filter_by(id=order_id).first()
+        
+        if not order:
+            return jsonify({'error': 'Order not found'}), 404
+        
+        # Validate email matches the order
+        order_email = None
+        if order.user_id:
+            # Authenticated order - get user email
+            user = User.query.get(order.user_id)
+            if user:
+                order_email = user.email.lower().strip()
+        else:
+            # Guest order - use guest_email
+            order_email = (order.guest_email or '').lower().strip()
+        
+        if order_email != email:
+            return jsonify({'error': 'Email does not match this order'}), 403
+        
+        # Return order status information
+        return jsonify({
+            'success': True,
+            'order_id': order.id,
+            'order_number': order.order_number,
+            'status': order.status,  # Processing, Shipped, Delivered, etc.
+            'order_date': order.created_at.isoformat() if order.created_at else None,
+            'items': [item.to_dict() for item in order.items],
+            'total': float(order.total) if order.total else 0.0,
+            'shipping_address': {
+                'name': order.shipping_name,
+                'address': order.shipping_address,
+                'city': order.shipping_city,
+                'state': order.shipping_state,
+                'zip': order.shipping_zip,
+                'country': order.shipping_country
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@orders_bp.route('/track', methods=['POST'])
+def track_shipment():
+    """
+    Track shipment by tracking number (mock implementation).
+    Input: tracking_number (string)
+    Output: Human-readable status update
+    """
+    try:
+        data = request.get_json()
+        tracking_number = data.get('tracking_number', '').strip().upper()
+        
+        if not tracking_number:
+            return jsonify({'error': 'tracking_number is required'}), 400
+        
+        # Check if tracking number exists in shipments table
+        try:
+            from models.shipment import Shipment
+            shipment = Shipment.query.filter_by(tracking_number=tracking_number).first()
+            
+            if shipment:
+                # Real shipment found
+                status_messages = {
+                    'pending': 'Your shipment is being prepared.',
+                    'in_transit': f'Your shipment is in transit. Estimated delivery: {shipment.estimated_delivery.strftime("%B %d, %Y") if shipment.estimated_delivery else "TBD"}.',
+                    'delivered': f'Your shipment was delivered on {shipment.delivered_at.strftime("%B %d, %Y at %I:%M %p") if shipment.delivered_at else "N/A"}.',
+                    'exception': 'There is an exception with your shipment. Please contact customer service.'
+                }
+                
+                message = status_messages.get(shipment.status, 'Your shipment status is being updated.')
+                
+                return jsonify({
+                    'success': True,
+                    'tracking_number': tracking_number,
+                    'carrier': shipment.carrier,
+                    'status': shipment.status,
+                    'message': message,
+                    'estimated_delivery': shipment.estimated_delivery.isoformat() if shipment.estimated_delivery else None,
+                    'delivered_at': shipment.delivered_at.isoformat() if shipment.delivered_at else None
+                }), 200
+        except ImportError:
+            # Shipment model not available, use mock logic
+            pass
+        
+        # Mock tracking logic based on tracking number prefix
+        if tracking_number.startswith('UPS'):
+            return jsonify({
+                'success': True,
+                'tracking_number': tracking_number,
+                'carrier': 'UPS',
+                'status': 'in_transit',
+                'message': 'In Transit - Arriving Tomorrow by 8 PM.',
+                'estimated_delivery': None
+            }), 200
+        elif tracking_number.startswith('FEDEX') or tracking_number.startswith('FDX'):
+            return jsonify({
+                'success': True,
+                'tracking_number': tracking_number,
+                'carrier': 'FEDEX',
+                'status': 'delivered',
+                'message': 'Delivered at Front Porch.',
+                'delivered_at': None
+            }), 200
+        elif tracking_number.startswith('USPS'):
+            return jsonify({
+                'success': True,
+                'tracking_number': tracking_number,
+                'carrier': 'USPS',
+                'status': 'in_transit',
+                'message': 'In Transit - Expected delivery in 2-3 business days.',
+                'estimated_delivery': None
+            }), 200
+        else:
+            # Generic tracking number
+            return jsonify({
+                'success': True,
+                'tracking_number': tracking_number,
+                'carrier': 'Unknown',
+                'status': 'in_transit',
+                'message': 'Your shipment is in transit. Please check back later for updates.',
+                'estimated_delivery': None
+            }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+

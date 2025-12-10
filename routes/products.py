@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from models.database import db
 from models.product import Product
 from routes.auth import require_auth
-from sqlalchemy import or_
+from sqlalchemy import or_, func, desc, asc
 
 products_bp = Blueprint('products', __name__)
 
@@ -225,6 +225,108 @@ def get_price_range():
         }), 200
     except Exception as e:
         print(f"Error in get_price_range: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@products_bp.route('/search', methods=['POST'])
+def search_products():
+    """
+    Enhanced product search for AI agent (The Personal Shopper).
+    Inputs: query (str), max_price (float), category (str), size (str), sort_by (str)
+    Output: JSON list of products with Name, Price, Image URL, and Add to Cart link
+    """
+    try:
+        data = request.get_json() or {}
+        
+        # Get search parameters
+        query_text = data.get('query', '').strip()
+        max_price = data.get('max_price')
+        category = data.get('category', '').strip()
+        size = data.get('size', '').strip()
+        sort_by = data.get('sort_by', 'relevance')  # relevance, rating, price_low, price_high
+        
+        # Build query - only active products with inventory
+        query = Product.query.filter(
+            Product.is_active == True,
+            Product.stock_quantity > 0
+        )
+        
+        # Apply filters
+        if category:
+            query = query.filter_by(category=category)
+        
+        if size:
+            query = query.filter_by(size=size)
+        
+        if max_price is not None:
+            try:
+                max_price_float = float(max_price)
+                query = query.filter(Product.price <= max_price_float)
+            except (ValueError, TypeError):
+                pass
+        
+        # Apply search query
+        if query_text:
+            query = query.filter(
+                or_(
+                    Product.name.ilike(f'%{query_text}%'),
+                    Product.description.ilike(f'%{query_text}%'),
+                    Product.clothing_type.ilike(f'%{query_text}%'),
+                    Product.color.ilike(f'%{query_text}%')
+                )
+            )
+        
+        # Apply sorting
+        if sort_by == 'rating' or 'review' in query_text.lower() or 'best rated' in query_text.lower():
+            # Sort by rating (highest first), then by review count
+            query = query.order_by(desc(Product.rating), desc(Product.review_count))
+        elif sort_by == 'price_low':
+            query = query.order_by(asc(Product.price))
+        elif sort_by == 'price_high':
+            query = query.order_by(desc(Product.price))
+        else:
+            # Default: relevance (by rating if available, otherwise by name)
+            query = query.order_by(desc(Product.rating), Product.name)
+        
+        # Limit results
+        products = query.limit(50).all()
+        
+        # Format results for AI agent
+        results = []
+        for product in products:
+            product_dict = product.to_dict()
+            results.append({
+                'id': product.id,
+                'name': product.name,
+                'price': float(product.price) if product.price else 0.0,
+                'original_price': product_dict.get('original_price', float(product.price) if product.price else 0.0),
+                'on_sale': product_dict.get('on_sale', False),
+                'image_url': product.image_url or '',
+                'category': product.category,
+                'rating': float(product.rating) if product.rating else 0.0,
+                'review_count': product.review_count or 0,
+                'stock_quantity': product.stock_quantity,
+                'add_to_cart_url': f'/api/cart',  # Frontend will handle the actual add to cart
+                'product_url': f'/products/{product.id}',
+                'description': product.description or ''
+            })
+        
+        return jsonify({
+            'success': True,
+            'products': results,
+            'total': len(results),
+            'filters_applied': {
+                'query': query_text,
+                'max_price': max_price,
+                'category': category,
+                'size': size,
+                'sort_by': sort_by
+            }
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in search_products: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @products_bp.route('/<int:product_id>', methods=['GET'])

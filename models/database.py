@@ -26,6 +26,16 @@ def init_db(app):
         except ImportError:
             print("Warning: ProductRelation model not found, product relations feature will be disabled")
             ProductRelation = None
+        try:
+            from models.return_model import Return
+        except ImportError:
+            print("Warning: Return model not found, returns feature will be disabled")
+            Return = None
+        try:
+            from models.shipment import Shipment
+        except ImportError:
+            print("Warning: Shipment model not found, shipment tracking feature will be disabled")
+            Shipment = None
         
         # Create database directory if it doesn't exist
         db_dir = os.path.dirname(Config.DB_PATH) if os.path.dirname(Config.DB_PATH) else '.'

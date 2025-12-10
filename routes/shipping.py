@@ -179,3 +179,4 @@ def quick_shipping_rates():
         logger.error(f"Error calculating quick shipping rates: {str(e)}")
         return jsonify({'error': f'Failed to calculate shipping rates: {str(e)}'}), 500
 
+

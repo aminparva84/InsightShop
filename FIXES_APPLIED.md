@@ -51,3 +51,4 @@ After restarting the server:
 - `/api/cart` should work without errors
 - Product cards should display correctly
 
+

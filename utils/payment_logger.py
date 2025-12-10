@@ -93,3 +93,4 @@ def log_payment_attempt(
         print(f"Error logging payment attempt: {str(e)}")
         return None
 
+

@@ -161,3 +161,4 @@ CREATE TABLE sales (
 - **Multiple active sales** - if multiple sales apply, product uses highest discount
 - **Product filters** - can be used to limit sales to specific categories/colors/etc. (future feature)
 
+

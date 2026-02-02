@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useCart } from '../contexts/CartContext';
@@ -9,9 +9,23 @@ import './Checkout.css';
 
 const Checkout = () => {
   const { cartItems, cartTotal, clearCart } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
+
+  // Require login to access checkout; redirect guests to login with return path
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login?redirect=/checkout', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  // Pre-fill email from logged-in user
+  useEffect(() => {
+    if (user?.email) {
+      setFormData(prev => ({ ...prev, email: user.email }));
+    }
+  }, [user]);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('stripe'); // 'stripe', 'jpmorgan', or 'chase'
   const [cardData, setCardData] = useState({
@@ -36,15 +50,130 @@ const Checkout = () => {
   const [selectedShipping, setSelectedShipping] = useState(null);
   const [loadingRates, setLoadingRates] = useState(false);
   const [shippingError, setShippingError] = useState(null);
+  const [validationErrors, setValidationErrors] = useState([]);
+  const checkoutCompletedRef = useRef(false);
 
-  if (cartItems.length === 0) {
+  // Scroll to top of page when validation errors are shown
+  useEffect(() => {
+    if (validationErrors.length > 0) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [validationErrors]);
+
+  // Valid email format (RFC 5322 simplified)
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim());
+
+  // Full name: at least 2 chars, must contain at least one letter (allows spaces, hyphens, apostrophes)
+  const isValidName = (name) => {
+    const s = (name || '').trim();
+    if (s.length < 2) return false;
+    return /[a-zA-Z]/.test(s);
+  };
+
+  // Address: at least 5 chars, must contain at least one letter (street name)
+  const isValidAddress = (address) => {
+    const s = (address || '').trim();
+    if (s.length < 5) return false;
+    return /[a-zA-Z]/.test(s);
+  };
+
+  const validateForm = () => {
+    const errors = [];
+
+    // Email
+    const emailTrimmed = (formData.email || '').trim();
+    if (!emailTrimmed) {
+      errors.push('Email is required.');
+    } else if (!isValidEmail(emailTrimmed)) {
+      errors.push('Please enter a valid email address (e.g. your@email.com).');
+    }
+
+    // Create account password (if opted in)
+    if (!isAuthenticated && formData.create_account) {
+      const pwd = (formData.password || '').trim();
+      if (!pwd) {
+        errors.push('Password is required when creating an account.');
+      } else if (pwd.length < 6) {
+        errors.push('Password must be at least 6 characters.');
+      }
+    }
+
+    // Shipping - name and address with format validation
+    const nameTrimmed = (formData.shipping_name || '').trim();
+    if (!nameTrimmed) {
+      errors.push('Full name is required.');
+    } else if (!isValidName(formData.shipping_name)) {
+      errors.push('Please enter a valid full name (at least 2 characters, including letters).');
+    }
+    const addressTrimmed = (formData.shipping_address || '').trim();
+    if (!addressTrimmed) {
+      errors.push('Address is required.');
+    } else if (!isValidAddress(formData.shipping_address)) {
+      errors.push('Please enter a valid address (at least 5 characters, including street name).');
+    }
+    if (!(formData.shipping_city || '').trim()) {
+      errors.push('City is required.');
+    }
+    if (!(formData.shipping_state || '').trim()) {
+      errors.push('State is required.');
+    }
+    if (!(formData.shipping_zip || '').trim()) {
+      errors.push('ZIP code is required.');
+    }
+
+    // Card details when Stripe or J.P. Morgan is selected
+    if (paymentMethod === 'stripe' || paymentMethod === 'jpmorgan') {
+      if (!(cardData.cardholderName || '').trim()) {
+        errors.push('Cardholder name is required.');
+      }
+      const cardNumber = (cardData.cardNumber || '').replace(/\s/g, '');
+      if (!cardNumber) {
+        errors.push('Card number is required.');
+      } else if (cardNumber.length < 13 || cardNumber.length > 19) {
+        errors.push('Please enter a valid card number.');
+      }
+      if (!(cardData.expiryDate || '').trim()) {
+        errors.push('Expiry date is required.');
+      } else {
+        const [month, year] = cardData.expiryDate.split('/');
+        if (!month || !year || month.length !== 2 || year.length !== 2) {
+          errors.push('Expiry date must be in MM/YY format.');
+        } else {
+          const m = parseInt(month, 10);
+          const y = parseInt(year, 10);
+          if (m < 1 || m > 12 || isNaN(m)) {
+            errors.push('Expiry month must be between 01 and 12.');
+          }
+          if (y < 0 || y > 99 || isNaN(y)) {
+            errors.push('Expiry year must be a valid 2-digit year (YY).');
+          }
+        }
+      }
+      if (!(cardData.cvv || '').trim()) {
+        errors.push('CVV is required.');
+      } else if (cardData.cvv.length < 3 || cardData.cvv.length > 4) {
+        errors.push('CVV must be 3 or 4 digits.');
+      }
+    }
+
+    return errors;
+  };
+
+  // Don't render checkout form until auth is resolved; require login
+  if (!authLoading && !isAuthenticated) {
+    return null;
+  }
+
+  // Don't redirect when: just completed checkout, or currently submitting (order created, payment in progress)
+  if (cartItems.length === 0 && !checkoutCompletedRef.current && !loading) {
     navigate('/cart');
     return null;
   }
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    
+    if (validationErrors.length > 0) setValidationErrors([]);
+
     // Fetch shipping rates when ZIP code and state are entered
     if ((e.target.name === 'shipping_zip' || e.target.name === 'shipping_state') && 
         formData.shipping_zip && formData.shipping_state) {
@@ -111,6 +240,12 @@ const Checkout = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    setValidationErrors([]);
     setLoading(true);
 
     try {
@@ -178,12 +313,14 @@ const Checkout = () => {
         }
       }
 
+      checkoutCompletedRef.current = true;
       await clearCart();
-      
+
       // Redirect to order confirmation (works for both authenticated and guest)
       navigate(`/order-confirmation?orderId=${order.id}&email=${encodeURIComponent(formData.email)}`);
     } catch (error) {
       console.error('Checkout error:', error);
+      setValidationErrors([error.response?.data?.error || 'Checkout failed. Please try again.']);
       showError(error.response?.data?.error || 'Checkout failed. Please try again.');
     } finally {
       setLoading(false);
@@ -201,8 +338,19 @@ const Checkout = () => {
         <h1 className="page-title">Checkout</h1>
 
         <div className="checkout-layout">
-          <form onSubmit={handleSubmit} className="checkout-form">
+          <form onSubmit={handleSubmit} className="checkout-form" noValidate>
             <h2>Checkout Information</h2>
+
+            {validationErrors.length > 0 && (
+              <div className="checkout-validation-errors" role="alert">
+                <strong>Please fix the following:</strong>
+                <ul>
+                  {validationErrors.map((msg, i) => (
+                    <li key={i}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             
             <div className="form-group">
               <label className="form-label">Email Address *</label>
@@ -225,7 +373,10 @@ const Checkout = () => {
                     type="checkbox"
                     name="create_account"
                     checked={formData.create_account}
-                    onChange={(e) => setFormData({...formData, create_account: e.target.checked})}
+                    onChange={(e) => {
+                      setFormData({...formData, create_account: e.target.checked});
+                      if (validationErrors.length > 0) setValidationErrors([]);
+                    }}
                   />
                   <span>Create an account (optional) - Save your info for faster checkout next time</span>
                 </label>
@@ -403,7 +554,10 @@ const Checkout = () => {
                     name="payment_method"
                     value="stripe"
                     checked={paymentMethod === 'stripe'}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    onChange={(e) => {
+                      setPaymentMethod(e.target.value);
+                      if (validationErrors.length > 0) setValidationErrors([]);
+                    }}
                     style={{margin: 0}}
                   />
                   <span>💳 Credit/Debit Card (Stripe)</span>
@@ -414,7 +568,10 @@ const Checkout = () => {
                     name="payment_method"
                     value="jpmorgan"
                     checked={paymentMethod === 'jpmorgan'}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    onChange={(e) => {
+                      setPaymentMethod(e.target.value);
+                      if (validationErrors.length > 0) setValidationErrors([]);
+                    }}
                     style={{margin: 0}}
                   />
                   <span>🏦 J.P. Morgan Payments</span>
@@ -441,7 +598,10 @@ const Checkout = () => {
                   <input
                     type="text"
                     value={cardData.cardholderName}
-                    onChange={(e) => setCardData({...cardData, cardholderName: e.target.value})}
+                    onChange={(e) => {
+                      setCardData({...cardData, cardholderName: e.target.value});
+                      if (validationErrors.length > 0) setValidationErrors([]);
+                    }}
                     required
                     className="form-input"
                     placeholder="John Doe"
@@ -456,6 +616,7 @@ const Checkout = () => {
                       const value = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
                       const formatted = value.match(/.{1,4}/g)?.join(' ') || value;
                       setCardData({...cardData, cardNumber: formatted});
+                      if (validationErrors.length > 0) setValidationErrors([]);
                     }}
                     maxLength={19}
                     required
@@ -475,6 +636,7 @@ const Checkout = () => {
                           value = value.slice(0, 2) + '/' + value.slice(2, 4);
                         }
                         setCardData({...cardData, expiryDate: value});
+                        if (validationErrors.length > 0) setValidationErrors([]);
                       }}
                       maxLength={5}
                       required
@@ -490,6 +652,7 @@ const Checkout = () => {
                       onChange={(e) => {
                         const value = e.target.value.replace(/\D/g, '').slice(0, 4);
                         setCardData({...cardData, cvv: value});
+                        if (validationErrors.length > 0) setValidationErrors([]);
                       }}
                       maxLength={4}
                       required

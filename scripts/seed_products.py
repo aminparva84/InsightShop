@@ -1,7 +1,17 @@
 """Seed the database with 1000 clothing products."""
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app import app
 from models.database import db
 from models.product import Product
-from utils.vector_db import add_product_to_vector_db
+try:
+    from utils.vector_db import add_product_to_vector_db
+    VECTOR_DB_AVAILABLE = True
+except ImportError:
+    VECTOR_DB_AVAILABLE = False
+    print("Warning: Vector DB not available, skipping vector indexing")
 import random
 import string
 
@@ -95,107 +105,109 @@ def generate_price(category, clothing_type):
 
 def seed_products():
     """Seed the database with products."""
-    print("Starting to seed products...")
-    
-    products_created = 0
-    
-    for category in CATEGORIES:
-        clothing_types = CLOTHING_TYPES[category]
+    with app.app_context():
+        print("Starting to seed products...")
         
-        for clothing_type in clothing_types:
-            for color in COLORS:
-                for size in SIZES:
-                    # Create product
-                    name = generate_product_name(category, clothing_type, color)
-                    description = DESCRIPTIONS.get(clothing_type, f'High-quality {clothing_type.lower()} for {category}.')
-                    price = generate_price(category, clothing_type)
-                    slug = f"{generate_slug(name)}-{size.lower()}-{random.randint(1000, 9999)}"
-                    
-                    # Get fabric for this clothing type
-                    available_fabrics = FABRICS.get(clothing_type, ['100% Cotton', 'Cotton Blend'])
-                    fabric = random.choice(available_fabrics)
-                    
-                    # Determine occasion based on clothing type
-                    occasion_map = {
-                        'Suit': 'wedding,business_formal',
-                        'Dress': 'wedding,date_night,business_casual',
-                        'Blazer': 'business_formal,business_casual,date_night',
-                        'Dress Shirt': 'business_formal,business_casual',
-                        'Blouse': 'business_casual,date_night',
-                        'T-Shirt': 'casual,summer',
-                        'Jeans': 'casual',
-                        'Chinos': 'business_casual,casual',
-                        'Shorts': 'casual,summer,outdoor_active',
-                        'Sneakers': 'casual,outdoor_active',
-                        'Heels': 'business_casual,date_night,wedding',
-                        'Sweater': 'winter,casual',
-                        'Jacket': 'winter,casual',
-                        'Coat': 'winter',
-                        'Hoodie': 'casual,winter',
-                        'Sandals': 'summer,casual',
-                        'Pajamas': 'casual'
-                    }
-                    occasion = occasion_map.get(clothing_type, 'casual')
-                    
-                    # Determine age group
-                    age_group_map = {
-                        'Suit': 'mature',
-                        'Dress': 'all',
-                        'Blazer': 'mature',
-                        'Dress Shirt': 'mature',
-                        'T-Shirt': 'all',
-                        'Hoodie': 'young_adult',
-                        'Sneakers': 'all',
-                        'Pajamas': 'all'
-                    }
-                    age_group = age_group_map.get(clothing_type, 'all')
-                    
-                    product = Product(
-                        name=name,
-                        description=description,
-                        price=price,
-                        category=category,
-                        color=color,
-                        size=size,
-                        fabric=fabric,
-                        clothing_type=clothing_type,
-                        occasion=occasion,
-                        age_group=age_group,
-                        image_url=f"https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80",
-                        stock_quantity=random.randint(5, 50),
-                        is_active=True,
-                        slug=slug,
-                        meta_title=f"{name} - InsightShop",
-                        meta_description=f"Shop {name} at InsightShop. {description}"
-                    )
-                    
-                    db.session.add(product)
-                    products_created += 1
-                    
-                    # Commit in batches
-                    if products_created % 100 == 0:
-                        db.session.commit()
-                        print(f"Created {products_created} products...")
-    
-    # Final commit
-    db.session.commit()
-    print(f"Successfully created {products_created} products!")
-    
-    # Add products to vector database
-    print("Adding products to vector database...")
-    products = Product.query.all()
-    for i, product in enumerate(products):
-        try:
-            add_product_to_vector_db(product.id, product.to_dict())
-            if (i + 1) % 100 == 0:
-                print(f"Added {i + 1} products to vector database...")
-        except Exception as e:
-            print(f"Error adding product {product.id} to vector DB: {e}")
-    
-    print("Product seeding completed!")
+        products_created = 0
+        
+        for category in CATEGORIES:
+            clothing_types = CLOTHING_TYPES[category]
+            
+            for clothing_type in clothing_types:
+                for color in COLORS:
+                    for size in SIZES:
+                        # Create product
+                        name = generate_product_name(category, clothing_type, color)
+                        description = DESCRIPTIONS.get(clothing_type, f'High-quality {clothing_type.lower()} for {category}.')
+                        price = generate_price(category, clothing_type)
+                        slug = f"{generate_slug(name)}-{size.lower()}-{random.randint(1000, 9999)}"
+                        
+                        # Get fabric for this clothing type
+                        available_fabrics = FABRICS.get(clothing_type, ['100% Cotton', 'Cotton Blend'])
+                        fabric = random.choice(available_fabrics)
+                        
+                        # Determine occasion based on clothing type
+                        occasion_map = {
+                            'Suit': 'wedding,business_formal',
+                            'Dress': 'wedding,date_night,business_casual',
+                            'Blazer': 'business_formal,business_casual,date_night',
+                            'Dress Shirt': 'business_formal,business_casual',
+                            'Blouse': 'business_casual,date_night',
+                            'T-Shirt': 'casual,summer',
+                            'Jeans': 'casual',
+                            'Chinos': 'business_casual,casual',
+                            'Shorts': 'casual,summer,outdoor_active',
+                            'Sneakers': 'casual,outdoor_active',
+                            'Heels': 'business_casual,date_night,wedding',
+                            'Sweater': 'winter,casual',
+                            'Jacket': 'winter,casual',
+                            'Coat': 'winter',
+                            'Hoodie': 'casual,winter',
+                            'Sandals': 'summer,casual',
+                            'Pajamas': 'casual'
+                        }
+                        occasion = occasion_map.get(clothing_type, 'casual')
+                        
+                        # Determine age group
+                        age_group_map = {
+                            'Suit': 'mature',
+                            'Dress': 'all',
+                            'Blazer': 'mature',
+                            'Dress Shirt': 'mature',
+                            'T-Shirt': 'all',
+                            'Hoodie': 'young_adult',
+                            'Sneakers': 'all',
+                            'Pajamas': 'all'
+                        }
+                        age_group = age_group_map.get(clothing_type, 'all')
+                        
+                        product = Product(
+                            name=name,
+                            description=description,
+                            price=price,
+                            category=category,
+                            color=color,
+                            size=size,
+                            fabric=fabric,
+                            clothing_type=clothing_type,
+                            occasion=occasion,
+                            age_group=age_group,
+                            image_url=f"https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80",
+                            stock_quantity=random.randint(5, 50),
+                            is_active=True,
+                            slug=slug,
+                            meta_title=f"{name} - InsightShop",
+                            meta_description=f"Shop {name} at InsightShop. {description}"
+                        )
+                        
+                        db.session.add(product)
+                        products_created += 1
+                        
+                        # Commit in batches
+                        if products_created % 100 == 0:
+                            db.session.commit()
+                            print(f"Created {products_created} products...")
+        
+        # Final commit
+        db.session.commit()
+        print(f"Successfully created {products_created} products!")
+        
+        # Add products to vector database
+        if VECTOR_DB_AVAILABLE:
+            print("Adding products to vector database...")
+            products = Product.query.all()
+            for i, product in enumerate(products):
+                try:
+                    add_product_to_vector_db(product.id, product.to_dict())
+                    if (i + 1) % 100 == 0:
+                        print(f"Added {i + 1} products to vector database...")
+                except Exception as e:
+                    print(f"Error adding product {product.id} to vector DB: {e}")
+        else:
+            print("Skipping vector database (not available)")
+        
+        print("Product seeding completed!")
 
 if __name__ == '__main__':
-    from app import app
-    with app.app_context():
-        seed_products()
+    seed_products()
 

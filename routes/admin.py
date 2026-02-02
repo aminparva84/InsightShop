@@ -220,7 +220,7 @@ def list_users():
 @admin_bp.route('/users/<int:user_id>/admin', methods=['PUT'])
 @require_admin
 def toggle_admin(user_id):
-    """Toggle admin status for a user."""
+    """Toggle admin status for a user. Superadmins cannot have admin removed."""
     try:
         user = User.query.get(user_id)
         if not user:
@@ -228,6 +228,10 @@ def toggle_admin(user_id):
         
         data = request.get_json()
         is_admin = data.get('is_admin', False)
+        
+        # Superadmin must remain admin
+        if user.is_superadmin and not is_admin:
+            return jsonify({'error': 'Cannot remove admin status from a superadmin'}), 400
         
         user.is_admin = is_admin
         db.session.commit()
@@ -405,12 +409,50 @@ def get_product(product_id):
 def create_product():
     """Create a new product."""
     try:
-        data = request.get_json()
-        
-        # Required fields
-        if not data.get('name') or not data.get('price') or not data.get('category'):
-            return jsonify({'error': 'Name, price, and category are required'}), 400
-        
+        data = request.get_json() or {}
+        errors = []
+
+        # Required: name
+        name = (data.get('name') or '').strip()
+        if not name:
+            errors.append('Product name is required.')
+        elif len(name) > 255:
+            errors.append('Product name must be 255 characters or less.')
+
+        # Required: price (valid number, >= 0)
+        price_val = data.get('price')
+        if price_val is None or price_val == '':
+            errors.append('Price is required.')
+        else:
+            try:
+                p = float(price_val)
+                if p < 0:
+                    errors.append('Price must be zero or greater.')
+            except (TypeError, ValueError):
+                errors.append('Price must be a valid number (e.g. 29.99).')
+
+        # Required: category
+        category = (data.get('category') or '').strip().lower()
+        if not category:
+            errors.append('Category is required.')
+        elif category not in ('men', 'women', 'kids'):
+            errors.append('Category must be Men, Women, or Kids.')
+
+        # Optional: stock_quantity (must be int >= 0)
+        try:
+            sq = data.get('stock_quantity', 0)
+            stock_quantity = int(sq) if sq not in (None, '') else 0
+            if stock_quantity < 0:
+                errors.append('Stock quantity must be zero or greater.')
+        except (TypeError, ValueError):
+            errors.append('Stock quantity must be a whole number.')
+
+        if errors:
+            return jsonify({'error': ' '.join(errors), 'errors': errors}), 400
+
+        price = float(price_val)
+        # stock_quantity already set in validation block above
+
         # Parse available_colors and available_sizes
         available_colors = data.get('available_colors', [])
         available_sizes = data.get('available_sizes', [])
@@ -422,10 +464,10 @@ def create_product():
             available_sizes = json.dumps(available_sizes) if available_sizes else None
         
         product = Product(
-            name=data.get('name'),
-            description=data.get('description'),
-            price=float(data.get('price')),
-            category=data.get('category'),
+            name=name,
+            description=data.get('description') or None,
+            price=price,
+            category=category,
             color=data.get('color'),
             size=data.get('size'),
             available_colors=available_colors,
@@ -435,8 +477,8 @@ def create_product():
             dress_style=data.get('dress_style'),
             occasion=data.get('occasion'),
             age_group=data.get('age_group'),
-            image_url=data.get('image_url'),
-            stock_quantity=int(data.get('stock_quantity', 0)),
+            image_url=data.get('image_url') or None,
+            stock_quantity=stock_quantity,
             is_active=data.get('is_active', True),
             rating=float(data.get('rating', 0.0)),
             review_count=int(data.get('review_count', 0)),
@@ -725,60 +767,104 @@ def reset_user_password(user_id):
 @require_admin
 def get_statistics():
     """Get database statistics (admin only)."""
+    from sqlalchemy import func
+    from datetime import datetime, timedelta, time
+
+    def _today_start():
+        """Start of today in UTC for DateTime comparison."""
+        return datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def _safe_scalar(q):
+        try:
+            return float(q.scalar() or 0)
+        except Exception:
+            return 0.0
+
+    stats = {}
+
+    # Users
     try:
-        from sqlalchemy import func
-        from datetime import datetime, timedelta
-        
-        stats = {
-            'users': {
-                'total': User.query.count(),
-                'admins': User.query.filter_by(is_admin=True).count(),
-                'superadmins': User.query.filter_by(is_superadmin=True).count(),
-                'active': User.query.filter_by(is_active=True).count()
-            },
-            'products': {
-                'total': Product.query.count(),
-                'active': Product.query.filter_by(is_active=True).count(),
-                'inactive': Product.query.filter_by(is_active=False).count(),
-                'low_stock': Product.query.filter(Product.stock_quantity < 10).count(),
-                'out_of_stock': Product.query.filter_by(stock_quantity=0).count()
-            },
-            'orders': {
-                'total': Order.query.count(),
-                'pending': Order.query.filter_by(status='pending').count(),
-                'processing': Order.query.filter_by(status='processing').count(),
-                'shipped': Order.query.filter_by(status='shipped').count(),
-                'delivered': Order.query.filter_by(status='delivered').count(),
-                'cancelled': Order.query.filter_by(status='cancelled').count(),
-                'today': Order.query.filter(Order.created_at >= datetime.now().date()).count(),
-                'this_week': Order.query.filter(Order.created_at >= datetime.now() - timedelta(days=7)).count(),
-                'this_month': Order.query.filter(Order.created_at >= datetime.now() - timedelta(days=30)).count()
-            },
-            'sales': {
-                'total': Sale.query.count(),
-                'active': Sale.query.filter_by(is_active=True).count(),
-                'inactive': Sale.query.filter_by(is_active=False).count()
-            },
-            'reviews': {
-                'total': Review.query.count(),
-                'today': Review.query.filter(Review.created_at >= datetime.now().date()).count()
-            },
-            'revenue': {
-                'total': float(db.session.query(func.sum(Order.total)).scalar() or 0),
-                'today': float(db.session.query(func.sum(Order.total)).filter(Order.created_at >= datetime.now().date()).scalar() or 0),
-                'this_week': float(db.session.query(func.sum(Order.total)).filter(Order.created_at >= datetime.now() - timedelta(days=7)).scalar() or 0),
-                'this_month': float(db.session.query(func.sum(Order.total)).filter(Order.created_at >= datetime.now() - timedelta(days=30)).scalar() or 0)
-            }
+        stats['users'] = {
+            'total': User.query.count(),
+            'admins': User.query.filter_by(is_admin=True).count(),
+            'superadmins': User.query.filter_by(is_superadmin=True).count(),
+            'active': User.query.filter_by(is_verified=True).count()
         }
-        
-        return jsonify({
-            'success': True,
-            'statistics': stats
-        }), 200
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        stats['users'] = {'total': 0, 'admins': 0, 'superadmins': 0, 'active': 0}
+
+    # Products
+    try:
+        stats['products'] = {
+            'total': Product.query.count(),
+            'active': Product.query.filter_by(is_active=True).count(),
+            'inactive': Product.query.filter_by(is_active=False).count(),
+            'low_stock': Product.query.filter(Product.stock_quantity < 10).count(),
+            'out_of_stock': Product.query.filter(Product.stock_quantity == 0).count()
+        }
+    except Exception:
+        stats['products'] = {'total': 0, 'active': 0, 'inactive': 0, 'low_stock': 0, 'out_of_stock': 0}
+
+    # Orders (use datetime for created_at comparison)
+    try:
+        today_start = _today_start()
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        month_ago = datetime.utcnow() - timedelta(days=30)
+        stats['orders'] = {
+            'total': Order.query.count(),
+            'pending': Order.query.filter_by(status='pending').count(),
+            'processing': Order.query.filter_by(status='processing').count(),
+            'shipped': Order.query.filter_by(status='shipped').count(),
+            'delivered': Order.query.filter_by(status='delivered').count(),
+            'cancelled': Order.query.filter_by(status='cancelled').count(),
+            'today': Order.query.filter(Order.created_at >= today_start).count(),
+            'this_week': Order.query.filter(Order.created_at >= week_ago).count(),
+            'this_month': Order.query.filter(Order.created_at >= month_ago).count()
+        }
+    except Exception:
+        stats['orders'] = {
+            'total': 0, 'pending': 0, 'processing': 0, 'shipped': 0, 'delivered': 0,
+            'cancelled': 0, 'today': 0, 'this_week': 0, 'this_month': 0
+        }
+
+    # Sales (table may not exist in some setups)
+    try:
+        stats['sales'] = {
+            'total': Sale.query.count(),
+            'active': Sale.query.filter_by(is_active=True).count(),
+            'inactive': Sale.query.filter_by(is_active=False).count()
+        }
+    except Exception:
+        stats['sales'] = {'total': 0, 'active': 0, 'inactive': 0}
+
+    # Reviews
+    try:
+        today_start = _today_start()
+        stats['reviews'] = {
+            'total': Review.query.count(),
+            'today': Review.query.filter(Review.created_at >= today_start).count()
+        }
+    except Exception:
+        stats['reviews'] = {'total': 0, 'today': 0}
+
+    # Revenue
+    try:
+        today_start = _today_start()
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        month_ago = datetime.utcnow() - timedelta(days=30)
+        stats['revenue'] = {
+            'total': _safe_scalar(db.session.query(func.sum(Order.total))),
+            'today': _safe_scalar(db.session.query(func.sum(Order.total)).filter(Order.created_at >= today_start)),
+            'this_week': _safe_scalar(db.session.query(func.sum(Order.total)).filter(Order.created_at >= week_ago)),
+            'this_month': _safe_scalar(db.session.query(func.sum(Order.total)).filter(Order.created_at >= month_ago))
+        }
+    except Exception:
+        stats['revenue'] = {'total': 0.0, 'today': 0.0, 'this_week': 0.0, 'this_month': 0.0}
+
+    return jsonify({
+        'success': True,
+        'statistics': stats
+    }), 200
 
 # ==================== CART MANAGEMENT ROUTES ====================
 

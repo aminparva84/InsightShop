@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { FaCommentDots } from 'react-icons/fa';
 import AIChat from './AIChat';
-import Logo from './Logo';
 import './FloatingAIAssistant.css';
 
 const AI_HINTS = [
@@ -35,8 +35,7 @@ const FloatingAIAssistant = () => {
   const [showChat, setShowChat] = useState(false);
   const [currentHint, setCurrentHint] = useState(0);
   const [showHint, setShowHint] = useState(true);
-  // Only show on cart page, so always use cart hints
-  const hints = CART_AI_HINTS;
+  const hints = location.pathname === '/cart' ? CART_AI_HINTS : AI_HINTS;
   const [chatSize, setChatSize] = useState(() => {
     // Load saved size from localStorage or use defaults
     const saved = localStorage.getItem('aiChatSize');
@@ -110,10 +109,12 @@ const FloatingAIAssistant = () => {
     };
   }, [isResizing]);
 
-  // Only show on cart page
-  if (location.pathname !== '/cart') {
-    return null;
-  }
+  // Listen for openAIChat custom event (from Home, Products, etc.)
+  useEffect(() => {
+    const handleOpen = () => setShowChat(true);
+    window.addEventListener('openAIChat', handleOpen);
+    return () => window.removeEventListener('openAIChat', handleOpen);
+  }, []);
 
   return (
     <>
@@ -127,10 +128,7 @@ const FloatingAIAssistant = () => {
           }
         }}
       >
-        <div className="ai-button-icon">
-          <Logo size="small" />
-        </div>
-        <div className="ai-button-text">AI Assistant</div>
+        <FaCommentDots className="ai-chat-bubble-icon" aria-label="Open AI chat" />
         {showHint && (
           <div className="ai-hint-bubble">
             <div className="hint-arrow"></div>
@@ -149,30 +147,37 @@ const FloatingAIAssistant = () => {
       </div>
 
       {showChat && (
-        <div 
-          ref={chatContainerRef}
-          className="ai-chat-fixed-container"
-          style={{
-            width: `${chatSize.width}px`,
-            height: `${chatSize.height}px`
-          }}
-        >
-          <AIChat 
-            onClose={() => setShowChat(false)} 
-            onMinimize={() => setShowChat(false)}
+        <>
+          <div
+            className="ai-chat-popup-overlay"
+            onClick={() => setShowChat(false)}
+            aria-hidden="true"
           />
           <div 
-            className="resize-handle"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setIsResizing(true);
+            ref={chatContainerRef}
+            className="ai-chat-fixed-container ai-chat-popup"
+            style={{
+              width: `${chatSize.width}px`,
+              height: `${chatSize.height}px`
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M8 12L12 8M12 12L16 8M4 16L8 12" stroke="#d4af37" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
+            <AIChat 
+              onClose={() => setShowChat(false)} 
+              onMinimize={() => setShowChat(false)}
+            />
+            <div 
+              className="resize-handle"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setIsResizing(true);
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M8 12L12 8M12 12L16 8M4 16L8 12" stroke="#d4af37" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );

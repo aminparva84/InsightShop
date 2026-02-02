@@ -29,8 +29,44 @@ def get_cart():
                 payload = verify_jwt_token(token)
                 if payload:
                     from models.user import User
-                    user = User.query.get(payload['user_id'])
+                    user = User.query.get(payload.get('sub') or payload.get('user_id'))
                     if user:
+                        # Merge guest cart into user cart if session has guest items (e.g. after login)
+                        guest_cart = get_guest_cart()
+                        if guest_cart:
+                            for g in guest_cart:
+                                product_id = g.get('product_id')
+                                quantity = int(g.get('quantity', 1))
+                                selected_color = g.get('selected_color')
+                                selected_size = g.get('selected_size')
+                                product = Product.query.get(product_id) if product_id else None
+                                if not product or not product.is_active or quantity < 1:
+                                    continue
+                                existing = CartItem.query.filter_by(
+                                    user_id=user.id,
+                                    product_id=product_id,
+                                    selected_color=selected_color,
+                                    selected_size=selected_size
+                                ).first()
+                                if existing:
+                                    new_qty = min(existing.quantity + quantity, product.stock_quantity)
+                                    existing.quantity = new_qty
+                                else:
+                                    qty = min(quantity, product.stock_quantity)
+                                    if qty > 0:
+                                        db.session.add(CartItem(
+                                            user_id=user.id,
+                                            product_id=product_id,
+                                            quantity=qty,
+                                            selected_color=selected_color,
+                                            selected_size=selected_size
+                                        ))
+                            try:
+                                db.session.commit()
+                            except Exception:
+                                db.session.rollback()
+                            clear_guest_cart()
+
                         cart_items = CartItem.query.filter_by(user_id=user.id).all()
                         # Calculate total using sale prices if available
                         total = 0.0
@@ -157,7 +193,7 @@ def add_to_cart():
                 payload = verify_jwt_token(token)
                 if payload:
                     from models.user import User
-                    user = User.query.get(payload['user_id'])
+                    user = User.query.get(payload.get('sub') or payload.get('user_id'))
                     if user:
                         # Authenticated user
                         existing_item = CartItem.query.filter_by(
@@ -282,7 +318,7 @@ def update_cart_item(item_id):
             return jsonify({'error': 'Invalid token'}), 401
         
         from models.user import User
-        user = User.query.get(payload['user_id'])
+        user = User.query.get(payload.get('sub') or payload.get('user_id'))
         if not user:
             return jsonify({'error': 'User not found'}), 401
         
@@ -400,7 +436,7 @@ def remove_from_cart(item_id):
             return jsonify({'error': 'Invalid token'}), 401
         
         from models.user import User
-        user = User.query.get(payload['user_id'])
+        user = User.query.get(payload.get('sub') or payload.get('user_id'))
         if not user:
             return jsonify({'error': 'User not found'}), 401
         
@@ -430,7 +466,7 @@ def clear_cart():
                 payload = verify_jwt_token(token)
                 if payload:
                     from models.user import User
-                    user = User.query.get(payload['user_id'])
+                    user = User.query.get(payload.get('sub') or payload.get('user_id'))
                     if user:
                         CartItem.query.filter_by(user_id=user.id).delete()
                         db.session.commit()
@@ -461,7 +497,7 @@ def get_cart_suggestions():
                 payload = verify_jwt_token(token)
                 if payload:
                     from models.user import User
-                    user = User.query.get(payload['user_id'])
+                    user = User.query.get(payload.get('sub') or payload.get('user_id'))
                     if user:
                         cart_items = CartItem.query.filter_by(user_id=user.id).all()
                         cart_product_ids = [item.product_id for item in cart_items if item.product_id]

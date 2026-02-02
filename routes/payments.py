@@ -2,10 +2,21 @@ from flask import Blueprint, request, jsonify
 from models.database import db
 from models.payment import Payment
 from models.order import Order
+from models.cart import CartItem
 from routes.auth import require_auth
 from config import Config
 from utils.jpmorgan_payments import get_jpmorgan_client
 from utils.payment_logger import log_payment_attempt
+
+
+def _clear_cart_for_order(order):
+    """Clear cart only after successful payment (authenticated or guest)."""
+    if order.user_id:
+        CartItem.query.filter_by(user_id=order.user_id).delete()
+    else:
+        from utils.guest_cart import clear_guest_cart
+        clear_guest_cart()
+
 
 payments_bp = Blueprint('payments', __name__)
 
@@ -66,6 +77,7 @@ def create_payment_intent():
             )
             db.session.add(payment)
             order.status = 'processing'
+            _clear_cart_for_order(order)
             db.session.commit()
             
             # Log payment attempt
@@ -186,6 +198,7 @@ def confirm_payment():
             # Mock confirmation
             payment.status = 'completed'
             order.status = 'processing'
+            _clear_cart_for_order(order)
             db.session.commit()
             
             return jsonify({
@@ -199,6 +212,7 @@ def confirm_payment():
         if intent.status == 'succeeded':
             payment.status = 'completed'
             order.status = 'processing'
+            _clear_cart_for_order(order)
             db.session.commit()
             
             # Log successful payment confirmation
@@ -382,6 +396,7 @@ def create_jpmorgan_payment():
         if response_status == 'SUCCESS' and response_code == 'APPROVED':
             payment_status = 'completed'
             order.status = 'processing'
+            _clear_cart_for_order(order)
         else:
             payment_status = 'failed'
         

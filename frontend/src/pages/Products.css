@@ -195,7 +195,11 @@
   line-height: 1.6;
 }
 
-/* AI Chat Inline Container - Match FilterBar width */
+.ai-dashboard-empty-content .ai-open-chat-btn {
+  margin-top: 20px;
+}
+
+/* AI Chat Inline Container - Match FilterBar width (kept for any legacy refs) */
 .ai-chat-inline-container {
   width: 100%;
   margin: 0 0 20px 0;

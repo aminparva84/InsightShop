@@ -3,8 +3,11 @@ import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductGrid from '../components/ProductGrid';
 import FilterBar from '../components/FilterBar';
-import AIChat from '../components/AIChat';
 import './Products.css';
+
+const openAIChatPopup = () => {
+  window.dispatchEvent(new CustomEvent('openAIChat'));
+};
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -440,13 +443,6 @@ const Products = () => {
           />
         )}
 
-        {/* AI Chat - only show on AI Dashboard tab, inline at top */}
-        {activeTab === 'ai' && (
-          <div className="ai-chat-inline-container">
-            <AIChat onClose={null} onMinimize={null} isInline={true} />
-          </div>
-        )}
-
         <div className="products-layout">
           <main className="products-main">
             {loading ? (
@@ -480,8 +476,15 @@ const Products = () => {
                     <div className="ai-dashboard-empty-content">
                       <h2>🤖 AI Dashboard</h2>
                       <p>This is your AI-powered product discovery space.</p>
-                      <p>Ask the AI assistant to find products, and they'll appear here.</p>
+                      <p>Open the AI Assistant to find products, and they'll appear here.</p>
                       <p>You can compare products, view AI recommendations, and more!</p>
+                      <button
+                        type="button"
+                        className="btn btn-primary ai-open-chat-btn"
+                        onClick={openAIChatPopup}
+                      >
+                        Open AI Assistant
+                      </button>
                     </div>
                   </div>
                 )}

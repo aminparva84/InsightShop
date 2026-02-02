@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -20,33 +20,41 @@ import Compare from './pages/Compare';
 import Admin from './pages/Admin';
 import './App.css';
 
+function AppContent() {
+  const location = useLocation();
+  const isAdmin = location.pathname === '/admin';
+  return (
+    <div className="App">
+      <Navbar />
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/products/:id" element={<ProductDetail />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/activation" element={<Activation />} />
+          <Route path="/members" element={<Members />} />
+          <Route path="/order-confirmation" element={<OrderConfirmation />} />
+          <Route path="/compare" element={<Compare />} />
+          <Route path="/admin" element={<Admin />} />
+        </Routes>
+      </main>
+      {!isAdmin && <Footer />}
+      <FloatingAIAssistant />
+    </div>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <CartProvider>
         <NotificationProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <div className="App">
-              <Navbar />
-              <main className="main-content">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/products" element={<Products />} />
-                  <Route path="/products/:id" element={<ProductDetail />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/activation" element={<Activation />} />
-                  <Route path="/members" element={<Members />} />
-                  <Route path="/order-confirmation" element={<OrderConfirmation />} />
-                  <Route path="/compare" element={<Compare />} />
-                  <Route path="/admin" element={<Admin />} />
-                </Routes>
-              </main>
-              <Footer />
-              <FloatingAIAssistant />
-            </div>
+            <AppContent />
           </Router>
         </NotificationProvider>
       </CartProvider>

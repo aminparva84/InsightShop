@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import Logo from './Logo';
@@ -12,6 +13,8 @@ const Navbar = () => {
 
   const handleLogout = () => {
     logout();
+    // Clear session (guest) cart so logged-out user sees empty cart; user's saved cart stays in DB for next login
+    axios.delete('/api/cart/clear').catch(() => {});
     navigate('/');
   };
 

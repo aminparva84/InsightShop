@@ -1,13 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import Footer from '../components/Footer';
 import './Admin.css';
+
+// Default structure when fashion KB API fails so admin panel still renders
+const DEFAULT_FASHION_KB = {
+  color_matching: { basics: '', by_color: {} },
+  style_advice: { fit: '', layering: '', proportions: '' },
+  occasions: {},
+  fabric_guide: {},
+  dress_styles: { necklines: {}, dress_features: {}, men_styles: {} },
+  styling_tips: { build_wardrobe: '', accessories: '', seasonal_transitions: '' }
+};
 
 const Admin = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const [fashionKB, setFashionKB] = useState(null);
+  const [fashionKBLoadError, setFashionKBLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -67,6 +79,11 @@ const Admin = () => {
     is_active: true
   });
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [productValidationErrors, setProductValidationErrors] = useState([]);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [orderDetail, setOrderDetail] = useState(null);
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
+  const productFormRef = useRef(null);
 
   useEffect(() => {
     // Check if user is superadmin
@@ -74,15 +91,23 @@ const Admin = () => {
       navigate('/members');
       return;
     }
+    // Only call API when token is available so requests include Authorization
+    if (!token) return;
 
     loadFashionKB();
     loadUsers();
+    if (activeTab === 'dashboard') {
+      loadStatistics();
+    }
     if (activeTab === 'payment-logs') {
       loadPaymentLogs();
     }
     if (activeTab === 'sales') {
       loadSales();
       loadUpcomingEvents();
+    }
+    if (activeTab === 'users') {
+      loadUsers();
     }
     if (activeTab === 'products') {
       loadProducts();
@@ -99,19 +124,44 @@ const Admin = () => {
     if (activeTab === 'carts') {
       loadCarts();
     }
-  }, [user, navigate, activeTab]);
+  }, [user, token, navigate, activeTab]);
+
+  // Fetch order detail when View is clicked in Orders tab
+  useEffect(() => {
+    if (!selectedOrderId || !token) {
+      if (!selectedOrderId) setOrderDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setOrderDetailLoading(true);
+    setOrderDetail(null);
+    axios.get(`/api/admin/orders/${selectedOrderId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => {
+      if (!cancelled && res.data.success && res.data.order) setOrderDetail(res.data.order);
+    }).catch(err => {
+      if (!cancelled) setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to load order details' });
+    }).finally(() => {
+      if (!cancelled) setOrderDetailLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [selectedOrderId, token]);
 
   const loadFashionKB = async () => {
+    setFashionKBLoadError(null);
     try {
       const response = await axios.get('/api/admin/fashion-kb', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: token ? `Bearer ${token}` : undefined }
       });
       if (response.data.success) {
         setFashionKB(response.data.data);
       }
     } catch (error) {
       console.error('Error loading fashion KB:', error);
-      setMessage({ type: 'error', text: 'Failed to load fashion knowledge base' });
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to load fashion knowledge base';
+      setFashionKBLoadError(errorMsg);
+      setMessage({ type: 'error', text: errorMsg });
+      setFashionKB(DEFAULT_FASHION_KB);
     } finally {
       setLoading(false);
     }
@@ -120,7 +170,7 @@ const Admin = () => {
   const loadUsers = async () => {
     try {
       const response = await axios.get('/api/admin/users', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: token ? `Bearer ${token}` : undefined }
       });
       if (response.data.success) {
         setUsers(response.data.users);
@@ -446,14 +496,14 @@ const Admin = () => {
     setStatisticsLoading(true);
     try {
       const response = await axios.get('/api/admin/statistics', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: token ? `Bearer ${token}` : undefined }
       });
-      if (response.data.success) {
+      if (response.data.success && response.data.statistics) {
         setStatistics(response.data.statistics);
       }
     } catch (error) {
       console.error('Error loading statistics:', error);
-      setMessage({ type: 'error', text: 'Failed to load statistics' });
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to load statistics' });
     } finally {
       setStatisticsLoading(false);
     }
@@ -570,8 +620,8 @@ const Admin = () => {
     setProductsLoading(true);
     try {
       const response = await axios.get('/api/admin/products', {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { per_page: 100 }
+        headers: { Authorization: token ? `Bearer ${token}` : undefined },
+        params: { per_page: 500 }
       });
       if (response.data.success) {
         setProducts(response.data.products || []);
@@ -584,16 +634,50 @@ const Admin = () => {
     }
   };
 
+  const validateProductForm = (product) => {
+    const errs = [];
+    const name = (product.name || '').trim();
+    if (!name) errs.push('Product name is required.');
+    else if (name.length > 255) errs.push('Product name must be 255 characters or less.');
+    const priceStr = product.price;
+    if (priceStr === '' || priceStr === null || priceStr === undefined) {
+      errs.push('Price is required.');
+    } else {
+      const p = parseFloat(priceStr);
+      if (Number.isNaN(p)) errs.push('Price must be a valid number (e.g. 29.99).');
+      else if (p < 0) errs.push('Price must be zero or greater.');
+    }
+    const cat = (product.category || '').trim().toLowerCase();
+    if (!cat) errs.push('Category is required.');
+    else if (!['men', 'women', 'kids'].includes(cat)) errs.push('Category must be Men, Women, or Kids.');
+    const sq = product.stock_quantity;
+    const sqNum = typeof sq === 'number' ? sq : parseInt(sq, 10);
+    if (sq !== '' && sq !== null && sq !== undefined && (Number.isNaN(sqNum) || sqNum < 0)) {
+      errs.push('Stock quantity must be a whole number zero or greater.');
+    }
+    return errs;
+  };
+
   const handleCreateProduct = async () => {
-    if (!newProduct.name || !newProduct.price || !newProduct.category) {
-      setMessage({ type: 'error', text: 'Please fill in name, price, and category' });
+    const errors = validateProductForm(newProduct);
+    if (errors.length > 0) {
+      setProductValidationErrors(errors);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-
+    setProductValidationErrors([]);
     setSaving(true);
     try {
-      const response = await axios.post('/api/admin/products', newProduct, {
-        headers: { Authorization: `Bearer ${token}` }
+      const payload = {
+        ...newProduct,
+        name: (newProduct.name || '').trim(),
+        price: parseFloat(newProduct.price),
+        stock_quantity: typeof newProduct.stock_quantity === 'number' ? newProduct.stock_quantity : parseInt(String(newProduct.stock_quantity), 10) || 0,
+        description: newProduct.description || null,
+        category: (newProduct.category || 'men').trim().toLowerCase()
+      };
+      const response = await axios.post('/api/admin/products', payload, {
+        headers: { Authorization: token ? `Bearer ${token}` : undefined }
       });
 
       if (response.data.success) {
@@ -621,17 +705,46 @@ const Admin = () => {
       }
     } catch (error) {
       console.error('Error creating product:', error);
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to create product' });
+      const errMsg = error.response?.data?.error || 'Failed to create product';
+      const errList = error.response?.data?.errors;
+      if (Array.isArray(errList) && errList.length > 0) {
+        setProductValidationErrors(errList);
+      } else {
+        setProductValidationErrors([errMsg]);
+      }
+      setMessage({ type: 'error', text: errMsg });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
     }
   };
 
+  // Scroll to top when product validation errors are shown
+  useEffect(() => {
+    if (productValidationErrors.length > 0) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [productValidationErrors]);
+
   const handleUpdateProduct = async (productId, updates) => {
+    const errors = validateProductForm(updates);
+    if (errors.length > 0) {
+      setProductValidationErrors(errors);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setProductValidationErrors([]);
     setSaving(true);
     try {
-      const response = await axios.put(`/api/admin/products/${productId}`, updates, {
-        headers: { Authorization: `Bearer ${token}` }
+      const payload = {
+        ...updates,
+        name: (updates.name || '').trim(),
+        price: parseFloat(updates.price),
+        stock_quantity: typeof updates.stock_quantity === 'number' ? updates.stock_quantity : parseInt(String(updates.stock_quantity), 10) || 0,
+        category: (updates.category || 'men').trim().toLowerCase()
+      };
+      const response = await axios.put(`/api/admin/products/${productId}`, payload, {
+        headers: { Authorization: token ? `Bearer ${token}` : undefined }
       });
 
       if (response.data.success) {
@@ -641,7 +754,15 @@ const Admin = () => {
       }
     } catch (error) {
       console.error('Error updating product:', error);
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to update product' });
+      const errMsg = error.response?.data?.error || 'Failed to update product';
+      const errList = error.response?.data?.errors;
+      if (Array.isArray(errList) && errList.length > 0) {
+        setProductValidationErrors(errList);
+      } else {
+        setProductValidationErrors([errMsg]);
+      }
+      setMessage({ type: 'error', text: errMsg });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
     }
@@ -804,10 +925,6 @@ const Admin = () => {
     return <div className="admin-page"><div className="container">Loading...</div></div>;
   }
 
-  if (!fashionKB) {
-    return <div className="admin-page"><div className="container">Failed to load fashion knowledge base</div></div>;
-  }
-
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', description: 'Overview & Statistics' },
     { id: 'products', label: 'Products', icon: '🛍️', description: 'Manage Products' },
@@ -884,7 +1001,8 @@ const Admin = () => {
           </div>
         </aside>
 
-        {/* Main Content Area */}
+        {/* Main content + footer wrapper: responsive to sidebar width */}
+        <div className={`admin-content-wrapper ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
         <main className="admin-main">
           <div className="admin-header">
             <h1>
@@ -925,9 +1043,9 @@ const Admin = () => {
                       <div className="stat-icon">👥</div>
                       <div className="stat-content">
                         <h3>Total Users</h3>
-                        <div className="stat-value">{statistics.users.total}</div>
+                        <div className="stat-value">{statistics.users?.total ?? 0}</div>
                         <div className="stat-detail">
-                          {statistics.users.admins} admins, {statistics.users.active} active
+                          {statistics.users?.admins ?? 0} admins, {statistics.users?.active ?? 0} active
                         </div>
                       </div>
                     </div>
@@ -936,9 +1054,9 @@ const Admin = () => {
                       <div className="stat-icon">🛍️</div>
                       <div className="stat-content">
                         <h3>Products</h3>
-                        <div className="stat-value">{statistics.products.active}</div>
+                        <div className="stat-value">{statistics.products?.active ?? 0}</div>
                         <div className="stat-detail">
-                          {statistics.products.low_stock} low stock, {statistics.products.out_of_stock} out of stock
+                          {statistics.products?.low_stock ?? 0} low stock, {statistics.products?.out_of_stock ?? 0} out of stock
                         </div>
                       </div>
                     </div>
@@ -947,9 +1065,9 @@ const Admin = () => {
                       <div className="stat-icon">📦</div>
                       <div className="stat-content">
                         <h3>Orders Today</h3>
-                        <div className="stat-value">{statistics.orders.today}</div>
+                        <div className="stat-value">{statistics.orders?.today ?? 0}</div>
                         <div className="stat-detail">
-                          {statistics.orders.pending} pending, {statistics.orders.processing} processing
+                          {statistics.orders?.pending ?? 0} pending, {statistics.orders?.processing ?? 0} processing
                         </div>
                       </div>
                     </div>
@@ -958,9 +1076,9 @@ const Admin = () => {
                       <div className="stat-icon">💰</div>
                       <div className="stat-content">
                         <h3>Revenue (Month)</h3>
-                        <div className="stat-value">${statistics.revenue.this_month.toFixed(2)}</div>
+                        <div className="stat-value">${Number(statistics.revenue?.this_month ?? 0).toFixed(2)}</div>
                         <div className="stat-detail">
-                          Today: ${statistics.revenue.today.toFixed(2)}
+                          Today: ${Number(statistics.revenue?.today ?? 0).toFixed(2)}
                         </div>
                       </div>
                     </div>
@@ -970,19 +1088,19 @@ const Admin = () => {
                       <div className="stats-grid">
                         <div className="stat-box">
                           <h4>Total Orders</h4>
-                          <p className="stat-number">{statistics.orders.total}</p>
+                          <p className="stat-number">{statistics.orders?.total ?? 0}</p>
                         </div>
                         <div className="stat-box">
                           <h4>Active Sales</h4>
-                          <p className="stat-number">{statistics.sales.active}</p>
+                          <p className="stat-number">{statistics.sales?.active ?? 0}</p>
                         </div>
                         <div className="stat-box">
                           <h4>Total Reviews</h4>
-                          <p className="stat-number">{statistics.reviews.total}</p>
+                          <p className="stat-number">{statistics.reviews?.total ?? 0}</p>
                         </div>
                         <div className="stat-box">
                           <h4>Total Revenue</h4>
-                          <p className="stat-number">${statistics.revenue.total.toFixed(2)}</p>
+                          <p className="stat-number">${Number(statistics.revenue?.total ?? 0).toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
@@ -992,21 +1110,28 @@ const Admin = () => {
                       <div className="status-grid">
                         <div className="status-item pending">
                           <span className="status-label">Pending</span>
-                          <span className="status-count">{statistics.orders.pending}</span>
+                          <span className="status-count">{statistics.orders?.pending ?? 0}</span>
                         </div>
                         <div className="status-item processing">
                           <span className="status-label">Processing</span>
-                          <span className="status-count">{statistics.orders.processing}</span>
+                          <span className="status-count">{statistics.orders?.processing ?? 0}</span>
                         </div>
                         <div className="status-item shipped">
                           <span className="status-label">Shipped</span>
-                          <span className="status-count">{statistics.orders.shipped}</span>
+                          <span className="status-count">{statistics.orders?.shipped ?? 0}</span>
                         </div>
                         <div className="status-item delivered">
                           <span className="status-label">Delivered</span>
-                          <span className="status-count">{statistics.orders.delivered}</span>
+                          <span className="status-count">{statistics.orders?.delivered ?? 0}</span>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="dashboard-section" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: 16 }}>
+                      <h2 style={{ marginTop: 0 }}>📋 Seeded Data</h2>
+                      <p style={{ margin: '0 0 8px 0', color: '#0c4a6e' }}>
+                        Users from <strong>seed_users.py</strong> (superadmin, demo users) and products from <strong>seed_products.py</strong> appear in the <strong>Users</strong> and <strong>Products</strong> tabs. Use the sidebar to view and manage them.
+                      </p>
                     </div>
 
                     <div className="dashboard-section">
@@ -1062,10 +1187,20 @@ const Admin = () => {
             <div className="admin-section">
               <div className="admin-section-header">
                 <h2>Fashion Knowledge Base Management</h2>
-                <button onClick={handleSaveKB} disabled={saving} className="save-btn">
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {fashionKBLoadError && (
+                    <button type="button" className="btn btn-outline" onClick={() => { setLoading(true); loadFashionKB(); }}>
+                      Retry load
+                    </button>
+                  )}
+                  <button onClick={handleSaveKB} disabled={saving} className="save-btn">
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
+              {fashionKBLoadError && (
+                <p style={{ marginBottom: 16, color: '#b91c1c', fontSize: 14 }}>Fashion KB failed to load: {fashionKBLoadError}</p>
+              )}
 
               <div className="kb-tabs">
                 <button
@@ -1239,13 +1374,17 @@ const Admin = () => {
                       <td style={{ padding: '12px' }}>{u.is_admin ? '✓' : '✗'}</td>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          <button
-                            onClick={() => handleToggleAdmin(u.id, u.is_admin)}
-                            className={u.is_admin ? 'remove-admin-btn' : 'make-admin-btn'}
-                            style={{ fontSize: '12px', padding: '6px 12px' }}
-                          >
-                            {u.is_admin ? 'Remove Admin' : 'Make Admin'}
-                          </button>
+                          {u.is_superadmin ? (
+                            <span style={{ fontSize: '12px', padding: '6px 12px', color: '#666' }} title="Superadmin cannot be removed as admin">Superadmin</span>
+                          ) : (
+                            <button
+                              onClick={() => handleToggleAdmin(u.id, u.is_admin)}
+                              className={u.is_admin ? 'remove-admin-btn' : 'make-admin-btn'}
+                              style={{ fontSize: '12px', padding: '6px 12px' }}
+                            >
+                              {u.is_admin ? 'Remove Admin' : 'Make Admin'}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleViewUserDetails(u.id)}
                             className="save-btn"
@@ -1608,11 +1747,12 @@ const Admin = () => {
 
           {/* Product Management Section */}
           {activeTab === 'products' && (
-          <div className="admin-section">
+          <div className="admin-section" ref={productFormRef}>
             <div className="admin-section-header">
               <h2>Product Management</h2>
               <button className="save-btn" onClick={() => {
                 setShowProductForm(!showProductForm);
+                setProductValidationErrors([]);
                 if (showProductForm) {
                   setEditingProduct(null);
                   setNewProduct({
@@ -1639,6 +1779,17 @@ const Admin = () => {
               </button>
             </div>
 
+            {productValidationErrors.length > 0 && (
+              <div className="admin-product-validation-errors" role="alert" style={{ marginBottom: '20px' }}>
+                <strong>Please fix the following:</strong>
+                <ul>
+                  {productValidationErrors.map((msg, i) => (
+                    <li key={i}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Create/Edit Product Form */}
             {showProductForm && (
               <div className="sale-form" style={{ marginBottom: '30px', padding: '20px', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
@@ -1650,7 +1801,7 @@ const Admin = () => {
                       <input
                         type="text"
                         value={newProduct.name}
-                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                        onChange={(e) => { setNewProduct({ ...newProduct, name: e.target.value }); if (productValidationErrors.length) setProductValidationErrors([]); }}
                         placeholder="e.g., Classic T-Shirt"
                         style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                       />
@@ -1661,7 +1812,7 @@ const Admin = () => {
                         type="number"
                         step="0.01"
                         value={newProduct.price}
-                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                        onChange={(e) => { setNewProduct({ ...newProduct, price: e.target.value }); if (productValidationErrors.length) setProductValidationErrors([]); }}
                         placeholder="29.99"
                         style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                       />
@@ -1681,7 +1832,7 @@ const Admin = () => {
                       <label>Category *</label>
                       <select
                         value={newProduct.category}
-                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                        onChange={(e) => { setNewProduct({ ...newProduct, category: e.target.value }); if (productValidationErrors.length) setProductValidationErrors([]); }}
                         style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                       >
                         <option value="men">Men</option>
@@ -1694,7 +1845,7 @@ const Admin = () => {
                       <input
                         type="number"
                         value={newProduct.stock_quantity}
-                        onChange={(e) => setNewProduct({ ...newProduct, stock_quantity: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => { setNewProduct({ ...newProduct, stock_quantity: parseInt(e.target.value, 10) || 0 }); if (productValidationErrors.length) setProductValidationErrors([]); }}
                         style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                       />
                     </div>
@@ -2114,7 +2265,7 @@ const Admin = () => {
                             {order.shipping_name}
                             {order.guest_email && <div style={{ fontSize: '11px', color: '#666' }}>{order.guest_email}</div>}
                           </td>
-                          <td style={{ padding: '12px' }}>${order.total.toFixed(2)}</td>
+                          <td style={{ padding: '12px' }}>${Number(order.total ?? 0).toFixed(2)}</td>
                           <td style={{ padding: '12px' }}>
                             <select
                               value={order.status}
@@ -2135,7 +2286,7 @@ const Admin = () => {
                             <button
                               className="save-btn"
                               style={{ fontSize: '12px', padding: '6px 12px' }}
-                              onClick={() => window.open(`/orders/${order.id}`, '_blank')}
+                              onClick={() => setSelectedOrderId(order.id)}
                             >
                               View
                             </button>
@@ -2145,6 +2296,53 @@ const Admin = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Order detail modal */}
+            {(selectedOrderId != null) && (
+              <div
+                className="admin-modal-overlay"
+                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+                onClick={() => setSelectedOrderId(null)}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Order details"
+              >
+                <div
+                  className="admin-modal-content"
+                  style={{ background: '#fff', borderRadius: 8, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div style={{ padding: 20, borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0 }}>Order Details</h3>
+                    <button type="button" onClick={() => setSelectedOrderId(null)} style={{ padding: '6px 12px', cursor: 'pointer' }} aria-label="Close">×</button>
+                  </div>
+                  <div style={{ padding: 20 }}>
+                    {orderDetailLoading ? (
+                      <div>Loading order...</div>
+                    ) : orderDetail ? (
+                      <>
+                        <p><strong>Order #:</strong> {orderDetail.order_number}</p>
+                        <p><strong>Status:</strong> {orderDetail.status}</p>
+                        <p><strong>Date:</strong> {orderDetail.created_at ? new Date(orderDetail.created_at).toLocaleString() : '—'}</p>
+                        <p><strong>Customer:</strong> {orderDetail.shipping_name}{orderDetail.guest_email ? ` (${orderDetail.guest_email})` : ''}</p>
+                        <p><strong>Shipping:</strong> {orderDetail.shipping_address}, {orderDetail.shipping_city}, {orderDetail.shipping_state} {orderDetail.shipping_zip}</p>
+                        <p><strong>Subtotal:</strong> ${Number(orderDetail.subtotal ?? 0).toFixed(2)} | <strong>Tax:</strong> ${Number(orderDetail.tax ?? 0).toFixed(2)} | <strong>Shipping:</strong> ${Number(orderDetail.shipping_cost ?? 0).toFixed(2)} | <strong>Total:</strong> ${Number(orderDetail.total ?? 0).toFixed(2)}</p>
+                        <h4 style={{ marginTop: 16, marginBottom: 8 }}>Items</h4>
+                        <ul style={{ margin: 0, paddingLeft: 20 }}>
+                          {(orderDetail.items || []).map(item => (
+                            <li key={item.id}>
+                              {item.product?.name ?? 'Product'} × {item.quantity} — ${Number(item.price ?? 0).toFixed(2)} each
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <div>No order data.</div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2200,6 +2398,8 @@ const Admin = () => {
           </div>
         )}
         </main>
+        <Footer />
+        </div>
       </div>
     </div>
   );

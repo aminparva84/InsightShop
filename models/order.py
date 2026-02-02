@@ -24,6 +24,7 @@ class Order(db.Model):
     tax = db.Column(db.Numeric(10, 2), nullable=False, default=0.0)
     shipping_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0.0)
     total = db.Column(db.Numeric(10, 2), nullable=False)
+    currency = db.Column(db.String(10), nullable=False, default='USD')
     
     # Order status
     status = db.Column(db.String(50), nullable=False, default='pending', index=True)  # pending, processing, shipped, delivered, cancelled
@@ -52,6 +53,7 @@ class Order(db.Model):
             'id': self.id,
             'order_number': self.order_number,
             'user_id': self.user_id,
+            'guest_email': self.guest_email,
             'shipping_name': self.shipping_name,
             'shipping_address': self.shipping_address,
             'shipping_city': self.shipping_city,
@@ -63,6 +65,7 @@ class Order(db.Model):
             'tax': float(self.tax) if self.tax else 0.0,
             'shipping_cost': float(self.shipping_cost) if self.shipping_cost else 0.0,
             'total': float(self.total) if self.total else 0.0,
+            'currency': getattr(self, 'currency', 'USD'),
             'status': self.status,
             'items': [item.to_dict() for item in self.items],
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -80,10 +83,16 @@ class OrderItem(db.Model):
     
     def to_dict(self):
         """Convert order item to dictionary."""
+        try:
+            product_dict = self.product.to_dict() if self.product else None
+        except Exception:
+            product_dict = {'id': self.product_id, 'name': 'Product', 'price': float(self.price) if self.price else 0.0} if self.product_id else None
+        if product_dict is None and self.product_id:
+            product_dict = {'id': self.product_id, 'name': 'Product (unavailable)', 'price': float(self.price) if self.price else 0.0}
         return {
             'id': self.id,
             'order_id': self.order_id,
-            'product': self.product.to_dict() if self.product else None,
+            'product': product_dict,
             'quantity': self.quantity,
             'price': float(self.price) if self.price else 0.0,
             'subtotal': float(self.price * self.quantity) if self.price else 0.0

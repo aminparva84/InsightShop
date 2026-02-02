@@ -21,6 +21,41 @@
   height: 80px;
 }
 
+.logo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 4px 8px;
+  min-width: 40px;
+  height: 40px;
+}
+
+.logo-placeholder.logo-small {
+  min-width: 24px;
+  height: 24px;
+  font-size: 8px;
+  padding: 2px 4px;
+}
+
+.logo-placeholder.logo-large {
+  min-width: 80px;
+  height: 80px;
+  font-size: 18px;
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+.logo-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 768px) {
   .logo-image {
     width: 32px;
@@ -35,6 +70,24 @@
   .logo-image.logo-large {
     width: 60px;
     height: 60px;
+  }
+
+  .logo-placeholder {
+    min-width: 32px;
+    height: 32px;
+    font-size: 10px;
+  }
+
+  .logo-placeholder.logo-small {
+    min-width: 20px;
+    height: 20px;
+    font-size: 7px;
+  }
+
+  .logo-placeholder.logo-large {
+    min-width: 60px;
+    height: 60px;
+    font-size: 14px;
   }
 }
 

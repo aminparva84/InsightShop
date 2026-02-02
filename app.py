@@ -73,6 +73,19 @@ app.register_blueprint(returns_bp, url_prefix='/api/returns')
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):
+    # Check if frontend build directory exists
+    if not os.path.exists(app.static_folder) or not os.path.exists(os.path.join(app.static_folder, 'index.html')):
+        from flask import jsonify
+        return jsonify({
+            'message': 'Frontend not built. Please run "npm run build" in the frontend directory, or start the React dev server with "npm start" on port 3000.',
+            'api_endpoints': {
+                'health': '/api/health',
+                'products': '/api/products',
+                'auth': '/api/auth'
+            },
+            'development_mode': 'For development, run the React dev server separately: cd frontend && npm start'
+        }), 200
+    
     if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
         return app.send_static_file(path)
     else:

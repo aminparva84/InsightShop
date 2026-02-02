@@ -160,12 +160,7 @@ def create_order():
             # Update product stock
             item_data['product'].stock_quantity -= item_data['quantity']
         
-        # Clear cart
-        if user and not is_guest:
-            CartItem.query.filter_by(user_id=user.id).delete()
-        else:
-            from utils.guest_cart import clear_guest_cart
-            clear_guest_cart()
+        # Cart is cleared only after successful payment (see routes/payments.py)
         
         db.session.commit()
         

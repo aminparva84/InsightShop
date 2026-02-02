@@ -50,6 +50,20 @@ def init_db(app):
         # Create all tables with new schema
         db.create_all()
         print(f"Database tables created at: {Config.DB_PATH}")
+
+        # Add Order.currency column if missing (existing databases)
+        try:
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                if db.engine.dialect.name == 'sqlite':
+                    cursor = conn.execute(text("PRAGMA table_info(orders)"))
+                    columns = [row[1] for row in cursor.fetchall()]
+                    if 'currency' not in columns:
+                        conn.execute(text("ALTER TABLE orders ADD COLUMN currency VARCHAR(10) DEFAULT 'USD'"))
+                        conn.commit()
+                        print("[OK] Added column orders.currency for existing database")
+        except Exception as e:
+            print(f"[WARNING] Could not add orders.currency column: {e}")
         
         # Verify Sale table was created
         try:

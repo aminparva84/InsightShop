@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from './AuthContext';
 
@@ -20,10 +20,21 @@ export const CartProvider = ({ children }) => {
   const [cartTotal, setCartTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const { isAuthenticated } = useAuth();
+  const prevAuthenticatedRef = useRef(isAuthenticated);
 
   useEffect(() => {
     // Fetch cart for both authenticated and guest users
     fetchCart();
+  }, [isAuthenticated]);
+
+  // Clear local cart state when user logs out; session guest cart is cleared in Navbar so logged-out user sees empty cart
+  useEffect(() => {
+    const wasAuthenticated = prevAuthenticatedRef.current;
+    prevAuthenticatedRef.current = isAuthenticated;
+    if (wasAuthenticated && !isAuthenticated) {
+      setCartItems([]);
+      setCartTotal(0);
+    }
   }, [isAuthenticated]);
 
   const fetchCart = async () => {
@@ -80,15 +91,15 @@ export const CartProvider = ({ children }) => {
 
   const removeFromCart = async (itemId, selectedColor = null, selectedSize = null) => {
     try {
-      // For guest cart items, send color and size in request body
-      // Axios DELETE requires data to be in the config object with proper headers
+      // For guest cart items, send color and size in request body (itemId is string "guest_...")
+      // For authenticated users, itemId is numeric CartItem.id
       const config = {
         headers: {
           'Content-Type': 'application/json'
         }
       };
-      
-      if (itemId.startsWith('guest_')) {
+      const idStr = String(itemId);
+      if (idStr.startsWith('guest_')) {
         // Always send data for guest cart items to ensure proper matching
         config.data = {};
         if (selectedColor !== null && selectedColor !== undefined) {

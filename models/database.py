@@ -36,7 +36,12 @@ def init_db(app):
         except ImportError:
             print("Warning: Shipment model not found, shipment tracking feature will be disabled")
             Shipment = None
-        
+        try:
+            from models.ai_assistant_config import AiAssistantConfig
+        except ImportError:
+            print("Warning: AiAssistantConfig model not found, AI assistant admin feature will be disabled")
+            AiAssistantConfig = None
+
         # Create database directory if it doesn't exist
         db_dir = os.path.dirname(Config.DB_PATH) if os.path.dirname(Config.DB_PATH) else '.'
         if db_dir and not os.path.exists(db_dir):

@@ -7,6 +7,7 @@ from models.order import Order
 from models.sale import Sale
 from models.product import Product
 from models.review import Review
+from models.ai_assistant_config import AiAssistantConfig
 from routes.auth import require_auth
 from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
 from utils.seasonal_events import get_upcoming_holidays, get_current_holidays_and_events
@@ -1042,6 +1043,114 @@ def delete_review_admin(review_id):
             'message': 'Review deleted successfully'
         }), 200
         
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== AI ASSISTANT CONFIG ROUTES ====================
+
+@admin_bp.route('/ai-assistant/configs', methods=['GET'])
+@require_admin
+def list_ai_assistant_configs():
+    """List all AI assistant / agent API configurations (models set up by admin)."""
+    try:
+        configs = AiAssistantConfig.query.order_by(AiAssistantConfig.is_active.desc(), AiAssistantConfig.created_at.desc()).all()
+        return jsonify({
+            'success': True,
+            'configs': [c.to_dict(mask_secrets=True) for c in configs]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/ai-assistant/configs', methods=['POST'])
+@require_admin
+def add_ai_assistant_config():
+    """Add or set an AI assistant agent API. Sets the new config as active."""
+    try:
+        data = request.get_json() or {}
+        api_key = (data.get('api_key') or data.get('agent_api') or '').strip()
+        api_endpoint = (data.get('api_endpoint') or '').strip()
+        name = (data.get('name') or 'AI Assistant').strip() or 'AI Assistant'
+        model_id = (data.get('model_id') or '').strip() or None
+        provider = (data.get('provider') or 'bedrock').strip().lower()
+        region = (data.get('region') or '').strip() or None
+
+        if not api_key and not api_endpoint:
+            return jsonify({'error': 'Agent API key or API endpoint is required'}), 400
+
+        if provider not in ('bedrock', 'openai', 'custom'):
+            return jsonify({'error': 'Provider must be one of: bedrock, openai, custom'}), 400
+
+        if provider == 'custom' and not api_endpoint:
+            return jsonify({'error': 'API endpoint is required for custom provider'}), 400
+        if provider in ('bedrock', 'openai') and not api_key:
+            return jsonify({'error': 'API key is required for this provider'}), 400
+
+        # Deactivate all others so only this one is active
+        AiAssistantConfig.query.update({'is_active': False})
+
+        config = AiAssistantConfig(
+            name=name,
+            provider=provider,
+            api_key=api_key if api_key else None,
+            api_endpoint=api_endpoint if api_endpoint else None,
+            model_id=model_id,
+            region=region,
+            is_active=True
+        )
+        db.session.add(config)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'AI assistant API set successfully',
+            'config': config.to_dict(mask_secrets=True)
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/ai-assistant/configs/<int:config_id>/active', methods=['PUT'])
+@require_admin
+def set_active_ai_assistant_config(config_id):
+    """Set a specific config as the active AI assistant."""
+    try:
+        config = AiAssistantConfig.query.get_or_404(config_id)
+        AiAssistantConfig.query.update({'is_active': False})
+        config.is_active = True
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Active AI assistant set to "{config.name}"',
+            'config': config.to_dict(mask_secrets=True)
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/ai-assistant/configs/<int:config_id>', methods=['DELETE'])
+@require_admin
+def delete_ai_assistant_config(config_id):
+    """Remove an AI assistant configuration."""
+    try:
+        config = AiAssistantConfig.query.get_or_404(config_id)
+        was_active = config.is_active
+        config_id = config.id
+        db.session.delete(config)
+        if was_active:
+            # Activate the most recently created remaining config (exclude the one we're deleting)
+            next_config = AiAssistantConfig.query.filter(AiAssistantConfig.id != config_id).order_by(AiAssistantConfig.created_at.desc()).first()
+            if next_config:
+                next_config.is_active = True
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'AI assistant configuration removed'
+        }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

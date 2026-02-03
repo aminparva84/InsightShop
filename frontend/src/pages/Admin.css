@@ -152,7 +152,15 @@
 .nav-icon {
   font-size: 20px;
   min-width: 24px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-icon svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
 }
 
 .nav-label {
@@ -161,15 +169,7 @@
   overflow: hidden;
 }
 
-.nav-description {
-  font-size: 11px;
-  opacity: 0.7;
-  display: block;
-  margin-top: 2px;
-}
-
-.admin-sidebar.closed .nav-label,
-.admin-sidebar.closed .nav-description {
+.admin-sidebar.closed .nav-label {
   display: none;
 }
 
@@ -221,11 +221,16 @@
 .admin-header h1 {
   margin: 0;
   font-size: 28px;
-  font-weight: 700;
-  color: #1a2332;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+}
+
+.admin-header-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: #667eea;
 }
 
 .mobile-menu-toggle {

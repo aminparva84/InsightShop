@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from '../components/Footer';
+import {
+  HiOutlineSquares2X2,
+  HiOutlineCube,
+  HiOutlineArchiveBox,
+  HiOutlineUsers,
+  HiOutlineCurrencyDollar,
+  HiOutlineShoppingCart,
+  HiOutlineStar,
+  HiOutlineCreditCard,
+  HiOutlineBookOpen,
+  HiOutlineCpuChip,
+} from 'react-icons/hi2';
 import './Admin.css';
 
 // Default structure when fashion KB API fails so admin panel still renders
@@ -1034,16 +1046,16 @@ const Admin = () => {
   }
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊', description: 'Overview & Statistics' },
-    { id: 'products', label: 'Products', icon: '🛍️', description: 'Manage Products' },
-    { id: 'orders', label: 'Orders', icon: '📦', description: 'Order Management' },
-    { id: 'users', label: 'Users', icon: '👥', description: 'User Management' },
-    { id: 'sales', label: 'Sales', icon: '💰', description: 'Sales & Promotions' },
-    { id: 'carts', label: 'Carts', icon: '🛒', description: 'Shopping Carts' },
-    { id: 'reviews', label: 'Reviews', icon: '⭐', description: 'Reviews & Ratings' },
-    { id: 'payment-logs', label: 'Payments', icon: '💳', description: 'Payment Logs' },
-    { id: 'fashion', label: 'Fashion KB', icon: '🎨', description: 'Knowledge Base' },
-    { id: 'ai-assistant', label: 'AI Assistant', icon: '🤖', description: 'AI Agent API & Models' },
+    { id: 'dashboard', label: 'Dashboard', Icon: HiOutlineSquares2X2 },
+    { id: 'products', label: 'Products', Icon: HiOutlineCube },
+    { id: 'orders', label: 'Orders', Icon: HiOutlineArchiveBox },
+    { id: 'users', label: 'Users', Icon: HiOutlineUsers },
+    { id: 'sales', label: 'Sales', Icon: HiOutlineCurrencyDollar },
+    { id: 'carts', label: 'Carts', Icon: HiOutlineShoppingCart },
+    { id: 'reviews', label: 'Reviews', Icon: HiOutlineStar },
+    { id: 'payment-logs', label: 'Payments', Icon: HiOutlineCreditCard },
+    { id: 'fashion', label: 'Fashion KB', Icon: HiOutlineBookOpen },
+    { id: 'ai-assistant', label: 'AI Assistant', Icon: HiOutlineCpuChip },
   ];
 
   return (
@@ -1087,15 +1099,10 @@ const Admin = () => {
                       if (item.id === 'ai-assistant') loadAiAssistantConfigs();
                     }}
                     aria-current={activeTab === item.id ? 'page' : undefined}
-                    title={item.description}
+                    title={item.label}
                   >
-                    <span className="nav-icon">{item.icon}</span>
-                    {sidebarOpen && (
-                      <>
-                        <span className="nav-label">{item.label}</span>
-                        {item.description && <span className="nav-description">{item.description}</span>}
-                      </>
-                    )}
+                    <span className="nav-icon"><item.Icon aria-hidden /></span>
+                    {sidebarOpen && <span className="nav-label">{item.label}</span>}
                   </button>
                 </li>
               ))}
@@ -1116,7 +1123,11 @@ const Admin = () => {
         <main className="admin-main">
           <div className="admin-header">
             <h1>
-              {menuItems.find(item => item.id === activeTab)?.icon} {menuItems.find(item => item.id === activeTab)?.label || 'Admin Panel'}
+              {(() => {
+                const item = menuItems.find(i => i.id === activeTab);
+                const Icon = item?.Icon;
+                return Icon ? <><Icon aria-hidden className="admin-header-icon" /> {item.label}</> : 'Admin Panel';
+              })()}
             </h1>
             <div className="header-actions">
               <button 

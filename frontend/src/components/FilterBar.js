@@ -1,9 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './FilterBar.css';
 
-const FilterBar = ({ 
-  categories = [], 
-  colors = [], 
+const CLOSED_STATE = {
+  category: false,
+  color: false,
+  size: false,
+  fabric: false,
+  season: false,
+  clothingCategory: false,
+  price: false
+};
+
+const FilterBar = ({
+  categories = [],
+  colors = [],
   sizes = [],
   fabrics = [],
   seasons = [],
@@ -12,19 +22,23 @@ const FilterBar = ({
   onFilterChange,
   activeFilters = {}
 }) => {
-  const [isOpen, setIsOpen] = useState({
-    category: false,
-    color: false,
-    size: false,
-    fabric: false,
-    season: false,
-    clothingCategory: false,
-    price: false
-  });
+  const [isOpen, setIsOpen] = useState({ ...CLOSED_STATE });
+  const filterBarRef = useRef(null);
+
+  // Close all dropdowns when clicking outside the filter bar
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (filterBarRef.current && !filterBarRef.current.contains(e.target)) {
+        setIsOpen({ ...CLOSED_STATE });
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const toggleDropdown = (filterType) => {
     setIsOpen(prev => ({
-      ...prev,
+      ...CLOSED_STATE,
       [filterType]: !prev[filterType]
     }));
   };
@@ -57,7 +71,7 @@ const FilterBar = ({
   const activeCount = getActiveFilterCount();
 
   return (
-    <div className="filter-bar">
+    <div className="filter-bar" ref={filterBarRef}>
       <div className="filter-bar-container">
         <div className="filter-bar-header">
           <h3>Filters</h3>
@@ -356,15 +370,7 @@ const FilterBar = ({
               className="clear-all-filters"
               onClick={() => {
                 onFilterChange('clearAll', true);
-                setIsOpen({
-                  category: false,
-                  color: false,
-                  size: false,
-                  fabric: false,
-                  season: false,
-                  clothingCategory: false,
-                  price: false
-                });
+                setIsOpen({ ...CLOSED_STATE });
               }}
             >
               Clear All

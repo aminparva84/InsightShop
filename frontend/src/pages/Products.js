@@ -54,9 +54,14 @@ const Products = () => {
     fetchPriceRange();
   }, []);
   
-  // Fetch products on initial load (only once on mount)
+  // Fetch products on initial load (only when no URL filter params — otherwise the filter effect will fetch with params)
   useEffect(() => {
-    // Initial load - fetch all products for normal tab
+    const hasAiResults = searchParams.get('ai_results');
+    const hasFilterParams = searchParams.get('category') || searchParams.get('clothing_category') || searchParams.get('season') || searchParams.get('color') || searchParams.get('size') || searchParams.get('fabric') || searchParams.get('search') || searchParams.get('minPrice') || searchParams.get('maxPrice');
+    if (hasAiResults || hasFilterParams) {
+      // Let the "fetch when filters change" effect handle the request with URL params
+      return;
+    }
     const fetchInitialProducts = async () => {
       try {
         setLoading(true);
@@ -74,12 +79,7 @@ const Products = () => {
         setLoading(false);
       }
     };
-    
-    // Only fetch on initial mount if no AI results in URL
-    const hasAiResults = searchParams.get('ai_results');
-    if (!hasAiResults) {
-      fetchInitialProducts();
-    }
+    fetchInitialProducts();
   }, []); // Only run once on mount
 
   // Sync filters with URL searchParams when URL changes (e.g., AI navigation)

@@ -92,13 +92,13 @@ const FilterBar = ({
         </div>
 
         <div className="filter-dropdowns">
-          {/* Category Filter */}
+          {/* Gender Filter */}
           <div className="filter-dropdown">
             <button
               className={`filter-button ${activeFilters.category ? 'active' : ''}`}
               onClick={() => toggleDropdown('category')}
             >
-              <span>Category</span>
+              <span>Gender</span>
               {activeFilters.category && (
                 <span className="filter-value">{activeFilters.category}</span>
               )}
@@ -107,7 +107,7 @@ const FilterBar = ({
             {isOpen.category && (
               <div className="dropdown-menu">
                 <div className="dropdown-header">
-                  <span>Select Category</span>
+                  <span>Select Gender</span>
                   {activeFilters.category && (
                     <button onClick={() => clearFilter('category')} className="clear-btn">Clear</button>
                   )}

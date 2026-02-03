@@ -63,7 +63,7 @@ const Admin = () => {
     dress_style: '',
     occasion: '',
     age_group: '',
-    season: '',
+    season: 'all_season',
     clothing_category: 'other',
     image_url: '',
     stock_quantity: 0,
@@ -650,8 +650,8 @@ const Admin = () => {
       else if (p < 0) errs.push('Price must be zero or greater.');
     }
     const cat = (product.category || '').trim().toLowerCase();
-    if (!cat) errs.push('Category is required.');
-    else if (!['men', 'women', 'kids'].includes(cat)) errs.push('Category must be Men, Women, or Kids.');
+    if (!cat) errs.push('Gender is required.');
+    else if (!['men', 'women', 'kids'].includes(cat)) errs.push('Gender must be Men, Women, or Kids.');
     const sq = product.stock_quantity;
     const sqNum = typeof sq === 'number' ? sq : parseInt(sq, 10);
     if (sq !== '' && sq !== null && sq !== undefined && (Number.isNaN(sqNum) || sqNum < 0)) {
@@ -676,7 +676,9 @@ const Admin = () => {
         price: parseFloat(newProduct.price),
         stock_quantity: typeof newProduct.stock_quantity === 'number' ? newProduct.stock_quantity : parseInt(String(newProduct.stock_quantity), 10) || 0,
         description: newProduct.description || null,
-        category: (newProduct.category || 'men').trim().toLowerCase()
+        category: (newProduct.category || 'men').trim().toLowerCase(),
+        clothing_category: newProduct.clothing_category || 'other',
+        season: newProduct.season || 'all_season'
       };
       const response = await axios.post('/api/admin/products', payload, {
         headers: { Authorization: token ? `Bearer ${token}` : undefined }
@@ -699,7 +701,7 @@ const Admin = () => {
           dress_style: '',
           occasion: '',
           age_group: '',
-          season: '',
+          season: 'all_season',
           clothing_category: 'other',
           image_url: '',
           stock_quantity: 0,
@@ -745,7 +747,9 @@ const Admin = () => {
         name: (updates.name || '').trim(),
         price: parseFloat(updates.price),
         stock_quantity: typeof updates.stock_quantity === 'number' ? updates.stock_quantity : parseInt(String(updates.stock_quantity), 10) || 0,
-        category: (updates.category || 'men').trim().toLowerCase()
+        category: (updates.category || 'men').trim().toLowerCase(),
+        clothing_category: updates.clothing_category || 'other',
+        season: updates.season || 'all_season'
       };
       const response = await axios.put(`/api/admin/products/${productId}`, payload, {
         headers: { Authorization: token ? `Bearer ${token}` : undefined }
@@ -808,7 +812,7 @@ const Admin = () => {
       dress_style: product.dress_style || '',
       occasion: product.occasion || '',
       age_group: product.age_group || '',
-      season: product.season || '',
+      season: product.season || 'all_season',
       clothing_category: product.clothing_category || 'other',
       image_url: product.image_url || '',
       stock_quantity: product.stock_quantity || 0,
@@ -1775,7 +1779,7 @@ const Admin = () => {
                     dress_style: '',
                     occasion: '',
                     age_group: '',
-                    season: '',
+                    season: 'all_season',
                     clothing_category: 'other',
                     image_url: '',
                     stock_quantity: 0,
@@ -1835,9 +1839,39 @@ const Admin = () => {
                       style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px' }}
                     />
                   </div>
+                  {/* Category, Gender & Season — matches table columns */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
                     <div>
-                      <label>Category *</label>
+                      <label>Category (clothing type) *</label>
+                      <select
+                        value={newProduct.clothing_category || 'other'}
+                        onChange={(e) => { setNewProduct({ ...newProduct, clothing_category: e.target.value || 'other' }); if (productValidationErrors.length) setProductValidationErrors([]); }}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      >
+                        <option value="pants">Pants</option>
+                        <option value="shirts">Shirts</option>
+                        <option value="t_shirts">T-Shirts</option>
+                        <option value="jackets">Jackets</option>
+                        <option value="coats">Coats</option>
+                        <option value="socks">Socks</option>
+                        <option value="dresses">Dresses</option>
+                        <option value="skirts">Skirts</option>
+                        <option value="shorts">Shorts</option>
+                        <option value="sweaters">Sweaters</option>
+                        <option value="hoodies">Hoodies</option>
+                        <option value="underwear">Underwear</option>
+                        <option value="shoes">Shoes</option>
+                        <option value="sandals">Sandals</option>
+                        <option value="sneakers">Sneakers</option>
+                        <option value="pajamas">Pajamas</option>
+                        <option value="blouses">Blouses</option>
+                        <option value="leggings">Leggings</option>
+                        <option value="suits">Suits</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Gender *</label>
                       <select
                         value={newProduct.category}
                         onChange={(e) => { setNewProduct({ ...newProduct, category: e.target.value }); if (productValidationErrors.length) setProductValidationErrors([]); }}
@@ -1848,6 +1882,22 @@ const Admin = () => {
                         <option value="kids">Kids</option>
                       </select>
                     </div>
+                    <div>
+                      <label>Season *</label>
+                      <select
+                        value={newProduct.season || 'all_season'}
+                        onChange={(e) => { setNewProduct({ ...newProduct, season: e.target.value || 'all_season' }); if (productValidationErrors.length) setProductValidationErrors([]); }}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      >
+                        <option value="spring">Spring</option>
+                        <option value="summer">Summer</option>
+                        <option value="fall">Fall</option>
+                        <option value="winter">Winter</option>
+                        <option value="all_season">All season</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <div>
                       <label>Stock Quantity</label>
                       <input
@@ -2010,50 +2060,6 @@ const Admin = () => {
                         style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                       />
                     </div>
-                    <div>
-                      <label>Season</label>
-                      <select
-                        value={newProduct.season || ''}
-                        onChange={(e) => setNewProduct({ ...newProduct, season: e.target.value || '' })}
-                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-                      >
-                        <option value="">— Select season —</option>
-                        <option value="spring">Spring</option>
-                        <option value="summer">Summer</option>
-                        <option value="fall">Fall</option>
-                        <option value="winter">Winter</option>
-                        <option value="all_season">All season</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label>Clothing category</label>
-                      <select
-                        value={newProduct.clothing_category || 'other'}
-                        onChange={(e) => setNewProduct({ ...newProduct, clothing_category: e.target.value || 'other' })}
-                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-                      >
-                        <option value="pants">Pants</option>
-                        <option value="shirts">Shirts</option>
-                        <option value="t_shirts">T-Shirts</option>
-                        <option value="jackets">Jackets</option>
-                        <option value="coats">Coats</option>
-                        <option value="socks">Socks</option>
-                        <option value="dresses">Dresses</option>
-                        <option value="skirts">Skirts</option>
-                        <option value="shorts">Shorts</option>
-                        <option value="sweaters">Sweaters</option>
-                        <option value="hoodies">Hoodies</option>
-                        <option value="underwear">Underwear</option>
-                        <option value="shoes">Shoes</option>
-                        <option value="sandals">Sandals</option>
-                        <option value="sneakers">Sneakers</option>
-                        <option value="pajamas">Pajamas</option>
-                        <option value="blouses">Blouses</option>
-                        <option value="leggings">Leggings</option>
-                        <option value="suits">Suits</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
                   </div>
 
                   <div>
@@ -2092,7 +2098,7 @@ const Admin = () => {
                           dress_style: '',
                           occasion: '',
                           age_group: '',
-                          season: '',
+                          season: 'all_season',
                           clothing_category: 'other',
                           image_url: '',
                           stock_quantity: 0,
@@ -2117,6 +2123,8 @@ const Admin = () => {
                     <tr style={{ background: '#f8f9fa' }}>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Name</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Category</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Gender</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Season</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Price</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Colors</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Sizes</th>
@@ -2128,7 +2136,7 @@ const Admin = () => {
                   <tbody>
                     {products.length === 0 ? (
                       <tr>
-                        <td colSpan="8" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                        <td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
                           No products found. Create your first product above!
                         </td>
                       </tr>
@@ -2136,7 +2144,9 @@ const Admin = () => {
                       products.map(product => (
                         <tr key={product.id} style={{ borderBottom: '1px solid #dee2e6' }}>
                           <td style={{ padding: '12px' }}>{product.name}</td>
-                          <td style={{ padding: '12px', textTransform: 'capitalize' }}>{product.category}</td>
+                          <td style={{ padding: '12px', textTransform: 'capitalize' }}>{(product.clothing_category || product.category || '-').replace(/_/g, ' ')}</td>
+                          <td style={{ padding: '12px', textTransform: 'capitalize' }}>{product.category || '-'}</td>
+                          <td style={{ padding: '12px', textTransform: 'capitalize' }}>{(product.season || 'all_season').replace(/_/g, ' ')}</td>
                           <td style={{ padding: '12px' }}>${parseFloat(product.price).toFixed(2)}</td>
                           <td style={{ padding: '12px' }}>
                             {product.available_colors && product.available_colors.length > 0 

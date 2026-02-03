@@ -63,6 +63,8 @@ const Admin = () => {
     dress_style: '',
     occasion: '',
     age_group: '',
+    season: '',
+    clothing_category: 'other',
     image_url: '',
     stock_quantity: 0,
     is_active: true
@@ -697,6 +699,8 @@ const Admin = () => {
           dress_style: '',
           occasion: '',
           age_group: '',
+          season: '',
+          clothing_category: 'other',
           image_url: '',
           stock_quantity: 0,
           is_active: true
@@ -804,6 +808,8 @@ const Admin = () => {
       dress_style: product.dress_style || '',
       occasion: product.occasion || '',
       age_group: product.age_group || '',
+      season: product.season || '',
+      clothing_category: product.clothing_category || 'other',
       image_url: product.image_url || '',
       stock_quantity: product.stock_quantity || 0,
       is_active: product.is_active !== undefined ? product.is_active : true
@@ -1769,6 +1775,8 @@ const Admin = () => {
                     dress_style: '',
                     occasion: '',
                     age_group: '',
+                    season: '',
+                    clothing_category: 'other',
                     image_url: '',
                     stock_quantity: 0,
                     is_active: true
@@ -2002,6 +2010,50 @@ const Admin = () => {
                         style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                       />
                     </div>
+                    <div>
+                      <label>Season</label>
+                      <select
+                        value={newProduct.season || ''}
+                        onChange={(e) => setNewProduct({ ...newProduct, season: e.target.value || '' })}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      >
+                        <option value="">— Select season —</option>
+                        <option value="spring">Spring</option>
+                        <option value="summer">Summer</option>
+                        <option value="fall">Fall</option>
+                        <option value="winter">Winter</option>
+                        <option value="all_season">All season</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Clothing category</label>
+                      <select
+                        value={newProduct.clothing_category || 'other'}
+                        onChange={(e) => setNewProduct({ ...newProduct, clothing_category: e.target.value || 'other' })}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      >
+                        <option value="pants">Pants</option>
+                        <option value="shirts">Shirts</option>
+                        <option value="t_shirts">T-Shirts</option>
+                        <option value="jackets">Jackets</option>
+                        <option value="coats">Coats</option>
+                        <option value="socks">Socks</option>
+                        <option value="dresses">Dresses</option>
+                        <option value="skirts">Skirts</option>
+                        <option value="shorts">Shorts</option>
+                        <option value="sweaters">Sweaters</option>
+                        <option value="hoodies">Hoodies</option>
+                        <option value="underwear">Underwear</option>
+                        <option value="shoes">Shoes</option>
+                        <option value="sandals">Sandals</option>
+                        <option value="sneakers">Sneakers</option>
+                        <option value="pajamas">Pajamas</option>
+                        <option value="blouses">Blouses</option>
+                        <option value="leggings">Leggings</option>
+                        <option value="suits">Suits</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
@@ -2040,6 +2092,8 @@ const Admin = () => {
                           dress_style: '',
                           occasion: '',
                           age_group: '',
+                          season: '',
+                          clothing_category: 'other',
                           image_url: '',
                           stock_quantity: 0,
                           is_active: true

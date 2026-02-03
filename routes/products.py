@@ -88,6 +88,14 @@ def get_products():
         if fabric:
             query = query.filter_by(fabric=fabric)
         
+        season = request.args.get('season', '')
+        if season:
+            query = query.filter_by(season=season)
+        
+        clothing_category = request.args.get('clothing_category', '')
+        if clothing_category:
+            query = query.filter_by(clothing_category=clothing_category)
+        
         min_price = request.args.get('min_price', '')
         if min_price:
             try:
@@ -132,6 +140,8 @@ def get_products():
                     'on_sale': False,
                     'category': p.category,
                     'color': p.color,
+                    'season': getattr(p, 'season', None),
+                    'clothing_category': getattr(p, 'clothing_category', 'other'),
                     'image_url': p.image_url,
                     'is_active': p.is_active
                 })
@@ -202,6 +212,32 @@ def get_fabrics():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@products_bp.route('/seasons', methods=['GET'])
+def get_seasons():
+    """Get all product seasons."""
+    try:
+        seasons = db.session.query(Product.season).distinct().filter(
+            Product.season.isnot(None),
+            Product.is_active == True
+        ).all()
+        seasons_list = [s[0] for s in seasons if s[0]]
+        return jsonify({'seasons': sorted(seasons_list)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@products_bp.route('/clothing-categories', methods=['GET'])
+def get_clothing_categories():
+    """Get all product clothing categories (pants, shirts, jackets, etc.)."""
+    try:
+        categories = db.session.query(Product.clothing_category).distinct().filter(
+            Product.clothing_category.isnot(None),
+            Product.is_active == True
+        ).all()
+        categories_list = [c[0] for c in categories if c[0]]
+        return jsonify({'clothing_categories': sorted(categories_list)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @products_bp.route('/price-range', methods=['GET'])
 def get_price_range():
     """Get min and max price range."""
@@ -256,6 +292,14 @@ def search_products():
         
         if size:
             query = query.filter_by(size=size)
+        
+        season = data.get('season', '').strip()
+        if season:
+            query = query.filter_by(season=season)
+        
+        clothing_category = data.get('clothing_category', '').strip()
+        if clothing_category:
+            query = query.filter_by(clothing_category=clothing_category)
         
         if max_price is not None:
             try:
@@ -319,6 +363,8 @@ def search_products():
                 'max_price': max_price,
                 'category': category,
                 'size': size,
+                'season': season,
+                'clothing_category': clothing_category,
                 'sort_by': sort_by
             }
         }), 200

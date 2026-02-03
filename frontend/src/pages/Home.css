@@ -309,6 +309,278 @@
   width: 60%;
 }
 
+/* Shop by Category (clothing types) */
+.shop-by-category {
+  padding: 80px 0;
+  background: #fff;
+  border-top: 1px solid #eee;
+}
+
+.clothing-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.clothing-category-card {
+  background: #fafafa;
+  padding: 28px 16px;
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  border: 1px solid #eee;
+  position: relative;
+  overflow: hidden;
+}
+
+.clothing-category-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(26, 35, 50, 0.03), transparent);
+  transition: left 0.4s ease;
+}
+
+.clothing-category-card:hover::before {
+  left: 100%;
+}
+
+.clothing-category-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  border-color: rgba(26, 35, 50, 0.15);
+}
+
+.clothing-category-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a2332;
+  transition: color 0.25s ease, transform 0.25s ease;
+}
+
+.clothing-category-icon svg {
+  width: 40px;
+  height: 40px;
+}
+
+.clothing-category-card:hover .clothing-category-icon {
+  color: #2c3e50;
+  transform: scale(1.08);
+}
+
+.clothing-category-card h3 {
+  font-family: 'Cormorant Garamond', 'Playfair Display', 'Georgia', serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a2332;
+  letter-spacing: 0.5px;
+  margin: 0;
+  text-transform: capitalize;
+  transition: color 0.25s ease;
+}
+
+.clothing-category-card:hover h3 {
+  color: #2c3e50;
+}
+
+@media (max-width: 768px) {
+  .shop-by-category {
+    padding: 50px 0;
+  }
+
+  .clothing-category-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+
+  .clothing-category-card {
+    padding: 20px 12px;
+  }
+
+  .clothing-category-icon {
+    font-size: 32px;
+  }
+
+  .clothing-category-icon svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .clothing-category-card h3 {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .clothing-category-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Seasonal Shopping */
+.seasonal-shopping {
+  padding: 80px 0;
+  background: linear-gradient(180deg, #f0f4f0 0%, #e8efe8 50%, #f5f8f5 100%);
+}
+
+.season-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 28px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.season-card {
+  background: white;
+  padding: 44px 32px;
+  border-radius: 16px;
+  text-align: center;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.season-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  transition: left 0.5s ease;
+}
+
+.season-card:hover::before {
+  left: 100%;
+}
+
+.season-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+.season-icon {
+  font-size: 56px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.season-icon svg {
+  width: 56px;
+  height: 56px;
+}
+
+.season-card h3 {
+  font-family: 'Cormorant Garamond', 'Playfair Display', 'Georgia', serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin: 0;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.season-card h3::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  transition: width 0.3s ease;
+}
+
+.season-card:hover h3::after {
+  width: 50%;
+}
+
+/* Season accent colors */
+.season-spring .season-icon { color: #2d7d46; }
+.season-spring h3 { color: #1a4d2e; }
+.season-spring h3::after { background: #2d7d46; }
+.season-spring:hover { border-color: rgba(45, 125, 70, 0.4); }
+.season-spring:hover .season-icon { color: #1e5c35; transform: scale(1.1); }
+
+.season-summer .season-icon { color: #d4a017; }
+.season-summer h3 { color: #8b6914; }
+.season-summer h3::after { background: #d4a017; }
+.season-summer:hover { border-color: rgba(212, 160, 23, 0.4); }
+.season-summer:hover .season-icon { color: #b8860b; transform: scale(1.1); }
+
+.season-fall .season-icon { color: #c45c26; }
+.season-fall h3 { color: #8b4513; }
+.season-fall h3::after { background: #c45c26; }
+.season-fall:hover { border-color: rgba(196, 92, 38, 0.4); }
+.season-fall:hover .season-icon { color: #a04a1e; transform: scale(1.1); }
+
+.season-winter .season-icon { color: #4a7ba7; }
+.season-winter h3 { color: #2c5282; }
+.season-winter h3::after { background: #4a7ba7; }
+.season-winter:hover { border-color: rgba(74, 123, 167, 0.4); }
+.season-winter:hover .season-icon { color: #2c5282; transform: scale(1.1); }
+
+@media (max-width: 768px) {
+  .seasonal-shopping {
+    padding: 50px 0;
+  }
+
+  .season-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .season-card {
+    padding: 36px 24px;
+  }
+
+  .season-icon {
+    font-size: 48px;
+  }
+
+  .season-icon svg {
+    width: 48px;
+    height: 48px;
+  }
+
+  .season-card h3 {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .season-grid {
+    gap: 16px;
+  }
+
+  .season-card {
+    padding: 28px 20px;
+  }
+
+  .season-card h3 {
+    font-size: 20px;
+  }
+}
+
 .ai-chat-overlay {
   position: fixed;
   top: 0;

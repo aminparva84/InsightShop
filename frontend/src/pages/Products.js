@@ -27,6 +27,8 @@ const Products = () => {
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [fabrics, setFabrics] = useState([]);
+  const [seasons, setSeasons] = useState([]);
+  const [clothingCategories, setClothingCategories] = useState([]);
   const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
   const [selectedForCompare, setSelectedForCompare] = useState([]);
   const [filters, setFilters] = useState({
@@ -34,6 +36,8 @@ const Products = () => {
     color: searchParams.get('color') || '',
     size: searchParams.get('size') || '',
     fabric: searchParams.get('fabric') || '',
+    season: searchParams.get('season') || '',
+    clothing_category: searchParams.get('clothing_category') || '',
     minPrice: searchParams.get('minPrice') || '',
     maxPrice: searchParams.get('maxPrice') || '',
     search: searchParams.get('search') || '',
@@ -45,6 +49,8 @@ const Products = () => {
     fetchColors();
     fetchSizes();
     fetchFabrics();
+    fetchSeasons();
+    fetchClothingCategories();
     fetchPriceRange();
   }, []);
   
@@ -86,6 +92,8 @@ const Products = () => {
       color: searchParams.get('color') || '',
       size: searchParams.get('size') || '',
       fabric: searchParams.get('fabric') || '',
+      season: searchParams.get('season') || '',
+      clothing_category: searchParams.get('clothing_category') || '',
       minPrice: searchParams.get('minPrice') || '',
       maxPrice: searchParams.get('maxPrice') || '',
       search: searchParams.get('search') || '',
@@ -152,7 +160,7 @@ const Products = () => {
       console.log('Products Page: AI Dashboard with no results, setting loading to false');
       setLoading(false);
     }
-  }, [searchParams, activeTab, filters.ai_results, filters.category, filters.color, filters.size, filters.fabric, filters.minPrice, filters.maxPrice, filters.search]); // Include all filter changes
+  }, [searchParams, activeTab, filters.ai_results, filters.category, filters.color, filters.size, filters.fabric, filters.season, filters.clothing_category, filters.minPrice, filters.maxPrice, filters.search]); // Include all filter changes
 
   const fetchCategories = async () => {
     try {
@@ -195,6 +203,30 @@ const Products = () => {
         console.error('Error fetching fabrics:', error);
       }
       setFabrics([]);
+    }
+  };
+
+  const fetchSeasons = async () => {
+    try {
+      const response = await axios.get('/api/products/seasons');
+      setSeasons(response.data.seasons || []);
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        console.error('Error fetching seasons:', error);
+      }
+      setSeasons([]);
+    }
+  };
+
+  const fetchClothingCategories = async () => {
+    try {
+      const response = await axios.get('/api/products/clothing-categories');
+      setClothingCategories(response.data.clothing_categories || []);
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        console.error('Error fetching clothing categories:', error);
+      }
+      setClothingCategories([]);
     }
   };
 
@@ -313,6 +345,8 @@ const Products = () => {
       if (filters.color) params.append('color', filters.color);
       if (filters.size) params.append('size', filters.size);
       if (filters.fabric) params.append('fabric', filters.fabric);
+      if (filters.season) params.append('season', filters.season);
+      if (filters.clothing_category) params.append('clothing_category', filters.clothing_category);
       if (filters.minPrice) params.append('min_price', filters.minPrice);
       if (filters.maxPrice) params.append('max_price', filters.maxPrice);
       if (filters.search) params.append('search', filters.search);
@@ -360,6 +394,8 @@ const Products = () => {
       color: '',
       size: '',
       fabric: '',
+      season: '',
+      clothing_category: '',
       minPrice: priceRange.min,
       maxPrice: priceRange.max,
       search: '',
@@ -431,6 +467,8 @@ const Products = () => {
             colors={colors}
             sizes={sizes}
             fabrics={fabrics}
+            seasons={seasons}
+            clothingCategories={clothingCategories}
             priceRange={priceRange}
             activeFilters={filters}
             onFilterChange={(filterType, value) => {

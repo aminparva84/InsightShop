@@ -474,9 +474,11 @@ def create_product():
             available_sizes=available_sizes,
             fabric=data.get('fabric'),
             clothing_type=data.get('clothing_type'),
+            clothing_category=data.get('clothing_category') or 'other',
             dress_style=data.get('dress_style'),
             occasion=data.get('occasion'),
             age_group=data.get('age_group'),
+            season=data.get('season') or 'all_season',
             image_url=data.get('image_url') or None,
             stock_quantity=stock_quantity,
             is_active=data.get('is_active', True),
@@ -542,12 +544,16 @@ def update_product(product_id):
             product.fabric = data.get('fabric')
         if 'clothing_type' in data:
             product.clothing_type = data.get('clothing_type')
+        if 'clothing_category' in data:
+            product.clothing_category = data.get('clothing_category') or 'other'
         if 'dress_style' in data:
             product.dress_style = data.get('dress_style')
         if 'occasion' in data:
             product.occasion = data.get('occasion')
         if 'age_group' in data:
             product.age_group = data.get('age_group')
+        if 'season' in data:
+            product.season = data.get('season') or 'all_season'
         if 'image_url' in data:
             product.image_url = data.get('image_url')
         if 'stock_quantity' in data:

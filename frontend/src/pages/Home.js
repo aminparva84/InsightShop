@@ -1,7 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { FaUserTie, FaUser, FaChild } from 'react-icons/fa';
+import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain } from 'react-icons/fa';
+import {
+  GiTrousers,
+  GiShirt,
+  GiTShirt,
+  GiMonclerJacket,
+  GiDress,
+  GiAmpleDress,
+  GiSkirt,
+  GiShorts,
+  GiWool,
+  GiHoodie,
+  GiSandal,
+  GiRunningShoe,
+  GiNightSleep,
+  GiUnderwear,
+} from 'react-icons/gi';
 import ProductGrid from '../components/ProductGrid';
 import './Home.css';
 
@@ -82,10 +98,10 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="categories">
+      {/* Shop by Gender */}
+      <section className="categories gender-section">
         <div className="container">
-          <h2 className="section-title">Shop by Category</h2>
+          <h2 className="section-title">Shop by Gender</h2>
           <div className="category-grid">
             <div
               className="category-card"
@@ -125,6 +141,111 @@ const Home = () => {
                 <FaChild />
               </div>
               <h3>Kids</h3>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Shop by Category (clothing types) */}
+      <section className="shop-by-category">
+        <div className="container">
+          <h2 className="section-title">Shop by Category</h2>
+          <div className="clothing-category-grid">
+            {[
+              { id: 'pants', label: 'Pants', Icon: GiTrousers },
+              { id: 'shirts', label: 'Shirts', Icon: GiShirt },
+              { id: 't_shirts', label: 'T-Shirts', Icon: GiTShirt },
+              { id: 'jackets', label: 'Jackets', Icon: GiMonclerJacket },
+              { id: 'coats', label: 'Coats', Icon: FaCloudRain },
+              { id: 'socks', label: 'Socks', Icon: FaSocks },
+              { id: 'dresses', label: 'Dresses', Icon: GiDress },
+              { id: 'skirts', label: 'Skirts', Icon: GiSkirt },
+              { id: 'shorts', label: 'Shorts', Icon: GiShorts },
+              { id: 'sweaters', label: 'Sweaters', Icon: GiWool },
+              { id: 'hoodies', label: 'Hoodies', Icon: GiHoodie },
+              { id: 'shoes', label: 'Shoes', Icon: FaShoePrints },
+              { id: 'sandals', label: 'Sandals', Icon: GiSandal },
+              { id: 'sneakers', label: 'Sneakers', Icon: GiRunningShoe },
+              { id: 'pajamas', label: 'Pajamas', Icon: GiNightSleep },
+              { id: 'blouses', label: 'Blouses', Icon: GiAmpleDress },
+              { id: 'underwear', label: 'Underwear', Icon: GiUnderwear },
+              { id: 'suits', label: 'Suits', Icon: FaUserTie },
+            ].map(({ id, label, Icon }) => (
+              <div
+                key={id}
+                className="clothing-category-card"
+                onClick={() => navigate(`/products?clothing_category=${id}`)}
+                onKeyDown={(e) => e.key === 'Enter' && navigate(`/products?clothing_category=${id}`)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Shop ${label}`}
+              >
+                <div className="clothing-category-icon">
+                  <Icon />
+                </div>
+                <h3>{label}</h3>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Seasonal Shopping */}
+      <section className="seasonal-shopping">
+        <div className="container">
+          <h2 className="section-title">Seasonal Shopping</h2>
+          <div className="season-grid">
+            <div
+              className="season-card season-spring"
+              onClick={() => navigate('/products?season=spring')}
+              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=spring')}
+              role="button"
+              tabIndex={0}
+              aria-label="Shop Spring"
+            >
+              <div className="season-icon">
+                <FaSeedling />
+              </div>
+              <h3>Spring</h3>
+            </div>
+            <div
+              className="season-card season-summer"
+              onClick={() => navigate('/products?season=summer')}
+              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=summer')}
+              role="button"
+              tabIndex={0}
+              aria-label="Shop Summer"
+            >
+              <div className="season-icon">
+                <FaSun />
+              </div>
+              <h3>Summer</h3>
+            </div>
+            <div
+              className="season-card season-fall"
+              onClick={() => navigate('/products?season=fall')}
+              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=fall')}
+              role="button"
+              tabIndex={0}
+              aria-label="Shop Fall"
+            >
+              <div className="season-icon">
+                <FaLeaf />
+              </div>
+              <h3>Fall</h3>
+            </div>
+            <div
+              className="season-card season-winter"
+              onClick={() => navigate('/products?season=winter')}
+              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=winter')}
+              role="button"
+              tabIndex={0}
+              aria-label="Shop Winter"
+            >
+              <div className="season-icon">
+                <FaSnowflake />
+              </div>
+              <h3>Winter</h3>
             </div>
           </div>
         </div>

@@ -64,6 +64,39 @@ def init_db(app):
                         print("[OK] Added column orders.currency for existing database")
         except Exception as e:
             print(f"[WARNING] Could not add orders.currency column: {e}")
+
+        # Add Product.season column if missing (existing databases); backfill NULLs to all_season
+        try:
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                if db.engine.dialect.name == 'sqlite':
+                    cursor = conn.execute(text("PRAGMA table_info(products)"))
+                    columns = [row[1] for row in cursor.fetchall()]
+                    if 'season' not in columns:
+                        conn.execute(text("ALTER TABLE products ADD COLUMN season VARCHAR(20) DEFAULT 'all_season'"))
+                        conn.commit()
+                        print("[OK] Added column products.season for existing database")
+                    # Ensure every product has a season (backfill NULLs)
+                    conn.execute(text("UPDATE products SET season = 'all_season' WHERE season IS NULL OR season = ''"))
+                    conn.commit()
+        except Exception as e:
+            print(f"[WARNING] Could not add/backfill products.season column: {e}")
+
+        # Add Product.clothing_category column if missing (existing databases); backfill to 'other'
+        try:
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                if db.engine.dialect.name == 'sqlite':
+                    cursor = conn.execute(text("PRAGMA table_info(products)"))
+                    columns = [row[1] for row in cursor.fetchall()]
+                    if 'clothing_category' not in columns:
+                        conn.execute(text("ALTER TABLE products ADD COLUMN clothing_category VARCHAR(50) DEFAULT 'other'"))
+                        conn.commit()
+                        print("[OK] Added column products.clothing_category for existing database")
+                    conn.execute(text("UPDATE products SET clothing_category = 'other' WHERE clothing_category IS NULL OR clothing_category = ''"))
+                    conn.commit()
+        except Exception as e:
+            print(f"[WARNING] Could not add/backfill products.clothing_category column: {e}")
         
         # Verify Sale table was created
         try:

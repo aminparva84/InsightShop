@@ -19,6 +19,34 @@ import string
 CATEGORIES = ['men', 'women', 'kids']
 COLORS = ['Red', 'Blue', 'Green', 'Yellow', 'Black', 'White', 'Gray', 'Pink', 'Purple', 'Orange', 'Brown', 'Navy', 'Beige', 'Maroon', 'Teal']
 SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+SEASONS = ['spring', 'summer', 'fall', 'winter', 'all_season']
+# Real retail clothing categories (one per product)
+CLOTHING_CATEGORY_MAP = {
+    'T-Shirt': 't_shirts',
+    'Polo Shirt': 'shirts',
+    'Dress Shirt': 'shirts',
+    'Blouse': 'blouses',
+    'Dress': 'dresses',
+    'Jeans': 'pants',
+    'Chinos': 'pants',
+    'Shorts': 'shorts',
+    'Skirt': 'skirts',
+    'Leggings': 'leggings',
+    'Hoodie': 'hoodies',
+    'Sweater': 'sweaters',
+    'Jacket': 'jackets',
+    'Blazer': 'jackets',
+    'Coat': 'coats',
+    'Suit': 'suits',
+    'Underwear': 'underwear',
+    'Bra': 'underwear',
+    'Socks': 'socks',
+    'Shoes': 'shoes',
+    'Sneakers': 'sneakers',
+    'Heels': 'shoes',
+    'Sandals': 'sandals',
+    'Pajamas': 'pajamas',
+}
 CLOTHING_TYPES = {
     'men': ['T-Shirt', 'Polo Shirt', 'Dress Shirt', 'Jeans', 'Chinos', 'Shorts', 'Hoodie', 'Sweater', 'Jacket', 'Blazer', 'Suit', 'Underwear', 'Socks', 'Shoes', 'Sneakers'],
     'women': ['T-Shirt', 'Blouse', 'Dress', 'Skirt', 'Jeans', 'Leggings', 'Shorts', 'Hoodie', 'Sweater', 'Jacket', 'Coat', 'Underwear', 'Bra', 'Socks', 'Shoes', 'Heels', 'Sandals'],
@@ -161,6 +189,10 @@ def seed_products():
                         }
                         age_group = age_group_map.get(clothing_type, 'all')
                         
+                        # All seed products are relevant to every season for now
+                        season = 'all_season'
+                        clothing_category = CLOTHING_CATEGORY_MAP.get(clothing_type, 'other')
+                        
                         product = Product(
                             name=name,
                             description=description,
@@ -170,8 +202,10 @@ def seed_products():
                             size=size,
                             fabric=fabric,
                             clothing_type=clothing_type,
+                            clothing_category=clothing_category,
                             occasion=occasion,
                             age_group=age_group,
+                            season=season,
                             image_url=f"https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80",
                             stock_quantity=random.randint(5, 50),
                             is_active=True,

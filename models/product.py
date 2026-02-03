@@ -17,9 +17,11 @@ class Product(db.Model):
     available_sizes = db.Column(db.Text, nullable=True)  # JSON array of available sizes
     fabric = db.Column(db.String(100), nullable=True, index=True)  # e.g., "100% Cotton", "Polyester Blend", "Wool"
     clothing_type = db.Column(db.String(100), nullable=True, index=True)  # e.g., "T-Shirt", "Dress", "Jeans", "Suit"
+    clothing_category = db.Column(db.String(50), nullable=False, default='other', index=True)  # pants, shirts, t_shirts, jackets, coats, socks, dresses, etc.
     dress_style = db.Column(db.String(100), nullable=True, index=True)  # e.g., "scoop", "v-neck", "bow", "padding", "slit"
     occasion = db.Column(db.String(100), nullable=True, index=True)  # e.g., "wedding", "business_formal", "casual", "date_night"
     age_group = db.Column(db.String(50), nullable=True, index=True)  # e.g., "young_adult", "mature", "senior", "all"
+    season = db.Column(db.String(20), nullable=False, default='all_season', index=True)  # spring, summer, fall, winter, all_season
     image_url = db.Column(db.String(500), nullable=True)
     stock_quantity = db.Column(db.Integer, default=0, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
@@ -49,6 +51,8 @@ class Product(db.Model):
         Index('idx_category_price', 'category', 'price'),
         Index('idx_category_fabric', 'category', 'fabric'),
         Index('idx_is_active_category', 'is_active', 'category'),
+        Index('idx_category_season', 'category', 'season'),
+        Index('idx_clothing_category', 'clothing_category'),
     )
     
     def get_sale_price(self):
@@ -137,9 +141,11 @@ class Product(db.Model):
             'available_sizes': available_sizes_list if available_sizes_list else ([self.size] if self.size else []),
             'fabric': self.fabric,
             'clothing_type': self.clothing_type,
+            'clothing_category': self.clothing_category or 'other',
             'dress_style': self.dress_style,
             'occasion': self.occasion,
             'age_group': self.age_group,
+            'season': self.season or 'all_season',
             'image_url': self.image_url,
             'stock_quantity': self.stock_quantity,
             'is_active': self.is_active,
@@ -167,9 +173,11 @@ class Product(db.Model):
         
         fabric_info = f", Fabric: {self.fabric}" if self.fabric else ""
         clothing_type_info = f", Type: {self.clothing_type}" if self.clothing_type else ""
+        clothing_category_info = f", Clothing Category: {self.clothing_category}" if self.clothing_category else ""
         dress_style_info = f", Style: {self.dress_style}" if self.dress_style else ""
         occasion_info = f", Occasion: {self.occasion}" if self.occasion else ""
         age_group_info = f", Age Group: {self.age_group}" if self.age_group else ""
+        season_info = f", Season: {self.season}" if self.season else ""
         
         # Get recent reviews (last 5) for AI context
         recent_reviews = Review.query.filter_by(product_id=self.id).order_by(Review.created_at.desc()).limit(5).all()
@@ -189,7 +197,7 @@ class Product(db.Model):
         
         return {
             **self.to_dict(),
-            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{dress_style_info}{occasion_info}{age_group_info}, Price: ${self.price}{rating_info}",
+            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Clothing: {self.clothing_category or 'other'}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{clothing_category_info}{dress_style_info}{occasion_info}{age_group_info}{season_info}, Price: ${self.price}{rating_info}",
             'reviews': [r.to_dict() for r in recent_reviews],
             'rating_summary': {
                 'average_rating': float(self.rating) if self.rating else 0.0,

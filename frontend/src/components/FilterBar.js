@@ -6,6 +6,8 @@ const FilterBar = ({
   colors = [], 
   sizes = [],
   fabrics = [],
+  seasons = [],
+  clothingCategories = [],
   priceRange = { min: 0, max: 1000 },
   onFilterChange,
   activeFilters = {}
@@ -15,6 +17,8 @@ const FilterBar = ({
     color: false,
     size: false,
     fabric: false,
+    season: false,
+    clothingCategory: false,
     price: false
   });
 
@@ -44,6 +48,8 @@ const FilterBar = ({
     if (activeFilters.color) count++;
     if (activeFilters.size) count++;
     if (activeFilters.fabric) count++;
+    if (activeFilters.season) count++;
+    if (activeFilters.clothing_category) count++;
     if (activeFilters.minPrice || activeFilters.maxPrice) count++;
     return count;
   };
@@ -217,6 +223,80 @@ const FilterBar = ({
             </div>
           )}
 
+          {/* Season Filter */}
+          {seasons.length > 0 && (
+            <div className="filter-dropdown">
+              <button
+                className={`filter-button ${activeFilters.season ? 'active' : ''}`}
+                onClick={() => toggleDropdown('season')}
+              >
+                <span>Season</span>
+                {activeFilters.season && (
+                  <span className="filter-value">{activeFilters.season.replace('_', ' ')}</span>
+                )}
+                <span className="dropdown-arrow">▼</span>
+              </button>
+              {isOpen.season && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-header">
+                    <span>Select Season</span>
+                    {activeFilters.season && (
+                      <button onClick={() => clearFilter('season')} className="clear-btn">Clear</button>
+                    )}
+                  </div>
+                  <div className="dropdown-options">
+                    {seasons.map(season => (
+                      <div
+                        key={season}
+                        className={`dropdown-option ${activeFilters.season === season ? 'selected' : ''}`}
+                        onClick={() => handleFilterSelect('season', season)}
+                      >
+                        {season.replace('_', ' ')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Clothing Category Filter */}
+          {clothingCategories.length > 0 && (
+            <div className="filter-dropdown">
+              <button
+                className={`filter-button ${activeFilters.clothing_category ? 'active' : ''}`}
+                onClick={() => toggleDropdown('clothingCategory')}
+              >
+                <span>Clothing</span>
+                {activeFilters.clothing_category && (
+                  <span className="filter-value">{activeFilters.clothing_category.replace(/_/g, ' ')}</span>
+                )}
+                <span className="dropdown-arrow">▼</span>
+              </button>
+              {isOpen.clothingCategory && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-header">
+                    <span>Select clothing type</span>
+                    {activeFilters.clothing_category && (
+                      <button onClick={() => clearFilter('clothing_category')} className="clear-btn">Clear</button>
+                    )}
+                  </div>
+                  <div className="dropdown-options">
+                    {clothingCategories.map(cat => (
+                      <div
+                        key={cat}
+                        className={`dropdown-option ${activeFilters.clothing_category === cat ? 'selected' : ''}`}
+                        onClick={() => handleFilterSelect('clothing_category', cat)}
+                      >
+                        {cat.replace(/_/g, ' ')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Price Range Filter */}
           <div className="filter-dropdown">
             <button
@@ -281,6 +361,8 @@ const FilterBar = ({
                   color: false,
                   size: false,
                   fabric: false,
+                  season: false,
+                  clothingCategory: false,
                   price: false
                 });
               }}

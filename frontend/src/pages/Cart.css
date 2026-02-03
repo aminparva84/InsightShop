@@ -263,6 +263,50 @@
   margin-top: 24px;
 }
 
+/* Matching Pairs section - AI-powered recommendations */
+.cart-matching-pairs {
+  margin-top: 60px;
+  padding-top: 40px;
+  border-top: 2px solid #e5e7eb;
+}
+
+.cart-matching-pairs .section-title {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1f2937;
+}
+
+.cart-matching-pairs .section-subtitle {
+  font-size: 15px;
+  color: #6b7280;
+  margin-bottom: 24px;
+}
+
+.matching-pair-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.matching-pair-card .product-card {
+  flex: 0 0 auto;
+}
+
+.matching-pair-reason {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.4;
+  margin: 0;
+  padding: 0 4px;
+}
+
+.matching-pairs-empty {
+  color: #9ca3af;
+  font-size: 15px;
+  margin-top: 16px;
+}
+
 @media (max-width: 968px) {
   .cart-layout {
     grid-template-columns: 1fr;

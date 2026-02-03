@@ -17,6 +17,8 @@ const Cart = () => {
   const navigate = useNavigate();
   const [suggestedProducts, setSuggestedProducts] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [matchingPairs, setMatchingPairs] = useState([]);
+  const [loadingMatchingPairs, setLoadingMatchingPairs] = useState(false);
   const [confirmationState, setConfirmationState] = useState(null); // { itemId, itemName }
 
   // Fetch suggested products based on cart items using related products from database
@@ -72,6 +74,30 @@ const Cart = () => {
     };
 
     fetchSuggestions();
+  }, [cartItems]);
+
+  // Fetch AI-powered matching pairs (items that go well with cart items)
+  useEffect(() => {
+    const fetchMatchingPairs = async () => {
+      if (cartItems.length === 0) {
+        setMatchingPairs([]);
+        return;
+      }
+      try {
+        setLoadingMatchingPairs(true);
+        const response = await axios.get('/api/cart/matching-pairs');
+        const matches = response.data.matches || [];
+        const cartProductIds = cartItems.map(item => item.product_id || item.product?.id).filter(Boolean);
+        const filtered = matches.filter(m => m.product && !cartProductIds.includes(m.product.id));
+        setMatchingPairs(filtered.slice(0, 8));
+      } catch (error) {
+        console.error('Error fetching matching pairs:', error);
+        setMatchingPairs([]);
+      } finally {
+        setLoadingMatchingPairs(false);
+      }
+    };
+    fetchMatchingPairs();
   }, [cartItems]);
 
   const handleQuantityChange = async (itemId, newQuantity) => {
@@ -317,7 +343,27 @@ const Cart = () => {
           </div>
         </div>
 
-        {/* Suggested Products Section */}
+        {/* Matching Pairs - AI-powered recommendations that go well with cart items */}
+        <div className="cart-matching-pairs">
+          <h2 className="section-title">Matching Pairs</h2>
+          <p className="section-subtitle">Items that go well with what you have in your cart</p>
+          {loadingMatchingPairs ? (
+            <div className="spinner"></div>
+          ) : matchingPairs.length > 0 ? (
+            <div className="suggestions-grid matching-pairs-grid">
+              {matchingPairs.map(({ product, reason }) => (
+                <div key={product.id} className="matching-pair-card">
+                  <ProductCard product={product} />
+                  <p className="matching-pair-reason">{reason}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="matching-pairs-empty">No matching recommendations right now. Keep shopping — we'll suggest pairs as our catalog grows.</p>
+          )}
+        </div>
+
+        {/* You Might Also Like */}
         {suggestedProducts.length > 0 && (
           <div className="cart-suggestions">
             <h2 className="section-title">You Might Also Like</h2>

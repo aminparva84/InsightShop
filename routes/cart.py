@@ -10,6 +10,7 @@ from utils.guest_cart import (
     remove_from_guest_cart, clear_guest_cart
 )
 from utils.product_relations import get_related_products_for_cart
+from utils.cart_matching_pairs import get_matching_pairs_for_cart
 
 cart_bp = Blueprint('cart', __name__)
 
@@ -528,4 +529,50 @@ def get_cart_suggestions():
         print(f"Error in get_cart_suggestions: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e), 'products': []}), 500
+
+
+@cart_bp.route('/matching-pairs', methods=['GET'])
+def get_cart_matching_pairs():
+    """
+    Get AI-powered matching pair recommendations for items in the cart.
+    Uses fashion knowledge base and product relations to suggest items that
+    go well with what the user has (e.g. white shirt -> brown pants).
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        cart_product_ids = []
+
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                from routes.auth import verify_jwt_token
+                token = auth_header[7:]
+                payload = verify_jwt_token(token)
+                if payload:
+                    from models.user import User
+                    user = User.query.get(payload.get('sub') or payload.get('user_id'))
+                    if user:
+                        cart_items = CartItem.query.filter_by(user_id=user.id).all()
+                        cart_product_ids = [item.product_id for item in cart_items if item.product_id]
+            except Exception:
+                pass
+
+        if not cart_product_ids:
+            guest_cart = get_guest_cart()
+            cart_product_ids = [item['product_id'] for item in guest_cart if item.get('product_id')]
+
+        if not cart_product_ids:
+            return jsonify({'matches': [], 'count': 0}), 200
+
+        pairs = get_matching_pairs_for_cart(cart_product_ids, max_results=8)
+        matches = [
+            {'product': p['product'].to_dict(), 'reason': p['reason']}
+            for p in pairs
+        ]
+        return jsonify({'matches': matches, 'count': len(matches)}), 200
+
+    except Exception as e:
+        import traceback
+        print(f"Error in get_cart_matching_pairs: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'matches': []}), 500
 

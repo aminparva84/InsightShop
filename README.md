@@ -29,6 +29,18 @@ A full-stack e-commerce application with an AI-powered shopping assistant, built
 - Axios for API calls
 - Modern CSS with responsive design
 
+## Documentation
+
+Additional guides and references are in the **[docs/](docs/)** folder, including:
+
+- [QUICK_START.md](docs/QUICK_START.md) – Quick start guide  
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) – Architecture overview  
+- [AWS_DEPLOYMENT_GUIDE.md](docs/AWS_DEPLOYMENT_GUIDE.md) – AWS deployment  
+- [ENV_SETUP_GUIDE.md](docs/ENV_SETUP_GUIDE.md) – Environment setup  
+- [docs/USER_CREDENTIALS.md](docs/USER_CREDENTIALS.md) – Seeded user credentials  
+
+See the full list in the `docs/` directory.
+
 ## Setup Instructions
 
 ### Prerequisites

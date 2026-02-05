@@ -1,0 +1,22 @@
+# InsightShop with Docker — uses .env for AWS and app secrets.
+# 1. Copy env.docker.example to .env and set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, JWT_SECRET, SECRET_KEY.
+# 2. Run: docker-compose up --build
+# App: http://localhost:5000
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - insightshop_instance:/app/instance
+      - insightshop_vector_db:/app/vector_db
+
+volumes:
+  insightshop_instance:
+  insightshop_vector_db:

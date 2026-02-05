@@ -61,14 +61,15 @@ export const CartProvider = ({ children }) => {
   const addToCart = async (productId, quantity = 1, selectedColor = null, selectedSize = null) => {
     // Guest shopping - no authentication required
     try {
-      await axios.post('/api/cart', { 
+      const response = await axios.post('/api/cart', { 
         product_id: productId, 
         quantity,
         selected_color: selectedColor,
         selected_size: selectedSize
       });
       await fetchCart();
-      return { success: true };
+      const remainingStock = response.data?.remaining_stock;
+      return { success: true, remaining_stock: remainingStock };
     } catch (error) {
       return { success: false, error: error.response?.data?.error || 'Failed to add to cart' };
     }

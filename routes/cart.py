@@ -210,6 +210,7 @@ def add_to_cart():
                             if new_total > product.stock_quantity:
                                 return jsonify({'error': 'Insufficient stock'}), 400
                             existing_item.quantity = new_total
+                            remaining_stock = product.stock_quantity - new_total
                         else:
                             cart_item = CartItem(
                                 user_id=user.id,
@@ -219,9 +220,10 @@ def add_to_cart():
                                 selected_size=selected_size
                             )
                             db.session.add(cart_item)
+                            remaining_stock = product.stock_quantity - quantity
                         
                         db.session.commit()
-                        return jsonify({'message': 'Item added to cart'}), 200
+                        return jsonify({'message': 'Item added to cart', 'remaining_stock': remaining_stock}), 200
             except:
                 pass
         
@@ -238,7 +240,8 @@ def add_to_cart():
             return jsonify({'error': 'Insufficient stock'}), 400
         quantity_to_add = min(quantity, product.stock_quantity - current_in_cart)
         add_to_guest_cart(product_id, quantity_to_add, selected_color, selected_size)
-        return jsonify({'message': 'Item added to cart'}), 200
+        remaining_stock = product.stock_quantity - (current_in_cart + quantity_to_add)
+        return jsonify({'message': 'Item added to cart', 'remaining_stock': remaining_stock}), 200
         
     except Exception as e:
         db.session.rollback()

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,16 +10,47 @@ import ConfirmationDialog from '../components/ConfirmationDialog';
 import axios from 'axios';
 import './Cart.css';
 
+const isItemUnavailable = (item) => {
+  const stock = item.product?.stock_quantity;
+  if (stock === undefined || stock === null) return false;
+  return stock < 1 || item.quantity > stock;
+};
+
+const isItemLowStock = (item) => {
+  const raw = item.product?.stock_quantity;
+  if (raw === undefined || raw === null) return false;
+  const stock = Number(raw);
+  return !Number.isNaN(stock) && stock >= 1 && stock <= 5;
+};
+
 const Cart = () => {
   const { cartItems, cartTotal, updateCartItem, removeFromCart } = useCart();
   const { isAuthenticated } = useAuth();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showWarning } = useNotification();
   const navigate = useNavigate();
   const [suggestedProducts, setSuggestedProducts] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [matchingPairs, setMatchingPairs] = useState([]);
   const [loadingMatchingPairs, setLoadingMatchingPairs] = useState(false);
   const [confirmationState, setConfirmationState] = useState(null); // { itemId, itemName }
+  const notifiedUnavailableRef = useRef(false);
+
+  // Notify user when returning to cart if any items are no longer available
+  const unavailableItems = cartItems.filter(isItemUnavailable);
+  useEffect(() => {
+    if (unavailableItems.length > 0 && !notifiedUnavailableRef.current) {
+      showWarning(
+        unavailableItems.length === 1
+          ? 'One item in your cart is no longer available. Please remove it or update the quantity.'
+          : `${unavailableItems.length} items in your cart are no longer available. Please remove them or update the quantity.`,
+        6000
+      );
+      notifiedUnavailableRef.current = true;
+    }
+    if (unavailableItems.length === 0) {
+      notifiedUnavailableRef.current = false;
+    }
+  }, [unavailableItems.length, showWarning]);
 
   // Fetch suggested products based on cart items using related products from database
   // IMPORTANT: This hook must be called before any early returns
@@ -220,7 +251,17 @@ const Cart = () => {
         <div className="cart-layout">
           <div className="cart-items">
             {cartItems.map(item => (
-              <div key={item.id} className="cart-item">
+              <div key={item.id} className={`cart-item ${isItemUnavailable(item) ? 'cart-item-unavailable' : ''}`}>
+                {isItemUnavailable(item) && (
+                  <div className="cart-item-unavailable-banner" role="alert">
+                    This item is no longer available. Please remove it or reduce the quantity.
+                  </div>
+                )}
+                {isItemLowStock(item) && (
+                  <div className="cart-item-low-stock-message" role="status">
+                    Only {Number(item.product?.stock_quantity)} left in stock. Make sure to finalize your purchase soon before the item is sold out.
+                  </div>
+                )}
                 <img
                   src={item.product?.image_url || 'https://via.placeholder.com/150x150?text=Product'}
                   alt={item.product?.name}

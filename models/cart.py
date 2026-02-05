@@ -30,7 +30,8 @@ class CartItem(db.Model):
                     'name': self.product.name,
                     'price': float(self.product.price) if self.product.price else 0.0,
                     'original_price': float(self.product.price) if self.product.price else 0.0,
-                    'on_sale': False
+                    'on_sale': False,
+                    'stock_quantity': getattr(self.product, 'stock_quantity', 0)
                 }
             else:
                 product_dict = None

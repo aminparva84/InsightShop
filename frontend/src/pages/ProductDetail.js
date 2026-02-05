@@ -13,7 +13,7 @@ const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showWarning } = useNotification();
   const { user, token } = useAuth();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +77,14 @@ const ProductDetail = () => {
     const result = await addToCart(product.id, quantity, selectedColor, selectedSize);
     if (result.success) {
       showSuccess('Added to cart!');
+      // Low stock alert: show second toast after a tick so both notifications appear (avoids React batching)
+      const stock = product?.stock_quantity;
+      const remaining = typeof result.remaining_stock === 'number' ? result.remaining_stock : (typeof stock === 'number' ? Math.max(0, stock - quantity) : null);
+      const lowStockCount = typeof remaining === 'number' ? remaining : (typeof stock === 'number' && stock >= 1 && stock <= 5 ? stock : null);
+      if (lowStockCount !== null && lowStockCount >= 1 && lowStockCount <= 5) {
+        const message = `Only ${lowStockCount} left in stock. Make sure to finalize your purchase soon before the item is sold out.`;
+        setTimeout(() => showSuccess(message, 6000), 100);
+      }
     } else {
       showError(result.error || 'Failed to add to cart');
     }

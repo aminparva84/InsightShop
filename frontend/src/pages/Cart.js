@@ -101,20 +101,20 @@ const Cart = () => {
   }, [cartItems]);
 
   const handleQuantityChange = async (itemId, newQuantity) => {
+    const item = cartItems.find(i => i.id === itemId);
     if (newQuantity < 1) {
-      const item = cartItems.find(i => i.id === itemId);
       if (item) {
         await removeFromCart(itemId, item.selected_color, item.selected_size);
       } else {
         await removeFromCart(itemId);
       }
     } else {
-      const item = cartItems.find(i => i.id === itemId);
-      if (item) {
-        // Pass color and size for guest cart items
-        await updateCartItem(itemId, newQuantity, item.selected_color, item.selected_size);
-      } else {
-        await updateCartItem(itemId, newQuantity);
+      const updatePayload = item
+        ? [itemId, newQuantity, item.selected_color, item.selected_size, item.selected_color, item.selected_size]
+        : [itemId, newQuantity];
+      const result = await updateCartItem(...updatePayload);
+      if (!result.success) {
+        showError(result.error || 'Failed to update quantity');
       }
     }
   };
@@ -275,7 +275,13 @@ const Cart = () => {
                   <div className="quantity-controls">
                     <button onClick={() => handleQuantityChange(item.id, item.quantity - 1)}>-</button>
                     <span>{item.quantity}</span>
-                    <button onClick={() => handleQuantityChange(item.id, item.quantity + 1)}>+</button>
+                    <button
+                      onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                      disabled={typeof item.product?.stock_quantity === 'number' && item.quantity >= item.product.stock_quantity}
+                      title={typeof item.product?.stock_quantity === 'number' && item.quantity >= item.product.stock_quantity ? 'Maximum available in stock' : 'Increase quantity'}
+                    >
+                      +
+                    </button>
                   </div>
                   <div className="cart-item-subtotal">
                     {item.product?.on_sale ? (

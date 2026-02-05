@@ -4,7 +4,7 @@ from models.database import db
 from models.product import Product
 from models.cart import CartItem
 from routes.auth import get_current_user_optional
-from utils.guest_cart import add_to_guest_cart
+from utils.guest_cart import get_guest_cart, add_to_guest_cart
 import re
 
 ai_cart_bp = Blueprint('ai_cart', __name__)
@@ -77,11 +77,16 @@ def ai_add_to_cart():
                 final_product_id = variant.id
                 product = variant
         
+        if quantity < 1:
+            return jsonify({'error': 'Quantity must be at least 1'}), 400
+        if product.stock_quantity < quantity:
+            return jsonify({'error': 'Insufficient stock'}), 400
+        
         # Get user (authenticated or guest)
         user = get_current_user_optional()
         
         if user:
-            # Authenticated user
+            # Authenticated user: enforce (existing + new) <= stock
             existing_item = CartItem.query.filter_by(
                 user_id=user.id,
                 product_id=final_product_id,
@@ -90,6 +95,10 @@ def ai_add_to_cart():
             ).first()
             
             if existing_item:
+                new_total = existing_item.quantity + quantity
+                if new_total > product.stock_quantity:
+                    return jsonify({'error': 'Insufficient stock'}), 400
+                quantity = min(quantity, product.stock_quantity - existing_item.quantity)
                 existing_item.quantity += quantity
             else:
                 cart_item = CartItem(
@@ -102,7 +111,18 @@ def ai_add_to_cart():
                 db.session.add(cart_item)
             db.session.commit()
         else:
-            # Guest cart
+            # Guest cart: enforce total in cart + new <= stock
+            guest_cart = get_guest_cart()
+            current_in_cart = sum(
+                item.get('quantity', 0)
+                for item in guest_cart
+                if (item.get('product_id') == final_product_id
+                    and item.get('selected_color') == color
+                    and item.get('selected_size') == size)
+            )
+            if current_in_cart + quantity > product.stock_quantity:
+                return jsonify({'error': 'Insufficient stock'}), 400
+            quantity = min(quantity, product.stock_quantity - current_in_cart)
             add_to_guest_cart(final_product_id, quantity, color, size)
         
         return jsonify({

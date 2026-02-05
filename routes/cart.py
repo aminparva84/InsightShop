@@ -106,7 +106,8 @@ def get_cart():
                         'price': float(product.price) if product.price else 0.0,
                         'original_price': float(product.price) if product.price else 0.0,
                         'on_sale': False,
-                        'image_url': product.image_url
+                        'image_url': product.image_url,
+                        'stock_quantity': getattr(product, 'stock_quantity', 0)
                     }
                     current_price = float(product.price) if product.price else 0.0
                 
@@ -205,9 +206,10 @@ def add_to_cart():
                         ).first()
                         
                         if existing_item:
-                            existing_item.quantity += quantity
-                            if existing_item.quantity > product.stock_quantity:
+                            new_total = existing_item.quantity + quantity
+                            if new_total > product.stock_quantity:
                                 return jsonify({'error': 'Insufficient stock'}), 400
+                            existing_item.quantity = new_total
                         else:
                             cart_item = CartItem(
                                 user_id=user.id,
@@ -223,8 +225,19 @@ def add_to_cart():
             except:
                 pass
         
-        # Guest cart
-        add_to_guest_cart(product_id, quantity, selected_color, selected_size)
+        # Guest cart: enforce stock against current guest cart total for this variant
+        guest_cart = get_guest_cart()
+        current_in_cart = sum(
+            item.get('quantity', 0)
+            for item in guest_cart
+            if (item.get('product_id') == product_id
+                and item.get('selected_color') == selected_color
+                and item.get('selected_size') == selected_size)
+        )
+        if current_in_cart + quantity > product.stock_quantity:
+            return jsonify({'error': 'Insufficient stock'}), 400
+        quantity_to_add = min(quantity, product.stock_quantity - current_in_cart)
+        add_to_guest_cart(product_id, quantity_to_add, selected_color, selected_size)
         return jsonify({'message': 'Item added to cart'}), 200
         
     except Exception as e:

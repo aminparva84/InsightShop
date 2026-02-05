@@ -203,7 +203,11 @@ const ProductDetail = () => {
                   min="1"
                   max={product.stock_quantity}
                   value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                  onChange={(e) => {
+                    const raw = parseInt(e.target.value, 10);
+                    const clamped = Math.min(product.stock_quantity || 1, Math.max(1, Number.isNaN(raw) ? 1 : raw));
+                    setQuantity(clamped);
+                  }}
                   className="quantity-input"
                 />
               </div>

@@ -8,10 +8,11 @@ class Config:
     AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
-    
-    # Bedrock Configuration
     BEDROCK_MODEL_ID = os.getenv('BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
-    
+    # Optional: API keys from env (used when admin has not set a key in AI Assistant panel)
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+    ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
     # SQLite Database
     DB_PATH = os.getenv('DB_PATH', 'insightshop.db')
     

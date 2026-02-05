@@ -95,13 +95,12 @@ const Admin = () => {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [orderDetail, setOrderDetail] = useState(null);
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
-  const [aiAssistantConfigs, setAiAssistantConfigs] = useState([]);
+  const [aiProviders, setAiProviders] = useState([]);
+  const [aiSelectedProvider, setAiSelectedProvider] = useState('auto');
   const [aiAssistantLoading, setAiAssistantLoading] = useState(false);
-  const [aiAssistantSaving, setAiAssistantSaving] = useState(false);
-  const [agentApiInput, setAgentApiInput] = useState('');
-  const [agentApiProvider, setAgentApiProvider] = useState('bedrock');
-  const [agentModelId, setAgentModelId] = useState('');
-  const [agentName, setAgentName] = useState('');
+  const [aiProviderSaving, setAiProviderSaving] = useState(null);
+  const [aiProviderTesting, setAiProviderTesting] = useState(null);
+  const [aiProviderKeyInputs, setAiProviderKeyInputs] = useState({});
   const productFormRef = useRef(null);
 
   useEffect(() => {
@@ -137,7 +136,7 @@ const Admin = () => {
       loadCarts();
     }
     if (activeTab === 'ai-assistant') {
-      loadAiAssistantConfigs();
+      loadAiProviders();
     }
   }, [user, token, authLoading, activeTab]);
 
@@ -195,91 +194,72 @@ const Admin = () => {
     }
   };
 
-  const loadAiAssistantConfigs = async () => {
+  const loadAiProviders = async () => {
     setAiAssistantLoading(true);
     try {
-      const response = await axios.get('/api/admin/ai-assistant/configs', {
+      const response = await axios.get('/api/admin/ai-assistant/providers', {
         headers: { Authorization: token ? `Bearer ${token}` : undefined }
       });
       if (response.data.success) {
-        setAiAssistantConfigs(response.data.configs || []);
+        setAiProviders(response.data.providers || []);
+        setAiSelectedProvider(response.data.selected_provider || 'auto');
       }
     } catch (error) {
-      console.error('Error loading AI assistant configs:', error);
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to load AI assistant configs' });
+      console.error('Error loading AI providers:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to load AI providers' });
     } finally {
       setAiAssistantLoading(false);
     }
   };
 
-  const handleSetAiAssistant = async () => {
-    const apiKey = agentApiInput.trim();
-    if (agentApiProvider === 'custom') {
-      if (!apiKey) {
-        setMessage({ type: 'error', text: 'Please enter the agent API endpoint URL.' });
-        return;
-      }
-    } else if (!apiKey) {
-      setMessage({ type: 'error', text: 'Please enter the agent API key.' });
-      return;
-    }
-    setAiAssistantSaving(true);
+  const handleSaveProviderKey = async (provider, apiKey) => {
+    setAiProviderSaving(provider);
     setMessage({ type: '', text: '' });
     try {
-      const payload = {
-        provider: agentApiProvider,
-        name: agentName.trim() || 'AI Assistant',
-        model_id: agentModelId.trim() || undefined,
-      };
-      if (agentApiProvider === 'custom') {
-        payload.api_endpoint = apiKey;
-      } else {
-        payload.api_key = apiKey;
-        payload.agent_api = apiKey;
-      }
-      const response = await axios.post('/api/admin/ai-assistant/configs', payload, {
+      const response = await axios.patch(`/api/admin/ai-assistant/providers/${provider}`, { api_key: apiKey || '' }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message || 'AI assistant API set successfully.' });
-        setAgentApiInput('');
-        setAgentModelId('');
-        setAgentName('');
-        loadAiAssistantConfigs();
+        setMessage({ type: 'success', text: 'API key saved.' });
+        setAiProviderKeyInputs(prev => ({ ...prev, [provider]: '' }));
+        loadAiProviders();
       }
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to set AI assistant' });
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to save' });
     } finally {
-      setAiAssistantSaving(false);
+      setAiProviderSaving(null);
     }
   };
 
-  const handleSetActiveAiConfig = async (configId) => {
+  const handleTestProvider = async (provider) => {
+    setAiProviderTesting(provider);
+    setMessage({ type: '', text: '' });
     try {
-      const response = await axios.put(`/api/admin/ai-assistant/configs/${configId}/active`, {}, {
+      const response = await axios.post(`/api/admin/ai-assistant/providers/${provider}/test`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message });
-        loadAiAssistantConfigs();
+        setMessage({ type: 'success', text: response.data.message || `Valid — ${response.data.latency_ms} ms` });
+        loadAiProviders();
+      } else {
+        setMessage({ type: 'error', text: response.data.error || 'Test failed' });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to set active config' });
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Test failed' });
+    } finally {
+      setAiProviderTesting(null);
     }
   };
 
-  const handleDeleteAiAssistantConfig = async (configId) => {
-    if (!window.confirm('Remove this AI assistant configuration?')) return;
+  const handleSelectedProviderChange = async (provider) => {
+    setAiSelectedProvider(provider);
     try {
-      const response = await axios.delete(`/api/admin/ai-assistant/configs/${configId}`, {
+      await axios.put('/api/admin/ai-assistant/selected-provider', { provider }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message });
-        loadAiAssistantConfigs();
-      }
+      setMessage({ type: 'success', text: 'Default model updated.' });
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to remove config' });
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to update' });
     }
   };
 
@@ -1087,7 +1067,7 @@ const Admin = () => {
                       if (item.id === 'reviews') loadReviews();
                       if (item.id === 'payment-logs') loadPaymentLogs();
                       if (item.id === 'carts') loadCarts();
-                      if (item.id === 'ai-assistant') loadAiAssistantConfigs();
+                      if (item.id === 'ai-assistant') loadAiProviders();
                     }}
                     aria-current={activeTab === item.id ? 'page' : undefined}
                     title={item.label}
@@ -2564,82 +2544,36 @@ const Admin = () => {
           </div>
         )}
 
-          {/* AI Assistant Section */}
+          {/* AI Assistant Section: 4 fixed providers + model dropdown */}
           {activeTab === 'ai-assistant' && (
           <div className="admin-section">
             <h2>AI Assistant</h2>
-            <p style={{ color: '#6b7280', marginBottom: '24px' }}>
-              Configure the API that powers the site&apos;s AI chatbot. The assistant can search the database and knowledge base and perform tasks a human user can do.
-            </p>
-            <div className="admin-section-header" style={{ marginBottom: 24 }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem' }}>Set agent API</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', maxWidth: 720 }}>
-                <div style={{ flex: '1 1 200px' }}>
-                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>Provider</label>
-                  <select
-                    value={agentApiProvider}
-                    onChange={(e) => setAgentApiProvider(e.target.value)}
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
-                  >
-                    <option value="bedrock">AWS Bedrock</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="custom">Custom endpoint</option>
-                  </select>
-                </div>
-                <div style={{ flex: '1 1 260px' }}>
-                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
-                    {agentApiProvider === 'custom' ? 'API endpoint URL' : 'Agent API key'}
-                  </label>
-                  <input
-                    type={agentApiProvider === 'custom' ? 'url' : 'password'}
-                    placeholder={
-                      agentApiProvider === 'custom'
-                        ? 'https://your-agent.com/chat'
-                        : agentApiProvider === 'bedrock'
-                          ? 'AccessKeyId:SecretAccessKey or leave empty if using .env'
-                          : 'Paste API key'
-                    }
-                    value={agentApiInput}
-                    onChange={(e) => setAgentApiInput(e.target.value)}
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
-                  />
-                  {agentApiProvider === 'bedrock' && (
-                    <p style={{ marginTop: 6, marginBottom: 0, fontSize: '0.85rem', color: '#6b7280' }}>
-                      For AWS Bedrock use IAM credentials: paste <strong>AccessKeyId:SecretAccessKey</strong> in one field (colon between them), or set <code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code> in .env and leave this empty.
-                    </p>
-                  )}
-                </div>
-                <div style={{ flex: '0 0 140px' }}>
-                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>Name (optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Production"
-                    value={agentName}
-                    onChange={(e) => setAgentName(e.target.value)}
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
-                  />
-                </div>
-                <div style={{ flex: '0 0 160px' }}>
-                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>Model ID (optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. gpt-4o-mini"
-                    value={agentModelId}
-                    onChange={(e) => setAgentModelId(e.target.value)}
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="save-btn"
-                  onClick={handleSetAiAssistant}
-                  disabled={aiAssistantSaving}
+            <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <label style={{ fontWeight: 600 }}>Model (default for chatbot):</label>
+              <div style={{ width: 68, flexShrink: 0 }}>
+                <select
+                  value={aiSelectedProvider}
+                  onChange={(e) => handleSelectedProviderChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    padding: '4px 6px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                    minWidth: 0,
+                  }}
                 >
-                  {aiAssistantSaving ? 'Saving...' : 'Set as AI Assistant'}
-                </button>
+                  <option value="auto">Auto</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="bedrock">AWS Bedrock</option>
+                </select>
               </div>
+              <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>Auto uses the first provider with a valid key.</span>
             </div>
-            <h3 style={{ margin: '24px 0 12px 0', fontSize: '1.1rem' }}>Configured models</h3>
             {aiAssistantLoading ? (
               <div>Loading...</div>
             ) : (
@@ -2647,52 +2581,63 @@ const Admin = () => {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#f8f9fa' }}>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Name</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Provider</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Model ID</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Active</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Created</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>SDK</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>API key</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Source</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Valid</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Last tested</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Test</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {aiAssistantConfigs.length === 0 ? (
-                      <tr>
-                        <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>
-                          No AI models configured yet. Add an agent API above to enable the chatbot.
+                    {aiProviders.map((p) => (
+                      <tr key={p.provider} style={{ borderBottom: '1px solid #dee2e6' }}>
+                        <td style={{ padding: '12px' }}>{p.name}</td>
+                        <td style={{ padding: '12px' }}>{p.sdk_installed_backend ? '✓' : '✗'}</td>
+                        <td style={{ padding: '12px' }}>
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const v = aiProviderKeyInputs[p.provider];
+                              if (v !== undefined && v !== '••••••••' && v.trim()) handleSaveProviderKey(p.provider, v.trim());
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+                          >
+                            <input
+                              type="password"
+                              placeholder={p.source === 'env' ? 'From env' : 'Paste API key'}
+                              value={aiProviderKeyInputs[p.provider] ?? (p.api_key ? '••••••••' : '')}
+                              onChange={(e) => setAiProviderKeyInputs(prev => ({ ...prev, [p.provider]: e.target.value }))}
+                              style={{ width: '100%', maxWidth: 220, padding: 6, borderRadius: 4, border: '1px solid #d1d5db' }}
+                              aria-label={`API key for ${p.name}`}
+                            />
+                            <button
+                              type="submit"
+                              className="save-btn"
+                              style={{ fontSize: '11px', padding: '4px 8px' }}
+                              disabled={aiProviderSaving === p.provider}
+                            >
+                              {aiProviderSaving === p.provider ? 'Saving...' : 'Save'}
+                            </button>
+                          </form>
+                        </td>
+                        <td style={{ padding: '12px' }}>{p.source === 'admin' ? 'Admin' : 'Env'}</td>
+                        <td style={{ padding: '12px' }}>{p.is_valid ? '✓' : '✗'}</td>
+                        <td style={{ padding: '12px' }}>{p.last_tested_at ? new Date(p.last_tested_at).toLocaleString() : '—'}</td>
+                        <td style={{ padding: '12px' }}>
+                          <button
+                            type="button"
+                            className="save-btn"
+                            style={{ fontSize: '12px', padding: '6px 12px' }}
+                            onClick={() => handleTestProvider(p.provider)}
+                            disabled={aiProviderTesting === p.provider}
+                          >
+                            {aiProviderTesting === p.provider ? 'Testing...' : 'Test'}
+                          </button>
                         </td>
                       </tr>
-                    ) : (
-                      aiAssistantConfigs.map((c) => (
-                        <tr key={c.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                          <td style={{ padding: '12px' }}>{c.name}</td>
-                          <td style={{ padding: '12px' }}>{c.provider}</td>
-                          <td style={{ padding: '12px' }}>{c.model_id || '—'}</td>
-                          <td style={{ padding: '12px' }}>{c.is_active ? '✓' : '—'}</td>
-                          <td style={{ padding: '12px' }}>{c.created_at ? new Date(c.created_at).toLocaleString() : '—'}</td>
-                          <td style={{ padding: '12px' }}>
-                            {!c.is_active && (
-                              <button
-                                type="button"
-                                className="save-btn"
-                                style={{ fontSize: '12px', padding: '6px 12px', marginRight: 8 }}
-                                onClick={() => handleSetActiveAiConfig(c.id)}
-                              >
-                                Set active
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className="save-btn"
-                              style={{ fontSize: '12px', padding: '6px 12px', background: '#dc2626' }}
-                              onClick={() => handleDeleteAiAssistantConfig(c.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>

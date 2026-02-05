@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.database import db
 from models.product import Product
-from models.ai_assistant_config import AiAssistantConfig
+from models.ai_assistant_config import AiAssistantConfig, AISelectedProvider, FIXED_PROVIDERS
 from utils.vector_db import search_products_vector
 from utils.fashion_kb import get_fashion_knowledge_base_text, get_color_matching_advice, get_fabric_info, get_occasion_advice
 from utils.spelling_tolerance import normalize_clothing_type, normalize_category, normalize_color_spelling
@@ -13,45 +13,92 @@ from config import Config
 import boto3
 import json
 import requests
+import time
 from sqlalchemy import or_
-
-try:
-    from botocore.exceptions import ClientError
-except ImportError:
-    ClientError = Exception  # noqa: allow missing botocore at import
 
 ai_agent_bp = Blueprint('ai_agent', __name__)
 
+DEFAULT_SYSTEM_PROMPT = """You're an INCREDIBLY excited, friendly shopping assistant who absolutely LOVES helping people find amazing clothes! Talk like you're texting your best friend who just discovered something awesome and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely THRILLED!
+
+Show REAL excitement when you find great products - react like "OMG, wait till you see this!" or "This is SO perfect for you!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
+
+You're NOT a robot or corporate assistant - you're someone who gets genuinely PUMPED about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
+
+Keep it super conversational, warm, helpful, real, and EXCITED - like you're sharing amazing finds with your best friend!"""
+
+
+def get_effective_api_key_for_provider(provider):
+    """Return (api_key, source) for a provider. source is 'admin' or 'env'."""
+    try:
+        c = AiAssistantConfig.query.filter_by(provider=provider).first()
+        if c and c.api_key:
+            return c.api_key, 'admin'
+        if provider == 'openai' and getattr(Config, 'OPENAI_API_KEY', None):
+            return Config.OPENAI_API_KEY, 'env'
+        if provider == 'gemini' and getattr(Config, 'GEMINI_API_KEY', None):
+            return Config.GEMINI_API_KEY, 'env'
+        if provider == 'anthropic' and getattr(Config, 'ANTHROPIC_API_KEY', None):
+            return Config.ANTHROPIC_API_KEY, 'env'
+        if provider == 'bedrock':
+            ak = getattr(Config, 'AWS_ACCESS_KEY_ID', None) or ''
+            sk = getattr(Config, 'AWS_SECRET_ACCESS_KEY', None) or ''
+            if ak and sk:
+                return f'{ak}:{sk}', 'env'
+    except Exception:
+        pass
+    return None, 'env'
+
+
+def get_config_for_provider(provider):
+    """Return internal dict for a provider with effective api_key (for call_llm)."""
+    try:
+        c = AiAssistantConfig.query.filter_by(provider=provider).first()
+        api_key, source = get_effective_api_key_for_provider(provider)
+        base = c.to_internal_dict() if c else {'provider': provider, 'model_id': None, 'region': None}
+        base['api_key'] = api_key
+        base['source'] = source
+        if provider == 'bedrock' and not base.get('region'):
+            base['region'] = getattr(Config, 'AWS_REGION', 'us-east-1')
+        if provider == 'bedrock' and not base.get('model_id'):
+            base['model_id'] = getattr(Config, 'BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
+        return base
+    except Exception:
+        return {'provider': provider, 'api_key': None, 'model_id': None, 'region': None}
+
+
+def get_selected_provider():
+    """Return selected provider: 'auto' or one of openai, gemini, anthropic, bedrock."""
+    try:
+        row = AISelectedProvider.query.first()
+        return (row.provider if row else 'auto')
+    except Exception:
+        return 'auto'
+
+
+def get_effective_provider_config():
+    """Return internal dict for the provider to use (selected or first valid if auto)."""
+    selected = get_selected_provider()
+    if selected != 'auto':
+        return get_config_for_provider(selected)
+    for p in FIXED_PROVIDERS:
+        cfg = get_config_for_provider(p)
+        if cfg.get('api_key'):
+            return cfg
+    return None
+
 
 def get_active_ai_config():
-    """Return the currently active AI assistant config from DB, or None."""
-    try:
-        return AiAssistantConfig.query.filter_by(is_active=True).first()
-    except Exception:
+    """Return a config-like object for backward compat: use effective provider config."""
+    cfg = get_effective_provider_config()
+    if not cfg:
         return None
+    class _ConfigLike:
+        def to_internal_dict(self):
+            return cfg
+    return _ConfigLike()
 
-# Initialize Bedrock client
-bedrock_runtime = None
-if Config.AWS_REGION:
-    try:
-        # Try with explicit credentials if provided, otherwise use default credential chain
-        if Config.AWS_ACCESS_KEY_ID and Config.AWS_SECRET_ACCESS_KEY:
-            bedrock_runtime = boto3.client(
-                'bedrock-runtime',
-                region_name=Config.AWS_REGION,
-                aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY
-            )
-        else:
-            # Use default credential chain (AWS CLI credentials)
-            bedrock_runtime = boto3.client(
-                'bedrock-runtime',
-                region_name=Config.AWS_REGION
-            )
-    except Exception as e:
-        print(f"Warning: Could not initialize Bedrock client: {e}")
 
-# Initialize Polly client for text-to-speech
+# Initialize Polly client for text-to-speech (AWS Polly only; LLMs are direct API)
 polly_client = None
 polly_available = False
 if Config.AWS_REGION:
@@ -138,234 +185,342 @@ def search_products_by_criteria(criteria):
     
     return [p.to_dict() for p in query.limit(50).all()]
 
-def call_llm(prompt, system_prompt=None):
-    """Call AWS Bedrock with a prompt."""
-    if not bedrock_runtime:
-        # Fallback: return a helpful response explaining Bedrock setup
-        return {
-            'content': """I'm your AI shopping assistant! I can help you find products, compare items, and provide fashion advice.
+def _call_openai(internal, prompt, system_prompt, timeout=60):
+    api_key = internal.get('api_key')
+    model_id = internal.get('model_id') or 'gpt-4o-mini'
+    resp = requests.post(
+        'https://api.openai.com/v1/chat/completions',
+        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+        json={
+            'model': model_id,
+            'messages': [
+                {'role': 'system', 'content': system_prompt or DEFAULT_SYSTEM_PROMPT},
+                {'role': 'user', 'content': prompt},
+            ],
+            'max_tokens': 1024,
+        },
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    content = (data.get('choices') or [{}])[0].get('message', {}).get('content', '')
+    return content or 'No response from AI'
 
-However, to get the full AI experience with detailed, conversational responses, AWS Bedrock needs to be configured. 
 
-Currently running in fallback mode. To enable full AI capabilities:
-1. Set up AWS Bedrock access in your AWS account
-2. Configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your .env file
-3. See AWS_BEDROCK_SETUP.md for detailed instructions
+def _call_gemini(internal, prompt, system_prompt, timeout=60):
+    api_key = internal.get('api_key')
+    model_id = (internal.get('model_id') or 'gemini-2.0-flash').strip()
+    if not model_id.startswith('models/'):
+        model_id = f'models/{model_id}' if model_id else 'models/gemini-2.0-flash'
+    url = f'https://generativelanguage.googleapis.com/v1beta/{model_id}:generateContent?key={api_key}'
+    body = {
+        'contents': [{'role': 'user', 'parts': [{'text': prompt}]}],
+        'systemInstruction': {'parts': [{'text': system_prompt or DEFAULT_SYSTEM_PROMPT}]},
+        'generationConfig': {'maxOutputTokens': 1024},
+    }
+    r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=timeout)
+    r.raise_for_status()
+    data = r.json()
+    candidates = data.get('candidates') or []
+    if not candidates:
+        return 'No response from AI'
+    parts = candidates[0].get('content', {}).get('parts') or []
+    return parts[0].get('text', '') if parts else 'No response from AI'
 
-Even without Bedrock, I can still help you browse products and use the search features!"""
-        }
-    
+
+def _call_anthropic(internal, prompt, system_prompt, timeout=60):
+    api_key = internal.get('api_key')
+    model_id = internal.get('model_id') or 'claude-3-5-sonnet-20241022'
+    r = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key': api_key,
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json',
+        },
+        json={
+            'model': model_id,
+            'max_tokens': 1024,
+            'system': system_prompt or DEFAULT_SYSTEM_PROMPT,
+            'messages': [{'role': 'user', 'content': prompt}],
+        },
+        timeout=timeout,
+    )
+    r.raise_for_status()
+    data = r.json()
+    content = data.get('content') or []
+    for block in content:
+        if block.get('type') == 'text':
+            return block.get('text', '')
+    return 'No response from AI'
+
+
+def _call_bedrock(internal, prompt, system_prompt, timeout=60):
+    """Call AWS Bedrock (Claude) with credentials from internal dict or env."""
+    region = internal.get('region') or getattr(Config, 'AWS_REGION', 'us-east-1')
+    model_id = internal.get('model_id') or getattr(Config, 'BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
+    api_key = internal.get('api_key')
+    access_key = getattr(Config, 'AWS_ACCESS_KEY_ID', None)
+    secret_key = getattr(Config, 'AWS_SECRET_ACCESS_KEY', None)
+    if api_key and ':' in str(api_key):
+        parts = str(api_key).split(':', 1)
+        access_key = (parts[0] or '').strip()
+        secret_key = (parts[1] or '').strip()
+    elif api_key:
+        secret_key = api_key
+    if not access_key or not secret_key:
+        return None
     try:
-        if system_prompt is None:
-            system_prompt = """You're an INCREDIBLY excited, friendly shopping assistant who absolutely LOVES helping people find amazing clothes! Talk like you're texting your best friend who just discovered something awesome and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely THRILLED!
-
-Show REAL excitement when you find great products - react like "OMG, wait till you see this!" or "This is SO perfect for you!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
-
-You're NOT a robot or corporate assistant - you're someone who gets genuinely PUMPED about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
-
-Keep it super conversational, warm, helpful, real, and EXCITED - like you're sharing amazing finds with your best friend!"""
-        
-        # Prepare the message for Claude
-        messages = [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-        
+        client_kw = {'region_name': region, 'aws_access_key_id': access_key, 'aws_secret_access_key': secret_key}
+        runtime = boto3.client('bedrock-runtime', **client_kw)
         body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1024,  # Reduced from 2048 for faster responses
-            "system": system_prompt,
-            "messages": messages
+            'anthropic_version': 'bedrock-2023-05-31',
+            'max_tokens': 1024,
+            'system': system_prompt or DEFAULT_SYSTEM_PROMPT,
+            'messages': [{'role': 'user', 'content': prompt}],
         }
-        
-        # Optimized for faster response
-        response = bedrock_runtime.invoke_model(
-            modelId=Config.BEDROCK_MODEL_ID,
-            body=json.dumps(body)
-        )
-        
+        response = runtime.invoke_model(modelId=model_id, body=json.dumps(body))
         response_body = json.loads(response['body'].read())
         content = response_body.get('content', [])
-        
-        if content and len(content) > 0:
-            return {'content': content[0].get('text', '')}
-        else:
-            return {'content': 'No response from AI'}
-            
+        if content:
+            return content[0].get('text', '')
     except Exception as e:
         print(f"Error calling Bedrock: {e}")
-        return {'content': f'I encountered an error: {str(e)}'}
+    return None
 
 
-def call_llm(prompt, system_prompt=None):
+def call_llm(prompt, system_prompt=None, config=None):
     """
-    Call the LLM using admin-configured API if set, otherwise fall back to default Bedrock.
-    Supports provider: bedrock, openai, custom (endpoint).
+    Call the LLM for the given config or effective selected provider.
+    Supports provider: openai, gemini, anthropic, bedrock.
     """
-    default_system = """You're an INCREDIBLY excited, friendly shopping assistant who absolutely LOVES helping people find amazing clothes! Talk like you're texting your best friend who just discovered something awesome and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely THRILLED!
-
-Show REAL excitement when you find great products - react like "OMG, wait till you see this!" or "This is SO perfect for you!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
-
-You're NOT a robot or corporate assistant - you're someone who gets genuinely PUMPED about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
-
-Keep it super conversational, warm, helpful, real, and EXCITED - like you're sharing amazing finds with your best friend!"""
     if system_prompt is None:
-        system_prompt = default_system
+        system_prompt = DEFAULT_SYSTEM_PROMPT
+    if config is None:
+        config = get_effective_provider_config()
+    if not config:
+        return {
+            'content': "I'm your AI shopping assistant! To get AI responses, the admin needs to set at least one API key in Admin → AI Assistant (OpenAI, Gemini, Anthropic, or Bedrock) and test it. Until then, I can still help you browse and search products."
+        }
+    internal = config if isinstance(config, dict) else getattr(config, 'to_internal_dict', lambda: config)()
+    provider = (internal.get('provider') or 'openai').strip().lower()
+    api_key = internal.get('api_key')
 
-    config = get_active_ai_config()
-    if config:
-        internal = config.to_internal_dict()
-        provider = internal.get('provider') or 'bedrock'
-        api_key = internal.get('api_key')
-        api_endpoint = internal.get('api_endpoint')
-        model_id = internal.get('model_id') or Config.BEDROCK_MODEL_ID
-        region = internal.get('region') or Config.AWS_REGION or 'us-east-1'
+    if provider == 'openai':
+        if not api_key:
+            return {'content': 'OpenAI API key is not set for this model. Add it in Admin → AI Assistant.'}
+        try:
+            text = _call_openai(internal, prompt, system_prompt)
+            return {'content': text}
+        except Exception as e:
+            print(f"Error calling OpenAI: {e}")
+            return {'content': f'I encountered an error: {str(e)}'}
 
-        if provider == 'openai' and api_key:
-            try:
-                resp = requests.post(
-                    'https://api.openai.com/v1/chat/completions',
-                    headers={
-                        'Authorization': f'Bearer {api_key}',
-                        'Content-Type': 'application/json',
-                    },
-                    json={
-                        'model': model_id or 'gpt-4o-mini',
-                        'messages': [
-                            {'role': 'system', 'content': system_prompt},
-                            {'role': 'user', 'content': prompt},
+    if provider == 'gemini':
+        if not api_key:
+            return {'content': 'Gemini API key is not set for this model. Add it in Admin → AI Assistant.'}
+        try:
+            text = _call_gemini(internal, prompt, system_prompt)
+            return {'content': text}
+        except Exception as e:
+            print(f"Error calling Gemini: {e}")
+            return {'content': f'I encountered an error: {str(e)}'}
+
+    if provider == 'anthropic':
+        if not api_key:
+            return {'content': 'Anthropic API key is not set. Add it in Admin → AI Assistant or set ANTHROPIC_API_KEY in .env.'}
+        try:
+            text = _call_anthropic(internal, prompt, system_prompt)
+            return {'content': text}
+        except Exception as e:
+            print(f"Error calling Anthropic: {e}")
+            return {'content': f'I encountered an error: {str(e)}'}
+
+    if provider == 'bedrock':
+        try:
+            text = _call_bedrock(internal, prompt, system_prompt)
+            if text:
+                return {'content': text}
+            return {'content': 'Bedrock is not configured. Set AWS credentials in Admin → AI Assistant or .env (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).'}
+        except Exception as e:
+            print(f"Error calling Bedrock: {e}")
+            return {'content': f'I encountered an error: {str(e)}'}
+
+    return {'content': f'Unknown provider: {provider}. Use openai, gemini, anthropic, or bedrock in Admin → AI Assistant.'}
+
+
+def test_provider_latency(provider):
+    """Test one provider; return (latency_ms, error_message). error_message is None on success."""
+    if provider not in FIXED_PROVIDERS:
+        return None, 'Invalid provider'
+    cfg = get_config_for_provider(provider)
+    if not cfg.get('api_key'):
+        return None, 'No API key set (Admin or env)'
+    start = time.time()
+    result = call_llm('Say exactly: OK', system_prompt='Reply with only the two letters: OK', config=cfg)
+    elapsed_ms = int((time.time() - start) * 1000)
+    content = (result.get('content') or '').strip().upper()
+    if content and 'ERROR' not in content and 'NOT SET' not in content and 'NOT FOUND' not in content:
+        return elapsed_ms, None
+    return None, result.get('content') or 'Request failed'
+
+
+def call_llm_vision(config, prompt, image_base64, system_prompt=None, media_type='image/jpeg'):
+    """Call the LLM with an image (for product image analysis). Uses config's provider; falls back to text-only if not supported."""
+    if config is None:
+        config = get_active_ai_config()
+    if not config:
+        return None
+    internal = config.to_internal_dict()
+    provider = (internal.get('provider') or 'openai').strip().lower()
+    api_key = internal.get('api_key')
+    model_id = internal.get('model_id')
+
+    if provider == 'openai' and api_key:
+        try:
+            content = [{'type': 'text', 'text': prompt}]
+            content.append({'type': 'image_url', 'image_url': {'url': f'data:{media_type};base64,{image_base64}'}})
+            r = requests.post(
+                'https://api.openai.com/v1/chat/completions',
+                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                json={
+                    'model': model_id or 'gpt-4o-mini',
+                    'messages': [
+                        {'role': 'system', 'content': system_prompt or 'You are a fashion expert analyzing clothing from images.'},
+                        {'role': 'user', 'content': content},
+                    ],
+                    'max_tokens': 2048,
+                },
+                timeout=90,
+            )
+            r.raise_for_status()
+            data = r.json()
+            text = (data.get('choices') or [{}])[0].get('message', {}).get('content', '')
+            return text
+        except Exception as e:
+            print(f"Error calling OpenAI vision: {e}")
+            return None
+
+    if provider == 'gemini' and api_key:
+        try:
+            mid = (model_id or 'gemini-2.0-flash').strip()
+            if not mid.startswith('models/'):
+                mid = f'models/{mid}'
+            url = f'https://generativelanguage.googleapis.com/v1beta/{mid}:generateContent?key={api_key}'
+            body = {
+                'contents': [{
+                    'parts': [
+                        {'text': prompt},
+                        {'inline_data': {'mime_type': media_type, 'data': image_base64}},
+                    ]
+                }],
+                'generationConfig': {'maxOutputTokens': 2048},
+            }
+            if system_prompt:
+                body['systemInstruction'] = {'parts': [{'text': system_prompt}]}
+            r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=90)
+            r.raise_for_status()
+            data = r.json()
+            candidates = data.get('candidates') or []
+            if not candidates:
+                return None
+            parts = candidates[0].get('content', {}).get('parts') or []
+            return parts[0].get('text', '') if parts else None
+        except Exception as e:
+            print(f"Error calling Gemini vision: {e}")
+            return None
+
+    if provider == 'anthropic' and api_key:
+        try:
+            r = requests.post(
+                'https://api.anthropic.com/v1/messages',
+                headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
+                json={
+                    'model': model_id or 'claude-3-5-sonnet-20241022',
+                    'max_tokens': 2048,
+                    'system': system_prompt or 'You are a fashion expert analyzing clothing from images.',
+                    'messages': [{
+                        'role': 'user',
+                        'content': [
+                            {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': image_base64}},
+                            {'type': 'text', 'text': prompt},
                         ],
-                        'max_tokens': 1024,
-                    },
-                    timeout=60,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                content = (data.get('choices') or [{}])[0].get('message', {}).get('content', '')
-                return {'content': content or 'No response from AI'}
-            except Exception as e:
-                print(f"Error calling OpenAI: {e}")
-                return {'content': f'I encountered an error: {str(e)}'}
+                    }],
+                },
+                timeout=90,
+            )
+            r.raise_for_status()
+            data = r.json()
+            for block in (data.get('content') or []):
+                if block.get('type') == 'text':
+                    return block.get('text', '')
+            return None
+        except Exception as e:
+            print(f"Error calling Anthropic vision: {e}")
+            return None
 
-        if provider == 'custom' and api_endpoint:
-            try:
-                r = requests.post(
-                    api_endpoint,
-                    json={'prompt': prompt, 'system_prompt': system_prompt},
-                    headers={'Content-Type': 'application/json'},
-                    timeout=60,
-                )
-                r.raise_for_status()
-                data = r.json() if r.headers.get('content-type', '').startswith('application/json') else {}
-                content = data.get('content') or data.get('response') or data.get('text') or r.text
-                return {'content': str(content)}
-            except Exception as e:
-                print(f"Error calling custom agent: {e}")
-                return {'content': f'I encountered an error: {str(e)}'}
-
-        if provider == 'bedrock':
-            # Support "access_key_id:secret_access_key" in one field, or secret only with .env access key
-            access_key = Config.AWS_ACCESS_KEY_ID
-            secret_key = api_key
-            if api_key and ':' in api_key:
-                parts = api_key.split(':', 1)
-                access_key = (parts[0] or '').strip()
-                secret_key = (parts[1] or '').strip()
-            elif not api_key and (Config.AWS_ACCESS_KEY_ID and Config.AWS_SECRET_ACCESS_KEY):
-                access_key = Config.AWS_ACCESS_KEY_ID
-                secret_key = Config.AWS_SECRET_ACCESS_KEY
-            if not secret_key:
-                return {'content': 'AI assistant is set to Bedrock but no API key is configured. Add an API key in Admin → AI Assistant.'}
-            # Bedrock requires BOTH access key and secret; a single pasted value without "id:secret" needs .env for the other
-            if secret_key and not access_key:
-                return {'content': (
-                    'AWS Bedrock needs both Access Key ID and Secret Access Key. '
-                    'Either enter them in the Admin API key field as: AccessKeyId:SecretAccessKey '
-                    'or set AWS_ACCESS_KEY_ID in your .env and paste only the Secret Access Key in the Admin panel.'
-                )}
-            try:
-                client_kw = {'region_name': region}
-                if access_key:
-                    client_kw['aws_access_key_id'] = access_key
-                if secret_key:
-                    client_kw['aws_secret_access_key'] = secret_key
-                runtime = boto3.client('bedrock-runtime', **client_kw)
-                messages = [{"role": "user", "content": prompt}]
-                body = {
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 1024,
-                    "system": system_prompt,
-                    "messages": messages,
-                }
-                response = runtime.invoke_model(
-                    modelId=model_id or Config.BEDROCK_MODEL_ID,
-                    body=json.dumps(body),
-                )
-                response_body = json.loads(response['body'].read())
-                content = response_body.get('content', [])
-                if content and len(content) > 0:
-                    return {'content': content[0].get('text', '')}
-                return {'content': 'No response from AI'}
-            except ClientError as e:
-                code = e.response.get('Error', {}).get('Code', '') if getattr(e, 'response', None) else ''
-                if code == 'UnrecognizedClientException':
-                    return {'content': (
-                        'AWS rejected the credentials (invalid or unrecognized). '
-                        'For Bedrock, use IAM Access Key ID and Secret Access Key: in Admin enter AccessKeyId:SecretAccessKey in one field, '
-                        'or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env and leave the Admin API key empty. '
-                        'Do not use an Anthropic or other non-AWS API key here.'
-                    )}
-                print(f"Error calling Bedrock (admin config): {e}")
-                return {'content': f'I encountered an error: {str(e)}'}
-            except Exception as e:
-                print(f"Error calling Bedrock (admin config): {e}")
-                return {'content': f'I encountered an error: {str(e)}'}
-
-    # No admin config: use default Bedrock from env
-    return call_bedrock(prompt, system_prompt)
-
-
-def get_bedrock_runtime_and_model():
-    """Return (bedrock_runtime_client, model_id) for image/vision calls. Uses active config if Bedrock, else module default."""
-    config = get_active_ai_config()
-    if config:
-        internal = config.to_internal_dict()
-        if (internal.get('provider') or 'bedrock') == 'bedrock':
+    if provider == 'bedrock' and internal.get('api_key'):
+        try:
+            region = internal.get('region') or getattr(Config, 'AWS_REGION', 'us-east-1')
+            model_id_b = internal.get('model_id') or getattr(Config, 'BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
+            ak, sk = getattr(Config, 'AWS_ACCESS_KEY_ID', None), getattr(Config, 'AWS_SECRET_ACCESS_KEY', None)
             api_key = internal.get('api_key')
-            region = internal.get('region') or Config.AWS_REGION or 'us-east-1'
-            model_id = internal.get('model_id') or Config.BEDROCK_MODEL_ID
-            access_key = Config.AWS_ACCESS_KEY_ID
-            secret_key = api_key
-            if api_key and ':' in api_key:
-                parts = api_key.split(':', 1)
-                access_key = (parts[0] or '').strip()
-                secret_key = (parts[1] or '').strip()
-            elif not api_key:
-                access_key = Config.AWS_ACCESS_KEY_ID
-                secret_key = Config.AWS_SECRET_ACCESS_KEY
-            if secret_key and access_key:
-                try:
-                    client_kw = {'region_name': region, 'aws_access_key_id': access_key, 'aws_secret_access_key': secret_key}
-                    runtime = boto3.client('bedrock-runtime', **client_kw)
-                    return runtime, model_id
-                except Exception as e:
-                    print(f"Error creating Bedrock client from config: {e}")
-    if bedrock_runtime:
-        return bedrock_runtime, Config.BEDROCK_MODEL_ID
-    return None, None
+            if api_key and ':' in str(api_key):
+                parts = str(api_key).split(':', 1)
+                ak, sk = (parts[0] or '').strip(), (parts[1] or '').strip()
+            elif api_key:
+                sk = api_key
+            if not ak or not sk:
+                return None
+            runtime = boto3.client('bedrock-runtime', region_name=region, aws_access_key_id=ak, aws_secret_access_key=sk)
+            body = {
+                'anthropic_version': 'bedrock-2023-05-31',
+                'max_tokens': 2048,
+                'system': system_prompt or 'You are a fashion expert analyzing clothing from images.',
+                'messages': [{
+                    'role': 'user',
+                    'content': [
+                        {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': image_base64}},
+                        {'type': 'text', 'text': prompt},
+                    ],
+                }],
+            }
+            response = runtime.invoke_model(modelId=model_id_b, body=json.dumps(body))
+            data = json.loads(response['body'].read())
+            for block in (data.get('content') or []):
+                if block.get('type') == 'text':
+                    return block.get('text', '')
+            return None
+        except Exception as e:
+            print(f"Error calling Bedrock vision: {e}")
+            return None
+
+    return None
+
+
+@ai_agent_bp.route('/models', methods=['GET'])
+def list_ai_models():
+    """Return selected provider for display (auto or openai/gemini/anthropic/bedrock). No auth required."""
+    try:
+        return jsonify({
+            'success': True,
+            'selected_provider': get_selected_provider(),
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @ai_agent_bp.route('/chat', methods=['POST'])
 def chat():
-    """Chat with AI agent."""
+    """Chat with AI agent. Uses selected provider from Admin (auto = first valid)."""
     try:
         data = request.get_json()
         message = data.get('message', '').lower()
         conversation_history = data.get('history', [])
-        selected_product_ids = data.get('selected_product_ids', [])  # Products selected in chat
-        
+        selected_product_ids = data.get('selected_product_ids', [])
+
+        ai_config = get_active_ai_config()
+
         if not message:
             return jsonify({'error': 'Message is required'}), 400
         
@@ -746,7 +901,7 @@ def chat():
                     vector_product_ids = [p.id for p in fallback_products]
                     vector_products = [p.to_dict() for p in fallback_products]
         
-        # Determine if this is a product search request BEFORE calling Bedrock
+        # Determine if this is a product search request BEFORE calling LLM
         # Check for product request keywords
         product_request_keywords = [
             'show', 'find', 'search', 'look', 'need', 'want', 
@@ -961,19 +1116,17 @@ IMPORTANT (but keep it natural!):
 
 Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find cool stuff!"""
         
-        # CRITICAL: Create a backup copy of products BEFORE Bedrock call
-        # This ensures we never lose the products even if something goes wrong
+        # CRITICAL: Create a backup copy of products BEFORE LLM call
         vector_products_backup = list(vector_products) if vector_products else []
         vector_product_ids_backup = list(vector_product_ids) if vector_product_ids else []
-        
         products_count_before = len(vector_products)
         product_ids_count_before = len(vector_product_ids)
-        print(f"BEFORE Bedrock - vector_products: {products_count_before}, vector_product_ids: {product_ids_count_before}")
+        print(f"BEFORE LLM - vector_products: {products_count_before}, vector_product_ids: {product_ids_count_before}")
         if products_count_before > 0:
-            print(f"BEFORE Bedrock - First product ID: {vector_products[0].get('id') if isinstance(vector_products[0], dict) else getattr(vector_products[0], 'id', 'N/A')}")
+            print(f"BEFORE LLM - First product ID: {vector_products[0].get('id') if isinstance(vector_products[0], dict) else getattr(vector_products[0], 'id', 'N/A')}")
         
-        # Call Bedrock
-        response = call_llm(full_prompt, system_prompt)
+        # Call LLM (direct API per admin config)
+        response = call_llm(full_prompt, system_prompt, config=ai_config)
         
         # CRITICAL: Restore products from backup if they were lost
         if len(vector_products) == 0 and len(vector_products_backup) > 0:
@@ -983,10 +1136,10 @@ Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find
             print(f"WARNING: vector_product_ids was lost! Restoring from backup ({len(vector_product_ids_backup)} IDs)")
             vector_product_ids = vector_product_ids_backup
         
-        # Verify products are still there after Bedrock call
+        # Verify products are still there after LLM call
         products_count_after = len(vector_products)
         product_ids_count_after = len(vector_product_ids)
-        print(f"AFTER Bedrock - vector_products: {products_count_after}, vector_product_ids: {product_ids_count_after}")
+        print(f"AFTER LLM - vector_products: {products_count_after}, vector_product_ids: {product_ids_count_after}")
         
         # Extract product IDs - use all vector_product_ids (up to 10) to ensure frontend gets them
         # If vector_product_ids is empty but we have vector_products, extract IDs from products
@@ -1308,8 +1461,8 @@ Summary:"""
         system_prompt = """You are a helpful assistant that creates concise, natural summaries perfect for text-to-speech. 
 Keep summaries conversational and maintain the original tone and key information."""
         
-        # Call Bedrock for summarization
-        result = call_llm(summarize_prompt, system_prompt)
+        # Call LLM for summarization (use first active config)
+        result = call_llm(summarize_prompt, system_prompt, config=get_active_ai_config())
         summary = result.get('content', text)  # Fallback to original if summarization fails
         
         print(f"[SUMMARIZE] Summary created ({len(summary)} characters)")
@@ -1672,57 +1825,30 @@ SEASON: [if applicable, e.g., spring, summer, fall, winter, all-season]
 
 Then provide a natural, enthusiastic description of the item in 2-3 sentences, highlighting its key features and style."""
         
-        # Analyze image using Bedrock (or fallback)
+        # Analyze image using active AI config (OpenAI/Gemini/Anthropic vision)
         metadata = {}
         analysis_text = ""
         similar_products = []
+        vision_config = get_active_ai_config()
+        analysis_text = call_llm_vision(
+            vision_config,
+            analysis_prompt,
+            image_base64,
+            system_prompt="You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis in the exact format requested. Be thorough and extract ALL available information from the image.",
+            media_type='image/jpeg',
+        )
+        if not analysis_text:
+            # Fallback to text-only if no vision-capable config
+            response = call_llm(
+                "Please analyze this fashion image. " + analysis_prompt,
+                system_prompt="You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis.",
+                config=vision_config,
+            )
+            analysis_text = response.get('content', '')
+        elif analysis_text:
+            print(f"[IMAGE ANALYSIS] Successfully analyzed image, response length: {len(analysis_text)}")
         
-        bedrock_runtime_for_image, bedrock_model_id = get_bedrock_runtime_and_model()
-        if bedrock_runtime_for_image and bedrock_model_id:
-            # Use Bedrock to analyze the image with Claude 3.5 Sonnet image support
-            try:
-                body = {
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 2048,
-                    "system": "You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis in the exact format requested. Be thorough and extract ALL available information from the image.",
-                    "messages": [{
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
-                            {"type": "text", "text": analysis_prompt}
-                        ]
-                    }]
-                }
-                
-                response = bedrock_runtime_for_image.invoke_model(
-                    modelId=bedrock_model_id,
-                    body=json.dumps(body)
-                )
-                
-                response_body = json.loads(response['body'].read())
-                content = response_body.get('content', [])
-                
-                if content and len(content) > 0:
-                    analysis_text = content[0].get('text', '')
-                    print(f"[IMAGE ANALYSIS] Successfully analyzed image, response length: {len(analysis_text)}")
-                else:
-                    analysis_text = ''
-                    print("[IMAGE ANALYSIS] No content in response")
-            except Exception as e:
-                print(f"Error calling Bedrock with image: {e}")
-                import traceback
-                traceback.print_exc()
-                # Fallback to text-only analysis
-                response = call_llm(
-                    "Please analyze this fashion image. " + analysis_prompt,
-                    system_prompt="You are a fashion expert analyzing clothing items from images. Provide detailed, structured analysis."
-                )
-                analysis_text = response.get('content', '')
-        else:
-            analysis_text = ""
-            print("[IMAGE ANALYSIS] Bedrock not available (no admin config or runtime), skipping image analysis")
-        
-        # Extract metadata from analysis (regardless of whether Bedrock was used)
+        # Extract metadata from analysis (regardless of vision vs text fallback)
         if analysis_text:
                 # Extract ITEM_TYPE or CLOTHING_TYPE
                 item_match = re.search(r'(?:ITEM_TYPE|CLOTHING_TYPE):\s*([^\n]+)', analysis_text, re.IGNORECASE)
@@ -1991,7 +2117,7 @@ Then provide a natural, enthusiastic description of the item in 2-3 sentences, h
             metadata_sentence = "I've analyzed your image and found some similar items!"
         
         # Combine analysis and metadata into a natural response
-        if analysis_text and analysis_text != "I can see you've uploaded an image! To get detailed fashion analysis, AWS Bedrock needs to be configured.":
+        if analysis_text and "needs to be configured" not in analysis_text:
             full_response = f"{metadata_sentence}\n\n{analysis_text}"
         else:
             full_response = metadata_sentence
@@ -2038,9 +2164,6 @@ def analyze_image():
         except Exception as e:
             return jsonify({'error': f'Invalid image data: {str(e)}'}), 400
         
-        # Build prompt for AI analysis
-        # Note: Claude 3.5 Sonnet in Bedrock supports image inputs via base64
-        # For now, we'll use text-based analysis
         analysis_prompt = f"""You are a fashion expert analyzing a clothing item from an uploaded image.
 
 User's question: {user_query}
@@ -2053,29 +2176,15 @@ Based on the image provided, please:
 5. Provide styling tips
 
 Be enthusiastic and helpful, matching the tone of our shopping assistant!"""
-        
-        # Call Bedrock with the analysis
-        if bedrock_runtime:
-            # For Claude 3.5 Sonnet with image support, you would use:
-            # body = {
-            #     "anthropic_version": "bedrock-2023-05-31",
-            #     "max_tokens": 1024,
-            #     "messages": [{
-            #         "role": "user",
-            #         "content": [
-            #             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
-            #             {"type": "text", "text": analysis_prompt}
-            #         ]
-            #     }]
-            # }
-            
-            # For now, use text-only analysis
-            response = call_llm(analysis_prompt, system_prompt="You are a fashion expert helping customers find matching items and styling advice.")
+        config = get_active_ai_config()
+        analysis_text_vision = call_llm_vision(config, analysis_prompt, image_base64, system_prompt="You are a fashion expert helping customers find matching items and styling advice.", media_type='image/jpeg')
+        if analysis_text_vision:
+            analysis = analysis_text_vision
+        elif config:
+            response = call_llm(analysis_prompt, system_prompt="You are a fashion expert helping customers find matching items and styling advice.", config=config)
             analysis = response.get('content', 'Unable to analyze image at this time.')
         else:
-            analysis = """I can see you've uploaded an image! To get detailed fashion analysis, AWS Bedrock needs to be configured with Claude 3.5 Sonnet (which supports image analysis).
-
-For now, you can describe the item to me and I'll help you find similar products or matching items!"""
+            analysis = "I can see you've uploaded an image! To get detailed fashion analysis, add and activate an AI model (OpenAI, Gemini, or Anthropic) in Admin → AI Assistant. Until then, you can describe the item and I'll help find similar products!"
         
         # Search for similar products based on the analysis
         # This would be enhanced with actual image recognition/ML in production

@@ -1,3 +1,7 @@
+# Load AWS secrets into env first (e.g. GEMINI_API_KEY from Secrets Manager)
+from utils.secrets_loader import load_into_env
+load_into_env()
+
 from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager

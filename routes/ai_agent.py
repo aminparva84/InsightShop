@@ -15,6 +15,11 @@ import json
 import requests
 from sqlalchemy import or_
 
+try:
+    from botocore.exceptions import ClientError
+except ImportError:
+    ClientError = Exception  # noqa: allow missing botocore at import
+
 ai_agent_bp = Blueprint('ai_agent', __name__)
 
 
@@ -261,7 +266,7 @@ Keep it super conversational, warm, helpful, real, and EXCITED - like you're sha
                 return {'content': f'I encountered an error: {str(e)}'}
 
         if provider == 'bedrock':
-            # Support "access_key_id:secret_access_key" in one field
+            # Support "access_key_id:secret_access_key" in one field, or secret only with .env access key
             access_key = Config.AWS_ACCESS_KEY_ID
             secret_key = api_key
             if api_key and ':' in api_key:
@@ -273,6 +278,13 @@ Keep it super conversational, warm, helpful, real, and EXCITED - like you're sha
                 secret_key = Config.AWS_SECRET_ACCESS_KEY
             if not secret_key:
                 return {'content': 'AI assistant is set to Bedrock but no API key is configured. Add an API key in Admin → AI Assistant.'}
+            # Bedrock requires BOTH access key and secret; a single pasted value without "id:secret" needs .env for the other
+            if secret_key and not access_key:
+                return {'content': (
+                    'AWS Bedrock needs both Access Key ID and Secret Access Key. '
+                    'Either enter them in the Admin API key field as: AccessKeyId:SecretAccessKey '
+                    'or set AWS_ACCESS_KEY_ID in your .env and paste only the Secret Access Key in the Admin panel.'
+                )}
             try:
                 client_kw = {'region_name': region}
                 if access_key:
@@ -296,6 +308,17 @@ Keep it super conversational, warm, helpful, real, and EXCITED - like you're sha
                 if content and len(content) > 0:
                     return {'content': content[0].get('text', '')}
                 return {'content': 'No response from AI'}
+            except ClientError as e:
+                code = e.response.get('Error', {}).get('Code', '') if getattr(e, 'response', None) else ''
+                if code == 'UnrecognizedClientException':
+                    return {'content': (
+                        'AWS rejected the credentials (invalid or unrecognized). '
+                        'For Bedrock, use IAM Access Key ID and Secret Access Key: in Admin enter AccessKeyId:SecretAccessKey in one field, '
+                        'or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env and leave the Admin API key empty. '
+                        'Do not use an Anthropic or other non-AWS API key here.'
+                    )}
+                print(f"Error calling Bedrock (admin config): {e}")
+                return {'content': f'I encountered an error: {str(e)}'}
             except Exception as e:
                 print(f"Error calling Bedrock (admin config): {e}")
                 return {'content': f'I encountered an error: {str(e)}'}
@@ -322,13 +345,9 @@ def get_bedrock_runtime_and_model():
             elif not api_key:
                 access_key = Config.AWS_ACCESS_KEY_ID
                 secret_key = Config.AWS_SECRET_ACCESS_KEY
-            if secret_key:
+            if secret_key and access_key:
                 try:
-                    client_kw = {'region_name': region}
-                    if access_key:
-                        client_kw['aws_access_key_id'] = access_key
-                    if secret_key:
-                        client_kw['aws_secret_access_key'] = secret_key
+                    client_kw = {'region_name': region, 'aws_access_key_id': access_key, 'aws_secret_access_key': secret_key}
                     runtime = boto3.client('bedrock-runtime', **client_kw)
                     return runtime, model_id
                 except Exception as e:

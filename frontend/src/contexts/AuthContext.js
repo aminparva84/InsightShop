@@ -11,18 +11,25 @@ export const useAuth = () => {
   return context;
 };
 
+const TOKEN_KEY = 'token';
+const REDIRECT_KEY = 'loginRedirect';
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(null);
+
+  // Read token after mount so we never redirect before localStorage is read (avoids wrong redirect on /members, /admin)
+  useEffect(() => {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    setToken(stored);
+    if (!stored) setLoading(false);
+  }, []);
 
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
+    if (!token) return;
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    fetchUser();
   }, [token]);
 
   const fetchUser = async () => {
@@ -31,7 +38,10 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
     } catch (error) {
       console.error('Error fetching user:', error);
-      logout();
+      // Only clear session on 401 (expired/invalid token); keep token on network/5xx so refresh keeps URL
+      if (error.response?.status === 401) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
@@ -43,7 +53,7 @@ export const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       setToken(token);
       setUser(user);
-      localStorage.setItem('token', token);
+      localStorage.setItem(TOKEN_KEY, token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       return { success: true };
     } catch (error) {
@@ -71,7 +81,7 @@ export const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       setToken(token);
       setUser(user);
-      localStorage.setItem('token', token);
+      localStorage.setItem(TOKEN_KEY, token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       return { success: true };
     } catch (error) {
@@ -94,7 +104,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('token');
+    localStorage.removeItem(TOKEN_KEY);
     delete axios.defaults.headers.common['Authorization'];
   };
 
@@ -112,4 +122,6 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export { REDIRECT_KEY };
 

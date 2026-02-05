@@ -1077,16 +1077,17 @@ def add_ai_assistant_config():
         provider = (data.get('provider') or 'bedrock').strip().lower()
         region = (data.get('region') or '').strip() or None
 
-        if not api_key and not api_endpoint:
-            return jsonify({'error': 'Agent API key or API endpoint is required'}), 400
+        if not api_key and not api_endpoint and provider != 'bedrock':
+            return jsonify({'error': 'Agent API key or API endpoint is required (Bedrock can use .env credentials)'}), 400
 
         if provider not in ('bedrock', 'openai', 'custom'):
             return jsonify({'error': 'Provider must be one of: bedrock, openai, custom'}), 400
 
         if provider == 'custom' and not api_endpoint:
             return jsonify({'error': 'API endpoint is required for custom provider'}), 400
-        if provider in ('bedrock', 'openai') and not api_key:
-            return jsonify({'error': 'API key is required for this provider'}), 400
+        if provider == 'openai' and not api_key:
+            return jsonify({'error': 'API key is required for OpenAI'}), 400
+        # Bedrock can use .env (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) if api_key is left empty
 
         # Deactivate all others so only this one is active
         AiAssistantConfig.query.update({'is_active': False})

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useCart } from '../contexts/CartContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, REDIRECT_KEY } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import PaymentIcons from '../components/PaymentIcons';
 import './Checkout.css';
@@ -13,10 +13,10 @@ const Checkout = () => {
   const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
 
-  // Require login to access checkout; redirect guests to login with return path
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      navigate('/login?redirect=/checkout', { replace: true });
+      sessionStorage.setItem(REDIRECT_KEY, '/checkout');
+      navigate('/login?redirect=/checkout', { state: { from: '/checkout' }, replace: true });
     }
   }, [authLoading, isAuthenticated, navigate]);
 

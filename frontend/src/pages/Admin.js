@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from '../components/Footer';
@@ -28,8 +27,7 @@ const DEFAULT_FASHION_KB = {
 };
 
 const Admin = () => {
-  const { user, token } = useAuth();
-  const navigate = useNavigate();
+  const { user, token, loading: authLoading } = useAuth();
   const [fashionKB, setFashionKB] = useState(null);
   const [fashionKBLoadError, setFashionKBLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -107,14 +105,7 @@ const Admin = () => {
   const productFormRef = useRef(null);
 
   useEffect(() => {
-    // Check if user is superadmin
-    if (!user || !user.is_superadmin) {
-      navigate('/members');
-      return;
-    }
-    // Only call API when token is available so requests include Authorization
-    if (!token) return;
-
+    if (authLoading || !token || !user || !user.is_superadmin) return;
     loadFashionKB();
     loadUsers();
     if (activeTab === 'dashboard') {
@@ -148,7 +139,7 @@ const Admin = () => {
     if (activeTab === 'ai-assistant') {
       loadAiAssistantConfigs();
     }
-  }, [user, token, navigate, activeTab]);
+  }, [user, token, authLoading, activeTab]);
 
   // Fetch order detail when View is clicked in Orders tab
   useEffect(() => {
@@ -1041,7 +1032,7 @@ const Admin = () => {
     setShowSaleForm(true);
   };
 
-  if (loading) {
+  if (authLoading || !user || !user.is_superadmin || loading) {
     return <div className="admin-page"><div className="container">Loading...</div></div>;
   }
 
@@ -2601,11 +2592,22 @@ const Admin = () => {
                   </label>
                   <input
                     type={agentApiProvider === 'custom' ? 'url' : 'password'}
-                    placeholder={agentApiProvider === 'custom' ? 'https://your-agent.com/chat' : 'Paste API key'}
+                    placeholder={
+                      agentApiProvider === 'custom'
+                        ? 'https://your-agent.com/chat'
+                        : agentApiProvider === 'bedrock'
+                          ? 'AccessKeyId:SecretAccessKey or leave empty if using .env'
+                          : 'Paste API key'
+                    }
                     value={agentApiInput}
                     onChange={(e) => setAgentApiInput(e.target.value)}
                     style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
                   />
+                  {agentApiProvider === 'bedrock' && (
+                    <p style={{ marginTop: 6, marginBottom: 0, fontSize: '0.85rem', color: '#6b7280' }}>
+                      For AWS Bedrock use IAM credentials: paste <strong>AccessKeyId:SecretAccessKey</strong> in one field (colon between them), or set <code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code> in .env and leave this empty.
+                    </p>
+                  )}
                 </div>
                 <div style={{ flex: '0 0 140px' }}>
                   <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>Name (optional)</label>

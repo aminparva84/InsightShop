@@ -5,7 +5,10 @@ from config import Config
 from models.database import db, init_db
 import os
 
-app = Flask(__name__, static_folder='frontend/build', static_url_path='', instance_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'))
+# SPA build: index.html at frontend/build, assets at frontend/build/static (CRA)
+# Use static_url_path='/static' so Flask's static route only matches /static/*, not /* (avoids 404 on reload for /products, /cart, etc.)
+_build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'build')
+app = Flask(__name__, static_folder=os.path.join(_build_dir, 'static'), static_url_path='/static', instance_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'))
 app.config.from_object(Config)
 # Use instance folder for database
 db_path = os.path.join(app.instance_path, Config.DB_PATH) if not os.path.isabs(Config.DB_PATH) else Config.DB_PATH
@@ -69,12 +72,17 @@ app.register_blueprint(reviews_bp, url_prefix='/api')
 app.register_blueprint(shipping_bp, url_prefix='/api/shipping')
 app.register_blueprint(returns_bp, url_prefix='/api/returns')
 
-# Serve React static files in production
+# Serve React SPA: any non-API path returns index.html so client-side router can handle /products, /cart, etc. (fixes reload 404)
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):
-    # Check if frontend build directory exists
-    if not os.path.exists(app.static_folder) or not os.path.exists(os.path.join(app.static_folder, 'index.html')):
+    # Don't serve index.html for API paths (let API routes or 404 handle them)
+    if path.startswith('api/'):
+        from flask import abort
+        abort(404)
+    # Check if frontend build exists (index.html lives in build dir, assets in build/static)
+    index_path = os.path.join(_build_dir, 'index.html')
+    if not os.path.exists(_build_dir) or not os.path.exists(index_path):
         from flask import jsonify
         return jsonify({
             'message': 'Frontend not built. Please run "npm run build" in the frontend directory, or start the React dev server with "npm start" on port 3000.',
@@ -85,11 +93,9 @@ def serve_react(path):
             },
             'development_mode': 'For development, run the React dev server separately: cd frontend && npm start'
         }), 200
-    
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        return app.send_static_file(path)
-    else:
-        return app.send_static_file('index.html')
+    # SPA fallback: always serve index.html so React Router can handle the path
+    from flask import send_from_directory
+    return send_from_directory(_build_dir, 'index.html')
 
 # Serve product images from static/images directory
 @app.route('/api/images/<filename>')

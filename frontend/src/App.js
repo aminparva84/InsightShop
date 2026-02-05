@@ -18,6 +18,7 @@ import Members from './pages/Members';
 import OrderConfirmation from './pages/OrderConfirmation';
 import Compare from './pages/Compare';
 import Admin from './pages/Admin';
+import RequireAuth from './components/RequireAuth';
 import './App.css';
 
 function AppContent() {
@@ -36,10 +37,10 @@ function AppContent() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/activation" element={<Activation />} />
-          <Route path="/members" element={<Members />} />
+          <Route path="/members" element={<RequireAuth path="/members"><Members /></RequireAuth>} />
           <Route path="/order-confirmation" element={<OrderConfirmation />} />
           <Route path="/compare" element={<Compare />} />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin" element={<RequireAuth path="/admin" requireSuperadmin><Admin /></RequireAuth>} />
         </Routes>
       </main>
       {!isAdmin && <Footer />}

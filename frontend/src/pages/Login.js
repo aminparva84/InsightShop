@@ -1,23 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useAuth, REDIRECT_KEY } from '../contexts/AuthContext';
 import './Auth.css';
 
-const Login = () => {
+const Login = ({ returnPath: returnPathProp }) => {
   const { login, googleLogin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/';
+  const fromUrlOrStorage = searchParams.get('redirect') || location.state?.from || sessionStorage.getItem(REDIRECT_KEY) || '/';
+  const redirectTo = returnPathProp != null ? returnPathProp : fromUrlOrStorage;
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // After login, redirect to cart so user sees merged cart (guest items + their cart)
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/cart', { replace: true });
+      sessionStorage.removeItem(REDIRECT_KEY);
+      navigate(redirectTo, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, redirectTo]);
 
   useEffect(() => {
     // Initialize Google Sign-In
@@ -34,7 +36,8 @@ const Login = () => {
       setLoading(true);
       const result = await googleLogin(response.credential);
       if (result.success) {
-        navigate('/cart', { replace: true });
+        sessionStorage.removeItem(REDIRECT_KEY);
+        navigate(redirectTo, { replace: true });
       } else {
         setError(result.error);
       }
@@ -52,7 +55,8 @@ const Login = () => {
 
     const result = await login(formData.email, formData.password);
     if (result.success) {
-      navigate('/cart', { replace: true });
+      sessionStorage.removeItem(REDIRECT_KEY);
+      navigate(redirectTo, { replace: true });
     } else {
       setError(result.error);
     }

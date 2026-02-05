@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import ProductCard from '../components/ProductCard';
 import './Members.css';
 
 const Members = () => {
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+  const { isAuthenticated, loading: authLoading, token } = useAuth();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -15,13 +13,10 @@ const Members = () => {
   const [allOrders, setAllOrders] = useState([]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
+    if (authLoading || !token || !isAuthenticated) return;
     fetchDashboard();
     fetchAllOrders();
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, authLoading, token]);
 
   useEffect(() => {
     if (!loading && (allOrders.length > 0 || !dashboard || dashboard.recent_orders.length === 0)) {
@@ -59,7 +54,7 @@ const Members = () => {
     }
   };
 
-  if (!isAuthenticated || loading) {
+  if (authLoading || !token || !isAuthenticated || loading) {
     return <div className="spinner"></div>;
   }
 

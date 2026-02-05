@@ -160,6 +160,9 @@ const FloatingAIAssistant = () => {
               width: `${chatSize.width}px`,
               height: `${chatSize.height}px`
             }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="AI chat"
           >
             <AIChat 
               onClose={() => setShowChat(false)} 

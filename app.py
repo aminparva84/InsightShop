@@ -1,4 +1,7 @@
-# Load AWS secrets into env first (e.g. GEMINI_API_KEY from Secrets Manager)
+# Load .env first so AWS_SECRETS_INSIGHTSHOP is set, then fetch secrets from AWS
+import os
+from dotenv import load_dotenv
+load_dotenv()
 from utils.secrets_loader import load_into_env
 load_into_env()
 
@@ -7,7 +10,6 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import Config
 from models.database import db, init_db
-import os
 
 # SPA build: index.html at frontend/build, assets at frontend/build/static (CRA)
 # Use static_url_path='/static' so Flask's static route only matches /static/*, not /* (avoids 404 on reload for /products, /cart, etc.)

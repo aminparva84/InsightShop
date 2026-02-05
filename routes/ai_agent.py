@@ -27,21 +27,47 @@ You're NOT a robot or corporate assistant - you're someone who gets genuinely PU
 Keep it super conversational, warm, helpful, real, and EXCITED - like you're sharing amazing finds with your best friend!"""
 
 
+def _env_api_key(provider):
+    """Get API key from env (including after loading from AWS Secrets Manager)."""
+    import os
+    if provider == 'openai':
+        return os.getenv('OPENAI_API_KEY') or getattr(Config, 'OPENAI_API_KEY', None)
+    if provider == 'gemini':
+        return os.getenv('GEMINI_API_KEY') or getattr(Config, 'GEMINI_API_KEY', None)
+    if provider == 'anthropic':
+        return os.getenv('ANTHROPIC_API_KEY') or getattr(Config, 'ANTHROPIC_API_KEY', None)
+    return None
+
+
 def get_effective_api_key_for_provider(provider):
     """Return (api_key, source) for a provider. source is 'admin' or 'env'."""
     try:
         c = AiAssistantConfig.query.filter_by(provider=provider).first()
         if c and c.api_key:
             return c.api_key, 'admin'
-        if provider == 'openai' and getattr(Config, 'OPENAI_API_KEY', None):
-            return Config.OPENAI_API_KEY, 'env'
-        if provider == 'gemini' and getattr(Config, 'GEMINI_API_KEY', None):
-            return Config.GEMINI_API_KEY, 'env'
-        if provider == 'anthropic' and getattr(Config, 'ANTHROPIC_API_KEY', None):
-            return Config.ANTHROPIC_API_KEY, 'env'
+        if provider == 'openai':
+            key = _env_api_key('openai')
+            if key:
+                return key, 'env'
+        if provider == 'gemini':
+            key = _env_api_key('gemini')
+            if not key:
+                from utils.secrets_loader import load_into_env, get_gemini_api_key_from_aws
+                load_into_env()
+                key = _env_api_key('gemini')
+            if not key:
+                # Exception: fetch Gemini key directly from AWS Secrets Manager so admin does not need to set it
+                key = get_gemini_api_key_from_aws()
+            if key:
+                return key, 'env'
+        if provider == 'anthropic':
+            key = _env_api_key('anthropic')
+            if key:
+                return key, 'env'
         if provider == 'bedrock':
-            ak = getattr(Config, 'AWS_ACCESS_KEY_ID', None) or ''
-            sk = getattr(Config, 'AWS_SECRET_ACCESS_KEY', None) or ''
+            import os
+            ak = os.getenv('AWS_ACCESS_KEY_ID') or getattr(Config, 'AWS_ACCESS_KEY_ID', None) or ''
+            sk = os.getenv('AWS_SECRET_ACCESS_KEY') or getattr(Config, 'AWS_SECRET_ACCESS_KEY', None) or ''
             if ak and sk:
                 return f'{ak}:{sk}', 'env'
     except Exception:
@@ -520,9 +546,16 @@ def chat():
         selected_product_ids = data.get('selected_product_ids', [])
 
         ai_config = get_active_ai_config()
+        selected_provider = get_selected_provider()
 
         if not message:
             return jsonify({'error': 'Message is required'}), 400
+
+        if not ai_config:
+            return jsonify({
+                'error': "No AI provider is available. In Admin → AI Assistant, set an API key for at least one provider (e.g. Gemini) and click Test, or ensure AWS Secrets Manager (AWS_SECRETS_INSIGHTSHOP) contains the key (e.g. GEMINI_API_KEY) and select that provider.",
+                'selected_provider': selected_provider,
+            }), 503
         
         # Check if user wants to compare products
         is_comparison_request = any(keyword in message for keyword in [
@@ -579,7 +612,8 @@ def chat():
                     'suggested_products': products_dict,
                     'suggested_product_ids': compare_product_ids,
                     'action': 'compare',
-                    'compare_ids': compare_product_ids
+                    'compare_ids': compare_product_ids,
+                    'selected_provider': selected_provider,
                 }), 200
         
         # Get all products for context
@@ -1343,7 +1377,8 @@ Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find
             'suggested_products': products_to_return,  # Return up to 10 products
             'suggested_product_ids': ids_to_return,  # Return all IDs (already limited to 10)
             'action': action_to_return,  # Always set action when products found
-            'fashion_match_suggestions': fashion_match_suggestions  # Fashion Match Stylist suggestions
+            'fashion_match_suggestions': fashion_match_suggestions,  # Fashion Match Stylist suggestions
+            'selected_provider': selected_provider,  # e.g. 'gemini' when using Gemini
         }), 200
         
     except Exception as e:

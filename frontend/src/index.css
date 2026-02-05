@@ -14,8 +14,13 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #faf0e6;
+  background-color: #f5f3ef;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(201, 162, 39, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 50% at 100% 100%, rgba(15, 23, 42, 0.04) 0%, transparent 50%),
+    linear-gradient(180deg, #faf8f5 0%, #f5f3ef 50%, #ebe8e2 100%);
   color: #36454f;
+  min-height: 100vh;
 }
 
 code {

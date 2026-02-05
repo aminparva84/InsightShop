@@ -1010,17 +1010,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         });
       }
       
-      // Handle comparison action - always navigate and minimize (only if not inline)
+      // Handle comparison action - navigate in background; keep chat open (user closes when they want)
       if (response.data.action === 'compare' && response.data.compare_ids) {
         const compareIds = response.data.compare_ids;
         navigate(`/compare?ids=${compareIds.join(',')}`);
-        if (!isInline) {
-          if (onMinimize) {
-            onMinimize();
-          } else if (onClose) {
-            onClose();
-          }
-        }
         return;
       }
       
@@ -1196,17 +1189,6 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             newMessages[newMessages.length - 1] = updatedMessage;
             return newMessages;
           });
-          
-          // Minimize chat immediately for product lists (only if not inline)
-          if (!isInline) {
-            setTimeout(() => {
-              if (onMinimize) {
-                onMinimize();
-              } else if (onClose) {
-                onClose();
-              }
-            }, 100); // Small delay to ensure navigation happens first
-          }
           return;
         } else if (hasSuggestedProducts && response.data.suggested_products?.length > 0) {
           // Last resort: log detailed error for debugging
@@ -1232,20 +1214,6 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         const targetUrl = `/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`;
         console.log('AI Chat: Second navigation, URL:', targetUrl);
         navigate(targetUrl, { replace: false });
-        
-        // Verify navigation happened
-        setTimeout(() => {
-          console.log('AI Chat: After second navigation, current URL:', window.location.href);
-        }, 100);
-        if (!isInline) {
-          setTimeout(() => {
-            if (onMinimize) {
-              onMinimize();
-            } else if (onClose) {
-              onClose();
-            }
-          }, 100);
-        }
         return;
       }
       
@@ -1263,7 +1231,11 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   };
 
   return (
-    <div className={`ai-chat ${isInline ? 'ai-chat-inline' : ''}`}>
+    <div
+      className={`ai-chat ${isInline ? 'ai-chat-inline' : ''}`}
+      role="region"
+      aria-label="AI Shopping Assistant chat"
+    >
       <div className="ai-chat-header">
         <h3>AI Shopping Assistant</h3>
         <div className="ai-chat-header-buttons">
@@ -1285,7 +1257,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
         </div>
       </div>
 
-      <div className="ai-chat-messages">
+      <div className="ai-chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
         {messages.map((msg, idx) => {
           const messageId = `msg-${idx}`;
           const isCurrentlyPlaying = currentlyPlayingMessageId === messageId;
@@ -1302,8 +1274,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           }
           
           return (
-          <div key={idx} className={`message ${msg.role}`}>
-            <div className="message-content" style={{ position: 'relative' }}>
+          <div key={idx} className={`message ${msg.role}`} role="article" aria-label={msg.role === 'user' ? 'Your message' : 'Assistant message'}>
+            <div className="message-content">
               {/* Play button for assistant messages - always show, handle errors gracefully */}
               {msg.role === 'assistant' && (
                 <button
@@ -1841,8 +1813,9 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               };
             }
           }}
-          placeholder="Ask me about products, or say 'compare product 1, 2, 3' or 'compare selected items'..."
+          placeholder="Ask about products, compare items, or describe what you're looking for..."
           disabled={loading || isListening}
+          aria-label="Message to AI assistant"
         />
         <button
           type="button"
@@ -1953,50 +1926,29 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       
       {/* Clear History Confirmation Modal */}
       {showClearConfirm && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'white',
-            padding: '24px',
-            borderRadius: '12px',
-            maxWidth: '400px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-          }}>
-            <h3 style={{ marginTop: 0 }}>Clear Chat History?</h3>
-            <p>Are you sure you want to clear all chat messages? This action cannot be undone.</p>
+        <div
+          className="ai-chat-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ai-chat-clear-title"
+          aria-describedby="ai-chat-clear-desc"
+          onClick={(e) => e.target === e.currentTarget && setShowClearConfirm(false)}
+        >
+          <div className="ai-chat-modal">
+            <h3 id="ai-chat-clear-title" style={{ marginTop: 0 }}>Clear Chat History?</h3>
+            <p id="ai-chat-clear-desc">Are you sure you want to clear all chat messages? This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
               <button
+                type="button"
                 onClick={() => setShowClearConfirm(false)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#e5e7eb',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
+                className="ai-chat-modal-cancel"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleClearHistory}
-                style={{
-                  padding: '8px 16px',
-                  background: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
+                className="ai-chat-modal-confirm"
               >
                 Clear
               </button>

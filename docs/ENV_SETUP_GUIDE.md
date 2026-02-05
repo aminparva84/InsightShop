@@ -1,5 +1,41 @@
 # Environment Variables Setup Guide
 
+## AWS Credentials (Bedrock, S3, SES, Secrets Manager)
+
+The app uses AWS for AI (Bedrock), backups (S3), email (SES), and optional secrets (Secrets Manager). Credentials are read from the environment and **must not be committed** to git.
+
+### Set AWS credentials in `.env`
+
+Add to your `.env` file in the project root:
+
+```env
+AWS_ACCESS_KEY_ID=your_access_key_id
+AWS_SECRET_ACCESS_KEY=your_secret_access_key
+AWS_REGION=us-east-1
+```
+
+Or run the helper script (one-time, from project root):
+
+```bash
+python scripts/set_aws_env.py YOUR_ACCESS_KEY_ID YOUR_SECRET_ACCESS_KEY
+```
+
+### Verify connection
+
+```bash
+python scripts/verify_aws_connection.py
+```
+
+You should see your AWS account ID and ARN. If you see errors, check that the IAM user has at least `sts:GetCallerIdentity` (and Bedrock/S3/SES permissions as needed).
+
+### Security
+
+- **Never commit `.env`** — it is listed in `.gitignore`.
+- **Rotate keys** if they were ever shared (e.g. in chat or email). In AWS Console: IAM → Users → Security credentials → Create access key (then delete the old one).
+- **Production (App Runner/ECS)**: Prefer IAM roles so no long-lived keys are stored; use Secrets Manager for other secrets.
+
+---
+
 ## J.P. Morgan Payments API Configuration
 
 The J.P. Morgan Payments API credentials are already configured as defaults in `config.py`, but for production use, you should set them as environment variables.

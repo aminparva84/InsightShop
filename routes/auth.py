@@ -56,7 +56,12 @@ def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        if user_id is not None and not isinstance(user_id, int):
+            try:
+                user_id = int(user_id)
+            except (TypeError, ValueError):
+                user_id = None
+        user = User.query.get(user_id) if user_id is not None else None
         if not user:
             return jsonify({'error': 'User not found'}), 401
         
@@ -168,7 +173,7 @@ def login():
             return jsonify({'error': 'Please verify your email before logging in'}), 403
         
         # Generate token
-        token = create_access_token(identity=user.id)
+        token = create_access_token(identity=str(user.id))
         
         return jsonify({
             'token': token,
@@ -276,7 +281,7 @@ def google_login():
         db.session.commit()
         
         # Generate token
-        token = create_access_token(identity=user.id)
+        token = create_access_token(identity=str(user.id))
         
         return jsonify({
             'token': token,

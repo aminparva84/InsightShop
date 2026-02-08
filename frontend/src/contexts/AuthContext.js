@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
@@ -18,6 +18,21 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
+  const logoutRef = useRef(null);
+
+  // When any API returns 401 or 422 (invalid/expired token), clear session so user can log in again
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (err.response?.status === 401 || err.response?.status === 422) {
+          if (logoutRef.current) logoutRef.current();
+        }
+        return Promise.reject(err);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
 
   // Read token after mount so we never redirect before localStorage is read (avoids wrong redirect on /members, /admin)
   useEffect(() => {
@@ -38,8 +53,8 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
     } catch (error) {
       console.error('Error fetching user:', error);
-      // Only clear session on 401 (expired/invalid token); keep token on network/5xx so refresh keeps URL
-      if (error.response?.status === 401) {
+      // Clear session on 401 or 422 (expired/invalid/malformed token); keep token on network/5xx so refresh keeps URL
+      if (error.response?.status === 401 || error.response?.status === 422) {
         logout();
       }
     } finally {
@@ -107,6 +122,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem(TOKEN_KEY);
     delete axios.defaults.headers.common['Authorization'];
   };
+  logoutRef.current = logout;
 
   const value = {
     user,

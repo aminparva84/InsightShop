@@ -15,10 +15,16 @@ from models.database import db, init_db
 # Use static_url_path='/static' so Flask's static route only matches /static/*, not /* (avoids 404 on reload for /products, /cart, etc.)
 _build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'build')
 app = Flask(__name__, static_folder=os.path.join(_build_dir, 'static'), static_url_path='/static', instance_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'))
+# Allow API routes to match with or without trailing slash (avoids 404 when request has trailing slash)
+app.url_map.strict_slashes = False
 app.config.from_object(Config)
 # Use instance folder for database
 db_path = os.path.join(app.instance_path, Config.DB_PATH) if not os.path.isabs(Config.DB_PATH) else Config.DB_PATH
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+# Ensure instance (and any parent) directory exists so SQLite can create the DB file
+os.makedirs(os.path.dirname(db_path) or '.', exist_ok=True)
+# Use forward slashes in URI so SQLite works on Windows (backslashes can break the URI)
+_db_uri_path = db_path.replace('\\', '/')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_uri_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = Config.SECRET_KEY  # Required for session
 app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET
@@ -46,6 +52,21 @@ CORS(app, resources={
 
 # JWT Manager
 jwt = JWTManager(app)
+
+@jwt.invalid_token_loader
+def invalid_token_callback(reason):
+    from flask import jsonify
+    return jsonify({'error': 'Invalid or malformed token', 'message': 'Please log in again'}), 401
+
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    from flask import jsonify
+    return jsonify({'error': 'Token has expired', 'message': 'Please log in again'}), 401
+
+@jwt.unauthorized_loader
+def unauthorized_callback(reason):
+    from flask import jsonify
+    return jsonify({'error': 'Authorization required', 'message': reason or 'Please log in'}), 401
 
 # Import and register blueprints
 from routes.auth import auth_bp

@@ -15,6 +15,7 @@ def init_db(app):
         from models.cart import CartItem
         from models.order import Order, OrderItem
         from models.payment import Payment
+        from models.payment_log import PaymentLog
         from models.review import Review
         try:
             from models.sale import Sale
@@ -43,10 +44,13 @@ def init_db(app):
             AiAssistantConfig = None
             AISelectedProvider = None
 
-        # Create database directory if it doesn't exist
-        db_dir = os.path.dirname(Config.DB_PATH) if os.path.dirname(Config.DB_PATH) else '.'
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir)
+        # Create database directory from app's actual DB path (e.g. instance/insightshop.db)
+        uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if uri.startswith('sqlite:///'):
+            db_file_path = uri.replace('sqlite:///', '').replace('/', os.sep)
+            db_dir = os.path.dirname(db_file_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
         
         # Only delete database if explicitly needed (commented out to preserve data)
         # if os.path.exists(Config.DB_PATH):
@@ -55,7 +59,8 @@ def init_db(app):
         
         # Create all tables with new schema
         db.create_all()
-        print(f"Database tables created at: {Config.DB_PATH}")
+        _log_path = uri.replace('sqlite:///', '').replace('/', os.sep) if uri.startswith('sqlite:///') else Config.DB_PATH
+        print(f"Database tables created at: {_log_path}")
 
         # Add Order.currency column if missing (existing databases)
         try:

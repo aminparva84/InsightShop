@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain } from 'react-icons/fa';
+import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain, FaSearch } from 'react-icons/fa';
 import {
   GiTrousers,
   GiShirt,
@@ -29,6 +29,15 @@ const Home = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      navigate(`/products?search=${encodeURIComponent(trimmed)}`);
+    }
+  };
 
   useEffect(() => {
     fetchFeaturedProducts();
@@ -86,6 +95,23 @@ const Home = () => {
       <section className="featured-products">
         <div className="container">
           <h2 className="section-title">Featured Products</h2>
+          <form className="home-search-bar" onSubmit={handleSearchSubmit} role="search">
+            <div className="home-search-wrapper">
+              <FaSearch className="home-search-icon" aria-hidden="true" />
+              <input
+                type="search"
+                className="home-search-input"
+                placeholder="Search styles, colors, occasions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search products"
+                autoComplete="off"
+              />
+              <button type="submit" className="home-search-btn">
+                Search
+              </button>
+            </div>
+          </form>
           {loading ? (
             <div className="spinner"></div>
           ) : products.length > 0 ? (

@@ -1097,13 +1097,16 @@ def _ensure_four_providers():
 
 
 def _provider_dict(c):
-    """Build dict for one provider, including source (admin vs env), masked key, and SDK installed status."""
+    """Build dict for one provider. Never include raw API keys; only masked placeholders."""
     from routes.ai_agent import get_effective_api_key_for_provider
     effective_key, source = get_effective_api_key_for_provider(c.provider)
     d = c.to_dict(mask_secrets=True)
     d['source'] = source
     d['api_key_display'] = '••••••••' if effective_key else ('' if source == 'env' else '')
     d['sdk_installed_backend'] = _sdk_installed_backend(c.provider)
+    # Ensure we never send raw key to client (to_dict already masks; enforce)
+    if 'api_key' in d and d['api_key'] and d['api_key'] != '••••••••':
+        d['api_key'] = '••••••••'
     return d
 
 
@@ -1155,10 +1158,26 @@ def patch_ai_provider(provider):
             config = AiAssistantConfig(provider=provider, name=PROVIDER_DISPLAY_NAMES.get(provider), sdk=PROVIDER_SDK.get(provider), source='admin')
             db.session.add(config)
         data = request.get_json() or {}
+        # Never log request body when it may contain secrets
+        if provider == 'bedrock' and ('access_key_id' in data or 'secret_access_key' in data):
+            ak = (data.get('access_key_id') or '').strip()
+            sk = (data.get('secret_access_key') or '').strip()
+            if ak and sk:
+                from utils.secret_storage import encrypt_plaintext
+                config.api_key = encrypt_plaintext(f'{ak}:{sk}')
+                config.source = 'admin'
+            elif not ak and not sk and 'api_key' not in data:
+                config.api_key = None
+                config.source = 'env'
         if 'api_key' in data:
             val = (data.get('api_key') or '').strip()
-            config.api_key = val if val else None
-            config.source = 'admin' if config.api_key else 'env'
+            if val:
+                from utils.secret_storage import encrypt_plaintext
+                config.api_key = encrypt_plaintext(val)
+                config.source = 'admin'
+            else:
+                config.api_key = None
+                config.source = 'env'
         if 'model_id' in data:
             config.model_id = (data.get('model_id') or '').strip() or None
         if 'region' in data and provider == 'bedrock':

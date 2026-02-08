@@ -21,11 +21,15 @@ app.config.from_object(Config)
 # Use instance folder for database
 db_path = os.path.join(app.instance_path, Config.DB_PATH) if not os.path.isabs(Config.DB_PATH) else Config.DB_PATH
 # Ensure instance (and any parent) directory exists so SQLite can create the DB file
-os.makedirs(os.path.dirname(db_path) or '.', exist_ok=True)
+_db_dir = os.path.dirname(db_path)
+if _db_dir and not os.path.exists(_db_dir):
+    os.makedirs(_db_dir, exist_ok=True)
 # Use forward slashes in URI so SQLite works on Windows (backslashes can break the URI)
 _db_uri_path = db_path.replace('\\', '/')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_uri_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Log resolved DB path so you can verify if connection is severed
+print(f"[DB] Path: {os.path.abspath(db_path)} (from DB_PATH={Config.DB_PATH!r})")
 app.config['SECRET_KEY'] = Config.SECRET_KEY  # Required for session
 app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = Config.JWT_EXPIRATION
@@ -148,10 +152,20 @@ def serve_generated_image(filename):
         from flask import abort
         abort(404)
 
-# Health check endpoint
+# Health check endpoint (includes DB connectivity)
 @app.route('/api/health')
 def health():
-    return {'status': 'healthy', 'service': 'InsightShop API'}, 200
+    payload = {'status': 'healthy', 'service': 'InsightShop API'}
+    try:
+        from sqlalchemy import text
+        db.session.execute(text('SELECT 1'))
+        payload['db'] = 'connected'
+    except Exception as e:
+        payload['status'] = 'degraded'
+        payload['db'] = 'error'
+        payload['db_error'] = str(e)
+        return payload, 503
+    return payload, 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=Config.DEBUG)

@@ -40,11 +40,12 @@ def _env_api_key(provider):
 
 
 def get_effective_api_key_for_provider(provider):
-    """Return (api_key, source) for a provider. source is 'admin' or 'env'."""
+    """Return (api_key, source) for a provider. source is 'admin' or 'env'. Decrypts stored keys."""
     try:
         c = AiAssistantConfig.query.filter_by(provider=provider).first()
         if c and c.api_key:
-            return c.api_key, 'admin'
+            from utils.secret_storage import decrypt_ciphertext
+            return decrypt_ciphertext(c.api_key), 'admin'
         if provider == 'openai':
             key = _env_api_key('openai')
             if key:
@@ -282,7 +283,10 @@ def _call_anthropic(internal, prompt, system_prompt, timeout=60):
 
 
 def _call_bedrock(internal, prompt, system_prompt, timeout=60):
-    """Call AWS Bedrock (Claude) with credentials from internal dict or env."""
+    """Call AWS Bedrock (Claude) with credentials from internal dict or env.
+    Returns (response_text, error_message). error_message is None on success;
+    'no_credentials' when keys are missing; or the exception string on API failure.
+    """
     region = internal.get('region') or getattr(Config, 'AWS_REGION', 'us-east-1')
     model_id = internal.get('model_id') or getattr(Config, 'BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
     api_key = internal.get('api_key')
@@ -293,9 +297,9 @@ def _call_bedrock(internal, prompt, system_prompt, timeout=60):
         access_key = (parts[0] or '').strip()
         secret_key = (parts[1] or '').strip()
     elif api_key:
-        secret_key = api_key
+        secret_key = (api_key or '').strip()
     if not access_key or not secret_key:
-        return None
+        return None, 'no_credentials'
     try:
         client_kw = {'region_name': region, 'aws_access_key_id': access_key, 'aws_secret_access_key': secret_key}
         runtime = boto3.client('bedrock-runtime', **client_kw)
@@ -309,10 +313,11 @@ def _call_bedrock(internal, prompt, system_prompt, timeout=60):
         response_body = json.loads(response['body'].read())
         content = response_body.get('content', [])
         if content:
-            return content[0].get('text', '')
+            return content[0].get('text', ''), None
     except Exception as e:
         print(f"Error calling Bedrock: {e}")
-    return None
+        return None, str(e)
+    return None, 'no_response'
 
 
 def call_llm(prompt, system_prompt=None, config=None):
@@ -363,14 +368,21 @@ def call_llm(prompt, system_prompt=None, config=None):
             return {'content': f'I encountered an error: {str(e)}'}
 
     if provider == 'bedrock':
-        try:
-            text = _call_bedrock(internal, prompt, system_prompt)
-            if text:
-                return {'content': text}
-            return {'content': 'Bedrock is not configured. Set AWS credentials in Admin → AI Assistant or .env (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).'}
-        except Exception as e:
-            print(f"Error calling Bedrock: {e}")
-            return {'content': f'I encountered an error: {str(e)}'}
+        text, err = _call_bedrock(internal, prompt, system_prompt)
+        if text:
+            return {'content': text}
+        if err == 'no_credentials':
+            return {'content': 'Bedrock credentials are missing or invalid. In Admin → AI Assistant, for AWS Bedrock enter your Access Key ID and Secret Access Key (in the two fields), or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env and leave the fields blank.'}
+        if err and err != 'no_response':
+            err_lower = (err or '').lower()
+            if 'operation not allowed' in err_lower or 'validationexception' in err_lower:
+                return {'content': (
+                    "Bedrock returned \"Operation not allowed\". You must enable model access in AWS: "
+                    "Open Amazon Bedrock → Model access (left menu) → Manage model access → "
+                    "enable at least one Claude model (e.g. Claude 3 Haiku or Claude 3.5 Sonnet) for your region, then try again."
+                )}
+            return {'content': f'Bedrock error: {err}'}
+        return {'content': 'Bedrock is not configured. Set AWS credentials in Admin → AI Assistant (Access Key + Secret Key) or .env (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).'}
 
     return {'content': f'Unknown provider: {provider}. Use openai, gemini, anthropic, or bedrock in Admin → AI Assistant.'}
 

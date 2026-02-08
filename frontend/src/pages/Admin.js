@@ -101,6 +101,8 @@ const Admin = () => {
   const [aiProviderSaving, setAiProviderSaving] = useState(null);
   const [aiProviderTesting, setAiProviderTesting] = useState(null);
   const [aiProviderKeyInputs, setAiProviderKeyInputs] = useState({});
+  const [aiBedrockAccessKey, setAiBedrockAccessKey] = useState('');
+  const [aiBedrockSecretKey, setAiBedrockSecretKey] = useState('');
   const productFormRef = useRef(null);
 
   useEffect(() => {
@@ -222,6 +224,36 @@ const Admin = () => {
       if (response.data.success) {
         setMessage({ type: 'success', text: 'API key saved.' });
         setAiProviderKeyInputs(prev => ({ ...prev, [provider]: '' }));
+        if (provider === 'bedrock') {
+          setAiBedrockAccessKey('');
+          setAiBedrockSecretKey('');
+        }
+        loadAiProviders();
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to save' });
+    } finally {
+      setAiProviderSaving(null);
+    }
+  };
+
+  /** Save Bedrock credentials as separate fields (never send combined key in one field). */
+  const handleSaveBedrockKeys = async (accessKeyId, secretAccessKey) => {
+    setAiProviderSaving('bedrock');
+    setMessage({ type: '', text: '' });
+    try {
+      const response = await axios.patch(
+        '/api/admin/ai-assistant/providers/bedrock',
+        {
+          access_key_id: (accessKeyId || '').trim(),
+          secret_access_key: (secretAccessKey || '').trim(),
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'AWS credentials saved.' });
+        setAiBedrockAccessKey('');
+        setAiBedrockSecretKey('');
         loadAiProviders();
       }
     } catch (error) {
@@ -2596,31 +2628,88 @@ const Admin = () => {
                         <td style={{ padding: '12px' }}>{p.name}</td>
                         <td style={{ padding: '12px' }}>{p.sdk_installed_backend ? '✓' : '✗'}</td>
                         <td style={{ padding: '12px' }}>
-                          <form
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              const v = aiProviderKeyInputs[p.provider];
-                              if (v !== undefined && v !== '••••••••' && v.trim()) handleSaveProviderKey(p.provider, v.trim());
-                            }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
-                          >
-                            <input
-                              type="password"
-                              placeholder={p.source === 'env' ? 'From env' : 'Paste API key'}
-                              value={aiProviderKeyInputs[p.provider] ?? (p.api_key ? '••••••••' : '')}
-                              onChange={(e) => setAiProviderKeyInputs(prev => ({ ...prev, [p.provider]: e.target.value }))}
-                              style={{ width: '100%', maxWidth: 220, padding: 6, borderRadius: 4, border: '1px solid #d1d5db' }}
-                              aria-label={`API key for ${p.name}`}
-                            />
-                            <button
-                              type="submit"
-                              className="save-btn"
-                              style={{ fontSize: '11px', padding: '4px 8px' }}
-                              disabled={aiProviderSaving === p.provider}
+                          {(p.provider === 'bedrock' || (p.name && String(p.name).toLowerCase().includes('bedrock'))) ? (
+                            <form
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                const ak = (aiBedrockAccessKey || '').trim();
+                                const sk = (aiBedrockSecretKey || '').trim();
+                                if (ak === '••••••••' || sk === '••••••••') return; // don't overwrite when showing masked
+                                await handleSaveBedrockKeys(ak, sk);
+                              }}
+                              style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 320 }}
                             >
-                              {aiProviderSaving === p.provider ? 'Saving...' : 'Save'}
-                            </button>
-                          </form>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Access Key ID</label>
+                                <input
+                                  type="password"
+                                  placeholder={p.api_key || p.api_key_display ? '••••••••' : 'Paste AWS Access Key ID'}
+                                  value={aiBedrockAccessKey || (p.api_key && !aiBedrockAccessKey && !aiBedrockSecretKey ? '••••••••' : '')}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setAiBedrockAccessKey(v);
+                                    if (v && v !== '••••••••') setAiBedrockSecretKey(prev => (prev === '••••••••' ? '' : prev));
+                                  }}
+                                  style={{ width: '100%', maxWidth: 280, padding: 8, borderRadius: 4, border: '1px solid #d1d5db' }}
+                                  aria-label="AWS Access Key ID"
+                                />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Secret Access Key</label>
+                                <input
+                                  type="password"
+                                  placeholder={p.api_key || p.api_key_display ? '••••••••' : 'Paste AWS Secret Access Key'}
+                                  value={aiBedrockSecretKey || (p.api_key && !aiBedrockAccessKey && !aiBedrockSecretKey ? '••••••••' : '')}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setAiBedrockSecretKey(v);
+                                    if (v && v !== '••••••••') setAiBedrockAccessKey(prev => (prev === '••••••••' ? '' : prev));
+                                  }}
+                                  style={{ width: '100%', maxWidth: 280, padding: 8, borderRadius: 4, border: '1px solid #d1d5db' }}
+                                  aria-label="AWS Secret Access Key"
+                                />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <button
+                                  type="submit"
+                                  className="save-btn"
+                                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                                  disabled={aiProviderSaving === 'bedrock'}
+                                >
+                                  {aiProviderSaving === 'bedrock' ? 'Saving...' : 'Save credentials'}
+                                </button>
+                                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                  Or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env and leave blank.
+                                </span>
+                              </div>
+                            </form>
+                          ) : (
+                            <form
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const v = aiProviderKeyInputs[p.provider];
+                                if (v !== undefined && v !== '••••••••' && v.trim()) handleSaveProviderKey(p.provider, v.trim());
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+                            >
+                              <input
+                                type="password"
+                                placeholder={p.source === 'env' ? 'From env' : 'Paste API key'}
+                                value={aiProviderKeyInputs[p.provider] ?? (p.api_key ? '••••••••' : '')}
+                                onChange={(e) => setAiProviderKeyInputs(prev => ({ ...prev, [p.provider]: e.target.value }))}
+                                style={{ width: '100%', maxWidth: 280, padding: 6, borderRadius: 4, border: '1px solid #d1d5db' }}
+                                aria-label={`API key for ${p.name}`}
+                              />
+                              <button
+                                type="submit"
+                                className="save-btn"
+                                style={{ fontSize: '11px', padding: '4px 8px' }}
+                                disabled={aiProviderSaving === p.provider}
+                              >
+                                {aiProviderSaving === p.provider ? 'Saving...' : 'Save'}
+                              </button>
+                            </form>
+                          )}
                         </td>
                         <td style={{ padding: '12px' }}>{p.source === 'admin' ? 'Admin' : 'Env'}</td>
                         <td style={{ padding: '12px' }}>{p.is_valid ? '✓' : '✗'}</td>

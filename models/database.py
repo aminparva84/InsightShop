@@ -61,6 +61,14 @@ def init_db(app):
         db.create_all()
         _log_path = uri.replace('sqlite:///', '').replace('/', os.sep) if uri.startswith('sqlite:///') else Config.DB_PATH
         print(f"Database tables created at: {_log_path}")
+        # Verify connection so "severed" state is detected at startup
+        try:
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
+            print("[DB] Connection verified.")
+        except Exception as e:
+            print(f"[DB] ERROR: Connection failed: {e}")
+            print(f"      Check that the file exists and is not locked: {_log_path}")
 
         # Add Order.currency column if missing (existing databases)
         try:

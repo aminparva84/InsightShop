@@ -14,9 +14,85 @@ import boto3
 import json
 import requests
 import time
+import threading
 from sqlalchemy import or_
 
 ai_agent_bp = Blueprint('ai_agent', __name__)
+
+# Project-level Gemini rate limit: minimum seconds between Gemini API requests (avoids burst 429s)
+GEMINI_MIN_DELAY = 1.0
+_gemini_last_request_time = [0.0]
+_gemini_throttle_lock = threading.Lock()
+
+
+def _gemini_throttle():
+    """Enforce minimum delay between Gemini requests to stay under project rate limits."""
+    with _gemini_throttle_lock:
+        now = time.time()
+        elapsed = now - _gemini_last_request_time[0]
+        if elapsed < GEMINI_MIN_DELAY and _gemini_last_request_time[0] > 0:
+            time.sleep(GEMINI_MIN_DELAY - elapsed)
+        _gemini_last_request_time[0] = time.time()
+
+
+def _normalize_llm_error(exc):
+    """Turn requests/API exceptions into a short, user-friendly message for admin test UI."""
+    s = str(exc).strip()
+    if not s:
+        return 'Request failed'
+    # HTTP status patterns
+    if '401' in s or 'Unauthorized' in s:
+        return 'Invalid API key or unauthorized'
+    if '403' in s or 'Forbidden' in s:
+        return 'Access forbidden — check API key permissions'
+    if '429' in s or 'rate limit' in s.lower():
+        # Try to include Google's quota message so user knows which limit was hit (RPM/TPM/RPD)
+        if hasattr(exc, 'response') and exc.response is not None:
+            try:
+                body = getattr(exc.response, 'text', None) or ''
+                if body:
+                    data = json.loads(body)
+                    err = data.get('error')
+                    if isinstance(err, dict):
+                        raw = err.get('message') or err.get('status') or ''
+                    elif isinstance(err, str):
+                        raw = err
+                    else:
+                        raw = ''
+                    if raw:
+                        raw_lower = raw.lower()
+                        # Quota/billing exceeded: show actionable steps and links
+                        if 'quota' in raw_lower and ('billing' in raw_lower or 'plan' in raw_lower):
+                            return (
+                                'Gemini quota exceeded — Check your plan and billing: '
+                                '1) Open Google AI Studio → https://aistudio.google.com/app/apikey — confirm your project has billing enabled and upgrade to a paid tier if needed. '
+                                '2) See rate limits and tiers: https://ai.google.dev/gemini-api/docs/rate-limits'
+                            )
+                        return f'Rate limited — {raw[:180]}'
+            except Exception:
+                pass
+        return 'Rate limited — try again in a moment'
+    if '500' in s or '502' in s or '503' in s:
+        return 'Provider server error — try again later'
+    if 'timeout' in s.lower() or 'timed out' in s.lower():
+        return 'Request timed out'
+    if 'Connection' in s or 'connection' in s:
+        return 'Connection failed — check network'
+    # Try to extract JSON error message from response body (e.g. OpenAI/Anthropic)
+    if hasattr(exc, 'response') and exc.response is not None:
+        try:
+            body = getattr(exc.response, 'text', None) or ''
+            if body:
+                data = json.loads(body)
+                err = data.get('error') or data.get('error_message')
+                if isinstance(err, dict) and err.get('message'):
+                    return err['message'][:200]
+                if isinstance(err, str):
+                    return err[:200]
+        except Exception:
+            pass
+    # Fallback: first line, truncated
+    return s.split('\n')[0][:200] if s else 'Request failed'
 
 DEFAULT_SYSTEM_PROMPT = """You're an INCREDIBLY excited, friendly shopping assistant who absolutely LOVES helping people find amazing clothes! Talk like you're texting your best friend who just discovered something awesome and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely THRILLED!
 
@@ -36,6 +112,8 @@ def _env_api_key(provider):
         return os.getenv('GEMINI_API_KEY') or getattr(Config, 'GEMINI_API_KEY', None)
     if provider == 'anthropic':
         return os.getenv('ANTHROPIC_API_KEY') or getattr(Config, 'ANTHROPIC_API_KEY', None)
+    if provider == 'vertex':
+        return os.getenv('VERTEX_API_KEY') or os.getenv('GOOGLE_APPLICATION_CREDENTIALS') or getattr(Config, 'VERTEX_API_KEY', None)
     return None
 
 
@@ -65,6 +143,10 @@ def get_effective_api_key_for_provider(provider):
             key = _env_api_key('anthropic')
             if key:
                 return key, 'env'
+        if provider == 'vertex':
+            key = _env_api_key('vertex')
+            if key:
+                return key, 'env'
     except Exception:
         pass
     return None, 'env'
@@ -86,7 +168,7 @@ def get_config_for_provider(provider):
 
 
 def get_selected_provider():
-    """Return selected provider: 'auto' or one of openai, gemini, anthropic."""
+    """Return selected provider: 'auto' or one of openai, gemini, anthropic, vertex."""
     try:
         row = AISelectedProvider.query.first()
         selected = (row.provider if row else 'auto')
@@ -244,14 +326,44 @@ def _call_gemini(internal, prompt, system_prompt, timeout=60):
         'systemInstruction': {'parts': [{'text': system_prompt or DEFAULT_SYSTEM_PROMPT}]},
         'generationConfig': {'maxOutputTokens': 1024},
     }
-    r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=timeout)
-    r.raise_for_status()
-    data = r.json()
-    candidates = data.get('candidates') or []
-    if not candidates:
-        return 'No response from AI'
-    parts = candidates[0].get('content', {}).get('parts') or []
-    return parts[0].get('text', '') if parts else 'No response from AI'
+    last_exc = None
+    for attempt in range(3):
+        _gemini_throttle()
+        try:
+            r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=timeout)
+            r.raise_for_status()
+            data = r.json()
+            candidates = data.get('candidates') or []
+            if not candidates:
+                return 'No response from AI'
+            parts = candidates[0].get('content', {}).get('parts') or []
+            return parts[0].get('text', '') if parts else 'No response from AI'
+        except requests.exceptions.HTTPError as e:
+            last_exc = e
+            if e.response is not None:
+                status = e.response.status_code
+                try:
+                    err_body = (e.response.text or '')[:500]
+                except Exception:
+                    err_body = ''
+                if status == 429:
+                    print(f"[Gemini] 429 Rate limit. Response: {err_body}")
+                if status in (429, 503) and attempt < 2:
+                    # 429 = rate limit (RPM/TPM/RPD). Wait longer so per-minute window can reset.
+                    wait = (15, 45)[attempt] if status == 429 else 2 ** (attempt + 1)
+                    print(f"Gemini {status}, retrying in {wait}s (attempt {attempt + 1}/3)")
+                    time.sleep(wait)
+                    continue
+            raise
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            if attempt < 2:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise
+    if last_exc is not None:
+        raise last_exc
+    return 'No response from AI'
 
 
 def _call_anthropic(internal, prompt, system_prompt, timeout=60):
@@ -281,10 +393,100 @@ def _call_anthropic(internal, prompt, system_prompt, timeout=60):
     return 'No response from AI'
 
 
+def _get_vertex_credentials(api_key):
+    """Return (project_id, access_token) from Vertex api_key (service account JSON string or path to JSON file)."""
+    import os
+    key = (api_key or '').strip()
+    if not key:
+        return None, None
+    info = None
+    if key.startswith('{'):
+        try:
+            info = json.loads(key)
+        except json.JSONDecodeError:
+            return None, None
+    else:
+        path = os.path.expanduser(key)
+        if os.path.isfile(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    info = json.load(f)
+            except Exception:
+                return None, None
+        else:
+            return None, None
+    if not info or info.get('type') != 'service_account':
+        return None, None
+    project_id = info.get('project_id')
+    if not project_id:
+        return None, None
+    try:
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import Request
+        credentials = service_account.Credentials.from_service_account_info(info)
+        credentials.refresh(Request())
+        return project_id, credentials.token
+    except Exception as e:
+        print(f"Vertex credentials error: {e}")
+        return None, None
+
+
+def _vertex_use_api_key(api_key):
+    """True if Vertex key is a simple API key (use aiplatform.googleapis.com?key=); False if service account JSON."""
+    if not api_key or not (api_key or '').strip():
+        return False
+    key = (api_key or '').strip()
+    if key.startswith('{'):
+        return False
+    import os
+    if os.path.isfile(os.path.expanduser(key)):
+        return False
+    return True
+
+
+def _call_vertex(internal, prompt, system_prompt, timeout=60):
+    api_key = internal.get('api_key')
+    model_id = (internal.get('model_id') or 'gemini-2.5-flash-lite').strip()
+    body = {
+        'contents': [{'role': 'user', 'parts': [{'text': prompt}]}],
+        'systemInstruction': {'parts': [{'text': system_prompt or DEFAULT_SYSTEM_PROMPT}]},
+        'generationConfig': {'maxOutputTokens': 1024},
+    }
+    if _vertex_use_api_key(api_key):
+        # Vertex AI with API key: global endpoint (same style as your curl)
+        url = f'https://aiplatform.googleapis.com/v1/publishers/google/models/{model_id}:generateContent?key={api_key}'
+        r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=timeout)
+        r.raise_for_status()
+        data = r.json()
+    else:
+        # Vertex with service account: project + region endpoint
+        region = (internal.get('region') or 'us-central1').strip()
+        project_id, token = _get_vertex_credentials(api_key)
+        if not project_id or not token:
+            raise RuntimeError('Vertex service account JSON must include project_id and private_key (or use an API key).')
+        url = (
+            f'https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}'
+            f'/publishers/google/models/{model_id}:generateContent'
+        )
+        r = requests.post(
+            url,
+            json=body,
+            headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+            timeout=timeout,
+        )
+        r.raise_for_status()
+        data = r.json()
+    candidates = data.get('candidates') or []
+    if not candidates:
+        return 'No response from AI'
+    parts = candidates[0].get('content', {}).get('parts') or []
+    return parts[0].get('text', '') if parts else 'No response from AI'
+
+
 def call_llm(prompt, system_prompt=None, config=None):
     """
     Call the LLM for the given config or effective selected provider.
-    Supports provider: openai, gemini, anthropic (simple API keys from Admin panel).
+    Supports provider: openai, gemini, anthropic, vertex (API keys or service account from Admin panel).
     """
     if system_prompt is None:
         system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -306,7 +508,7 @@ def call_llm(prompt, system_prompt=None, config=None):
             return {'content': text}
         except Exception as e:
             print(f"Error calling OpenAI: {e}")
-            return {'content': f'I encountered an error: {str(e)}'}
+            return {'content': _normalize_llm_error(e)}
 
     if provider == 'gemini':
         if not api_key:
@@ -316,7 +518,7 @@ def call_llm(prompt, system_prompt=None, config=None):
             return {'content': text}
         except Exception as e:
             print(f"Error calling Gemini: {e}")
-            return {'content': f'I encountered an error: {str(e)}'}
+            return {'content': _normalize_llm_error(e)}
 
     if provider == 'anthropic':
         if not api_key:
@@ -326,25 +528,52 @@ def call_llm(prompt, system_prompt=None, config=None):
             return {'content': text}
         except Exception as e:
             print(f"Error calling Anthropic: {e}")
-            return {'content': f'I encountered an error: {str(e)}'}
+            return {'content': _normalize_llm_error(e)}
 
-    return {'content': f'Unknown provider: {provider}. Use openai, gemini, or anthropic in Admin → AI Assistant.'}
+    if provider == 'vertex':
+        if not api_key:
+            return {'content': 'Vertex AI credentials are not set. Add a service account JSON key and region in Admin → AI Assistant.'}
+        try:
+            text = _call_vertex(internal, prompt, system_prompt)
+            return {'content': text}
+        except Exception as e:
+            print(f"Error calling Vertex: {e}")
+            return {'content': _normalize_llm_error(e)}
+
+    return {'content': f'Unknown provider: {provider}. Use openai, gemini, anthropic, or vertex in Admin → AI Assistant.'}
 
 
-def test_provider_latency(provider):
-    """Test one provider; return (latency_ms, error_message). error_message is None on success."""
+def test_provider_latency(provider, config_override=None):
+    """Test one provider; return (latency_ms, error_message). error_message is None on success.
+    If config_override is provided (dict with api_key and optionally model_id), use it for this test only."""
     if provider not in FIXED_PROVIDERS:
         return None, 'Invalid provider'
-    cfg = get_config_for_provider(provider)
+    cfg = config_override
+    if not cfg:
+        cfg = get_config_for_provider(provider)
+    else:
+        # Ensure provider and other fields exist; merge with DB config for model_id etc.
+        base = get_config_for_provider(provider)
+        base = dict(base)
+        base['api_key'] = config_override.get('api_key') or base.get('api_key')
+        if config_override.get('model_id') is not None:
+            base['model_id'] = config_override.get('model_id')
+        base['provider'] = provider
+        cfg = base
     if not cfg.get('api_key'):
-        return None, 'No API key set (Admin or env)'
+        return None, 'No API key set. Paste a key and click Test, or Save first then Test.'
     start = time.time()
     result = call_llm('Say exactly: OK', system_prompt='Reply with only the two letters: OK', config=cfg)
     elapsed_ms = int((time.time() - start) * 1000)
-    content = (result.get('content') or '').strip().upper()
-    if content and 'ERROR' not in content and 'NOT SET' not in content and 'NOT FOUND' not in content:
+    content = (result.get('content') or '').strip()
+    content_upper = content.upper()
+    # Success: model replied with something that looks like "OK" (and is not an error message)
+    if content and len(content) <= 20 and content_upper == 'OK':
         return elapsed_ms, None
-    return None, result.get('content') or 'Request failed'
+    if content and len(content) <= 50 and 'OK' in content_upper and 'ERROR' not in content_upper and 'NOT SET' not in content_upper and 'NOT FOUND' not in content_upper:
+        return elapsed_ms, None
+    # Any other content is treated as error (e.g. "Invalid API key", "Rate limited")
+    return None, content or 'Request failed'
 
 
 def call_llm_vision(config, prompt, image_base64, system_prompt=None, media_type='image/jpeg'):
@@ -400,14 +629,42 @@ def call_llm_vision(config, prompt, image_base64, system_prompt=None, media_type
             }
             if system_prompt:
                 body['systemInstruction'] = {'parts': [{'text': system_prompt}]}
-            r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=90)
-            r.raise_for_status()
-            data = r.json()
-            candidates = data.get('candidates') or []
-            if not candidates:
-                return None
-            parts = candidates[0].get('content', {}).get('parts') or []
-            return parts[0].get('text', '') if parts else None
+            last_exc = None
+            for attempt in range(3):
+                _gemini_throttle()
+                try:
+                    r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=90)
+                    r.raise_for_status()
+                    data = r.json()
+                    candidates = data.get('candidates') or []
+                    if not candidates:
+                        return None
+                    parts = candidates[0].get('content', {}).get('parts') or []
+                    return parts[0].get('text', '') if parts else None
+                except requests.exceptions.HTTPError as e:
+                    last_exc = e
+                    if e.response is not None:
+                        status = e.response.status_code
+                        if status == 429:
+                            try:
+                                print(f"[Gemini vision] 429 Rate limit. Response: {(e.response.text or '')[:500]}")
+                            except Exception:
+                                pass
+                        if status in (429, 503) and attempt < 2:
+                            wait = (15, 45)[attempt] if status == 429 else 2 ** (attempt + 1)
+                            print(f"Gemini vision {status}, retrying in {wait}s (attempt {attempt + 1}/3)")
+                            time.sleep(wait)
+                            continue
+                    break
+                except requests.exceptions.RequestException as e:
+                    last_exc = e
+                    if attempt < 2:
+                        time.sleep(2 ** (attempt + 1))
+                        continue
+                    break
+            if last_exc is not None:
+                print(f"Error calling Gemini vision: {last_exc}")
+            return None
         except Exception as e:
             print(f"Error calling Gemini vision: {e}")
             return None
@@ -441,12 +698,55 @@ def call_llm_vision(config, prompt, image_base64, system_prompt=None, media_type
             print(f"Error calling Anthropic vision: {e}")
             return None
 
+    if provider == 'vertex' and api_key:
+        try:
+            mid = (model_id or 'gemini-2.5-flash-lite').strip()
+            body = {
+                'contents': [{
+                    'parts': [
+                        {'text': prompt},
+                        {'inline_data': {'mime_type': media_type, 'data': image_base64}},
+                    ]
+                }],
+                'generationConfig': {'maxOutputTokens': 2048},
+            }
+            if system_prompt:
+                body['systemInstruction'] = {'parts': [{'text': system_prompt}]}
+            if _vertex_use_api_key(api_key):
+                url = f'https://aiplatform.googleapis.com/v1/publishers/google/models/{mid}:generateContent?key={api_key}'
+                r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=90)
+            else:
+                project_id, token = _get_vertex_credentials(api_key)
+                if not project_id or not token:
+                    return None
+                region = (internal.get('region') or 'us-central1').strip()
+                url = (
+                    f'https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}'
+                    f'/publishers/google/models/{mid}:generateContent'
+                )
+                r = requests.post(
+                    url,
+                    json=body,
+                    headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+                    timeout=90,
+                )
+            r.raise_for_status()
+            data = r.json()
+            candidates = data.get('candidates') or []
+            if not candidates:
+                return None
+            parts = candidates[0].get('content', {}).get('parts') or []
+            return parts[0].get('text', '') if parts else None
+        except Exception as e:
+            print(f"Error calling Vertex vision: {e}")
+            return None
+
     return None
 
 
 @ai_agent_bp.route('/models', methods=['GET'])
 def list_ai_models():
-    """Return selected provider for display (auto or openai/gemini/anthropic). No auth required."""
+    """Return selected provider for display (auto or openai/gemini/anthropic/vertex). No auth required."""
     try:
         return jsonify({
             'success': True,

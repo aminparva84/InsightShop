@@ -12,6 +12,7 @@ class Config:
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
     ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
+    VERTEX_API_KEY = os.getenv('VERTEX_API_KEY', '')  # Path to service account JSON or JSON string
     # SQLite Database
     DB_PATH = os.getenv('DB_PATH', 'insightshop.db')
     

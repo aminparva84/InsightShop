@@ -1,8 +1,8 @@
 """
-Migrate AI assistant to 3 fixed providers (OpenAI, Gemini, Anthropic). Bedrock has been removed.
+Migrate AI assistant to 4 fixed providers (OpenAI, Gemini, Anthropic, Vertex). Bedrock has been removed.
 - Adds columns to ai_assistant_configs: source, is_valid, last_tested_at, sdk (if missing).
 - Creates ai_selected_provider table and seeds provider='auto'.
-- Ensures exactly 3 rows in ai_assistant_configs (one per provider).
+- Ensures exactly 4 rows in ai_assistant_configs (one per provider).
 Run once: python scripts/migrate_ai_four_providers.py
 """
 import sqlite3
@@ -20,6 +20,7 @@ PROVIDERS = [
     ('openai', 'OpenAI', 'REST API'),
     ('gemini', 'Google Gemini', 'REST API'),
     ('anthropic', 'Anthropic', 'REST API'),
+    ('vertex', 'Google Vertex AI', 'REST API'),
 ]
 
 

@@ -1060,6 +1060,59 @@ from models.ai_assistant_config import (
 from config import Config
 
 
+import re
+
+
+def _validate_api_key_format(provider, key):
+    """Validate API key format for the given provider. Returns (is_valid, error_message)."""
+    if not key or not key.strip():
+        return True, None  # empty is allowed (clears key)
+    key = key.strip()
+    if provider == 'openai':
+        # OpenAI: sk-... (e.g. sk-proj-..., sk-...), typically 40+ chars
+        if not key.startswith('sk-'):
+            return False, 'OpenAI keys should start with sk-'
+        if len(key) < 20:
+            return False, 'OpenAI key looks too short'
+        return True, None
+    if provider == 'gemini':
+        # Google API key: various formats (e.g. start with AI, AQ, etc.); alphanumeric, hyphens, underscores, sometimes period
+        if len(key) < 20:
+            return False, 'Gemini key looks too short (use the full key from AI Studio)'
+        if not re.match(r'^[A-Za-z0-9_.-]+$', key):
+            return False, 'Gemini key should contain only letters, numbers, and - _ .'
+        return True, None
+    if provider == 'anthropic':
+        # Anthropic: often sk-ant-... or similar
+        if not key.startswith('sk-ant-'):
+            return False, 'Anthropic keys should start with sk-ant-'
+        if len(key) < 30:
+            return False, 'Anthropic key looks too short'
+        return True, None
+    if provider == 'vertex':
+        # Vertex: either (1) Google Cloud API key (alphanumeric, 20+ chars) or (2) service account JSON
+        if key.strip().startswith('{'):
+            try:
+                data = json.loads(key)
+                if not isinstance(data, dict):
+                    return False, 'Vertex service account must be a JSON object'
+                if data.get('type') != 'service_account':
+                    return False, 'Vertex JSON should have "type": "service_account"'
+                if not data.get('project_id'):
+                    return False, 'Vertex JSON should include "project_id"'
+                if not data.get('private_key') and not data.get('private_key_id'):
+                    return False, 'Vertex JSON should include "private_key" (service account key)'
+                return True, None
+            except json.JSONDecodeError as e:
+                return False, f'Invalid JSON for Vertex service account: {e}'
+        if len(key) < 20:
+            return False, 'Vertex API key looks too short'
+        if not re.match(r'^[A-Za-z0-9_.-]+$', key):
+            return False, 'Vertex API key should contain only letters, numbers, and - _ .'
+        return True, None
+    return True, None
+
+
 def _sdk_installed_backend(provider):
     """Return True if the backend has the SDK/package for this provider installed."""
     try:
@@ -1072,13 +1125,16 @@ def _sdk_installed_backend(provider):
         if provider == 'anthropic':
             import anthropic
             return True
+        if provider == 'vertex':
+            import google.auth
+            return True
     except Exception:
         pass
     return False
 
 
 def _ensure_four_providers():
-    """Ensure exactly one row per fixed provider (openai, gemini, anthropic). Return list of configs in fixed order."""
+    """Ensure exactly one row per fixed provider (openai, gemini, anthropic, vertex). Return list of configs in fixed order."""
     for p in FIXED_PROVIDERS:
         c = AiAssistantConfig.query.filter_by(provider=p).first()
         if not c:
@@ -1110,7 +1166,7 @@ def _provider_dict(c):
 @admin_bp.route('/ai-assistant/providers', methods=['GET'])
 @require_admin
 def list_ai_providers():
-    """List the 3 fixed providers (OpenAI, Gemini, Anthropic) with key status and selected provider."""
+    """List the 4 fixed providers (OpenAI, Gemini, Anthropic, Vertex) with key status and selected provider."""
     try:
         configs = _ensure_four_providers()
         # Always return exactly one row per fixed provider; build placeholder if any config missing
@@ -1147,7 +1203,7 @@ def list_ai_providers():
 @admin_bp.route('/ai-assistant/providers/<provider>', methods=['PATCH'])
 @require_admin
 def patch_ai_provider(provider):
-    """Update API key (and optional model_id) for one of the 3 providers. Sets source to admin."""
+    """Update API key (and optional model_id, region) for one of the 4 providers. Sets source to admin."""
     if provider not in FIXED_PROVIDERS:
         return jsonify({'error': 'Invalid provider'}), 400
     try:
@@ -1160,6 +1216,9 @@ def patch_ai_provider(provider):
         if 'api_key' in data:
             val = (data.get('api_key') or '').strip()
             if val:
+                valid_fmt, err_msg = _validate_api_key_format(provider, val)
+                if not valid_fmt:
+                    return jsonify({'error': err_msg or 'Invalid API key format'}), 400
                 from utils.secret_storage import encrypt_plaintext
                 config.api_key = encrypt_plaintext(val)
                 config.source = 'admin'
@@ -1191,28 +1250,48 @@ def patch_ai_provider(provider):
 @admin_bp.route('/ai-assistant/providers/<provider>/test', methods=['POST'])
 @require_admin
 def test_ai_provider(provider):
-    """Test API key for this provider; set is_valid, last_tested_at, latency_ms."""
+    """Test API key for this provider; set is_valid, last_tested_at, latency_ms.
+    Accepts optional api_key (and model_id) in JSON body to test without saving (e.g. current form value)."""
     if provider not in FIXED_PROVIDERS:
         return jsonify({'error': 'Invalid provider'}), 400
     try:
         from routes.ai_agent import test_provider_latency
+        from datetime import datetime
+
         config = AiAssistantConfig.query.filter_by(provider=provider).first()
         if not config:
             config = AiAssistantConfig(provider=provider, name=PROVIDER_DISPLAY_NAMES.get(provider), sdk=PROVIDER_SDK.get(provider), source='env')
             db.session.add(config)
             db.session.commit()
-        latency_ms, err = test_provider_latency(provider)
-        from datetime import datetime
+
+        # Optional: test with key from request (e.g. unsaved form value)
+        data = request.get_json() or {}
+        config_override = None
+        if data.get('api_key'):
+            key_val = (data.get('api_key') or '').strip()
+            if key_val:
+                config_override = {'api_key': key_val}
+                if data.get('model_id') is not None:
+                    config_override['model_id'] = (data.get('model_id') or '').strip() or None
+
+        latency_ms, err = test_provider_latency(provider, config_override=config_override)
+
         config.last_tested_at = datetime.utcnow()
         config.latency_ms = latency_ms
         config.is_valid = err is None
         db.session.commit()
+
         if err:
-            return jsonify({'success': False, 'error': err, 'provider': _provider_dict(config)}), 400
+            return jsonify({
+                'success': False,
+                'error': err,
+                'latency_ms': latency_ms,
+                'provider': _provider_dict(config),
+            }), 400
         return jsonify({
             'success': True,
             'latency_ms': latency_ms,
-            'message': f'Valid — {latency_ms} ms',
+            'message': f'API key valid. Latency: {latency_ms} ms',
             'provider': _provider_dict(config),
         }), 200
     except Exception as e:
@@ -1241,7 +1320,7 @@ def put_selected_provider():
         data = request.get_json() or {}
         provider = (data.get('provider') or data.get('selected_provider') or 'auto').strip().lower()
         if provider not in ('auto',) + FIXED_PROVIDERS:
-            return jsonify({'error': 'Provider must be auto, openai, gemini, or anthropic'}), 400
+            return jsonify({'error': 'Provider must be auto, openai, gemini, anthropic, or vertex'}), 400
         row = AISelectedProvider.query.first()
         if not row:
             row = AISelectedProvider(id=1, provider=provider)

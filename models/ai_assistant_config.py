@@ -1,19 +1,21 @@
-"""Models for AI assistant: 3 fixed providers (OpenAI, Gemini, Anthropic) and selected model. All use simple API keys."""
+"""Models for AI assistant: 4 fixed providers (OpenAI, Gemini, Anthropic, Vertex) and selected model. All use API keys or credentials from Admin panel."""
 from models.database import db
 from datetime import datetime
 
-# Exactly 3 fixed providers. One row per provider. All use simple API keys from Admin panel.
-FIXED_PROVIDERS = ('openai', 'gemini', 'anthropic')
+# Exactly 4 fixed providers. One row per provider. All use API keys or service account from Admin panel.
+FIXED_PROVIDERS = ('openai', 'gemini', 'anthropic', 'vertex')
 PROVIDER_DISPLAY_NAMES = {
     'openai': 'OpenAI',
     'gemini': 'Google Gemini',
     'anthropic': 'Anthropic',
+    'vertex': 'Google Vertex AI',
 }
 # SDK label shown in admin table (can be overridden per row if we add sdk column later)
 PROVIDER_SDK = {
     'openai': 'REST API',
     'gemini': 'REST API',
     'anthropic': 'REST API',
+    'vertex': 'REST API',
 }
 
 
@@ -22,7 +24,7 @@ class AiAssistantConfig(db.Model):
     __tablename__ = 'ai_assistant_configs'
 
     id = db.Column(db.Integer, primary_key=True)
-    provider = db.Column(db.String(50), nullable=False, unique=True)  # openai, gemini, anthropic
+    provider = db.Column(db.String(50), nullable=False, unique=True)  # openai, gemini, anthropic, vertex
     name = db.Column(db.String(255), nullable=False)  # display name
     sdk = db.Column(db.String(64), nullable=True)  # e.g. REST API, AWS SDK
     api_key = db.Column(db.String(1024), nullable=True)  # from admin; empty = use env
@@ -76,5 +78,5 @@ class AISelectedProvider(db.Model):
     __tablename__ = 'ai_selected_provider'
 
     id = db.Column(db.Integer, primary_key=True)
-    provider = db.Column(db.String(20), nullable=False, default='auto')  # auto, openai, gemini, anthropic
+    provider = db.Column(db.String(20), nullable=False, default='auto')  # auto, openai, gemini, anthropic, vertex
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

@@ -194,6 +194,26 @@ const Admin = () => {
     }
   };
 
+  const isApiKeyFormatValid = (provider, key) => {
+    if (!key || key === '••••••••' || !key.trim()) return false;
+    const k = key.trim();
+    if (provider === 'openai') return k.startsWith('sk-') && k.length >= 20;
+    if (provider === 'gemini') return k.length >= 20 && /^[A-Za-z0-9_.-]+$/.test(k);
+    if (provider === 'anthropic') return k.startsWith('sk-ant-') && k.length >= 30;
+    if (provider === 'vertex') {
+      if (k.startsWith('{')) {
+        try {
+          const d = JSON.parse(k);
+          return d && d.type === 'service_account' && d.project_id && (d.private_key || d.private_key_id);
+        } catch {
+          return false;
+        }
+      }
+      return k.length >= 20 && /^[A-Za-z0-9_.-]+$/.test(k);
+    }
+    return false;
+  };
+
   const loadAiProviders = async () => {
     setAiAssistantLoading(true);
     try {
@@ -221,7 +241,7 @@ const Admin = () => {
       });
       if (response.data.success) {
         setMessage({ type: 'success', text: 'API key saved.' });
-        setAiProviderKeyInputs(prev => ({ ...prev, [provider]: '' }));
+        setAiProviderKeyInputs(prev => ({ ...prev, [provider]: '••••••••' }));
         loadAiProviders();
       }
     } catch (error) {
@@ -255,14 +275,26 @@ const Admin = () => {
     setAiProviderTesting(provider);
     setMessage({ type: '', text: '' });
     try {
-      const response = await axios.post(`/api/admin/ai-assistant/providers/${provider}/test`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Send current key from input if present (so Test works before Save)
+      const keyInput = aiProviderKeyInputs[provider];
+      const body =
+        keyInput && keyInput.trim() && keyInput !== '••••••••'
+          ? { api_key: keyInput.trim() }
+          : {};
+      const response = await axios.post(
+        `/api/admin/ai-assistant/providers/${provider}/test`,
+        body,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message || `Valid — ${response.data.latency_ms} ms` });
+        setMessage({
+          type: 'success',
+          text: response.data.message || `API key valid. Latency: ${response.data.latency_ms} ms`,
+        });
         loadAiProviders();
       } else {
         setMessage({ type: 'error', text: response.data.error || 'Test failed' });
+        loadAiProviders(); // refresh so Health/Latency/Last tested reflect the failed test
       }
     } catch (error) {
       setMessage({ type: 'error', text: error.response?.data?.error || 'Test failed' });
@@ -2589,9 +2621,10 @@ const Admin = () => {
                   <option value="openai">OpenAI</option>
                   <option value="gemini">Google Gemini</option>
                   <option value="anthropic">Anthropic</option>
+                  <option value="vertex">Google Vertex AI</option>
                 </select>
               </div>
-              <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>Auto uses the first enabled provider with a valid key. Enable a provider with the switch after saving and testing its API key.</span>
+              <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>Paste an API key and click Test to check health and latency (no need to Save first). Then Save and enable the provider with the switch.</span>
             </div>
             {aiAssistantLoading ? (
               <div>Loading...</div>
@@ -2606,6 +2639,7 @@ const Admin = () => {
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>API key</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Source</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Valid</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Latency</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Last tested</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Test</th>
                     </tr>
@@ -2658,28 +2692,55 @@ const Admin = () => {
                                 const v = aiProviderKeyInputs[p.provider];
                                 if (v !== undefined && v !== '••••••••' && v.trim()) handleSaveProviderKey(p.provider, v.trim());
                               }}
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+                              style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
                             >
-                              <input
-                                type="password"
-                                placeholder={p.source === 'env' ? 'From env' : 'Paste API key'}
-                                value={aiProviderKeyInputs[p.provider] ?? (p.api_key ? '••••••••' : '')}
-                                onChange={(e) => setAiProviderKeyInputs(prev => ({ ...prev, [p.provider]: e.target.value }))}
-                                style={{ width: '100%', maxWidth: 280, padding: 6, borderRadius: 4, border: '1px solid #d1d5db' }}
-                                aria-label={`API key for ${p.name}`}
-                              />
-                              <button
-                                type="submit"
-                                className="save-btn"
-                                style={{ fontSize: '11px', padding: '4px 8px' }}
-                                disabled={aiProviderSaving === p.provider}
-                              >
-                                {aiProviderSaving === p.provider ? 'Saving...' : 'Save'}
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <input
+                                  type="password"
+                                  placeholder={p.source === 'env' ? 'From env' : (p.provider === 'vertex' ? 'Paste service account JSON or API key' : 'Paste API key')}
+                                  value={aiProviderKeyInputs[p.provider] ?? (p.api_key ? '••••••••' : '')}
+                                  onChange={(e) => setAiProviderKeyInputs(prev => ({ ...prev, [p.provider]: e.target.value }))}
+                                  style={{ width: '100%', maxWidth: 280, padding: 6, borderRadius: 4, border: '1px solid #d1d5db' }}
+                                  aria-label={`API key for ${p.name}`}
+                                />
+                                <button
+                                  type="submit"
+                                  className="save-btn"
+                                  style={{ fontSize: '11px', padding: '4px 8px' }}
+                                  disabled={aiProviderSaving === p.provider}
+                                >
+                                  {aiProviderSaving === p.provider ? 'Saving...' : 'Save'}
+                                </button>
+                              </div>
+                              {(() => {
+                                const raw = aiProviderKeyInputs[p.provider] ?? (p.api_key ? '••••••••' : '');
+                                const hasValue = raw && raw.trim();
+                                const isMasked = raw === '••••••••';
+                                const formatOk = hasValue && !isMasked && isApiKeyFormatValid(p.provider, raw);
+                                const formatBad = hasValue && !isMasked && !isApiKeyFormatValid(p.provider, raw);
+                                if (formatOk) return <span style={{ fontSize: '0.8rem', color: '#16a34a' }}>Format valid</span>;
+                                if (formatBad) return <span style={{ fontSize: '0.8rem', color: '#dc2626' }}>Invalid format</span>;
+                                return null;
+                              })()}
                             </form>
                         </td>
                         <td style={{ padding: '12px' }}>{p.source === 'admin' ? 'Admin' : 'Env'}</td>
-                        <td style={{ padding: '12px' }}>{p.is_valid ? '✓' : '✗'}</td>
+                        <td style={{ padding: '12px' }}>
+                          {(() => {
+                            const raw = aiProviderKeyInputs[p.provider] ?? (p.api_key ? '••••••••' : '');
+                            const hasRealKey = raw && raw.trim() && raw !== '••••••••';
+                            const formatValid = hasRealKey && isApiKeyFormatValid(p.provider, raw);
+                            const showValid = p.is_valid || formatValid;
+                            return (
+                              <span style={{ color: showValid ? '#16a34a' : '#dc2626', fontWeight: 500 }}>
+                                {showValid ? '✓ Valid' : '✗ Invalid'}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {p.latency_ms != null ? `${p.latency_ms} ms` : '—'}
+                        </td>
                         <td style={{ padding: '12px' }}>{p.last_tested_at ? new Date(p.last_tested_at).toLocaleString() : '—'}</td>
                         <td style={{ padding: '12px' }}>
                           <button

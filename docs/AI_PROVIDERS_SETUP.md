@@ -27,15 +27,6 @@ The AI chatbot uses **direct API keys** configured in **Admin → AI Assistant**
 - The user (or admin) selects a model from the **Model** dropdown in the chat header.
 - The selected model is used for that conversation and is remembered (localStorage).
 
-## Migration from Bedrock
-
-If you had existing AI configs using **AWS Bedrock**:
-
-1. Run the migration once:  
-   `python scripts/add_ai_assistant_latency.py`
-2. Existing configs with provider `bedrock` are updated to `anthropic`. Add your **Anthropic API key** in Admin → AI Assistant for that config (or add a new Anthropic model and delete the old one).
-3. Remove any `BEDROCK_MODEL_ID` (and optional AWS Bedrock env vars) from `.env`; they are no longer used for the AI assistant.
-
 ## Image analysis
 
 Product image upload and “analyze image” use the same active config. Vision is supported for:

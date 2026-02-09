@@ -9,7 +9,7 @@ This document describes how the **AI shopping assistant** is designed and how it
 The AI Agent is a **conversational shopping assistant** that:
 
 - Answers in natural language and helps users find clothing.
-- Can use **multiple LLM providers** (OpenAI, Google Gemini, Anthropic, AWS Bedrock), chosen or configured by the admin.
+- Can use **multiple LLM providers** (OpenAI, Google Gemini, Anthropic) with simple API keys, chosen or configured by the admin.
 - Uses **product search** (filters, vector search, fashion rules) to suggest real catalog items.
 - Supports **voice** (speech input and text-to-speech via AWS Polly), **image upload** (find similar / fashion match), **product comparison**, and **cart actions** (e.g. “add product X to cart”).
 
@@ -53,8 +53,7 @@ The frontend talks to the backend over REST; the backend builds context (product
 │ (one active)    │           │                     │           │                 │
 │ • OpenAI        │           │ • Product model     │           │ • AWS Polly     │
 │ • Gemini        │           │ • vector_db         │           │ • OpenAI/Gemini/│
-│ • Anthropic     │           │ • fashion_kb        │           │   Anthropic/    │
-│ • AWS Bedrock   │           │ • seasonal_events   │           │   Bedrock vision │
+│ • Anthropic     │           │ • seasonal_events   │           │   vision         │
 └─────────────────┘           │ fashion_match_rules │           └─────────────────┘
                               │ spelling_tolerance   │
                               │ product_relations   │
@@ -65,24 +64,23 @@ The frontend talks to the backend over REST; the backend builds context (product
 
 ## 3. Multi-Provider LLM Setup
 
-The agent does **not** assume a single LLM. It supports **four fixed providers**, with one “active” at a time.
+The agent does **not** assume a single LLM. It supports **three fixed providers** (OpenAI, Gemini, Anthropic), with one “active” at a time. All use simple API keys from the Admin panel.
 
 ### 3.1 Models and configuration
 
 - **`models/ai_assistant_config.py`**
-  - **`AiAssistantConfig`** — one row per provider (`openai`, `gemini`, `anthropic`, `bedrock`). Stores:
+  - **`AiAssistantConfig`** — one row per provider (`openai`, `gemini`, `anthropic`). Stores:
     - Display name, optional SDK label
     - API key (optional; if empty, backend uses env/Secrets Manager)
-    - Model ID, region (for Bedrock)
+    - Model ID, optional region
     - `is_valid`, `last_tested_at`, `latency_ms` (from admin “Test”)
   - **`AISelectedProvider`** — single row: which provider the chat uses. Values:
-    - `auto` — use first provider that has a valid API key (order: openai → gemini → anthropic → bedrock)
-    - `openai` | `gemini` | `anthropic` | `bedrock` — use that provider only
+    - `auto` — use first provider that has a valid API key (order: openai → gemini → anthropic)
+    - `openai` | `gemini` | `anthropic` — use that provider only
 
 - **API key resolution** (in `routes/ai_agent.py`):
   - **Admin-stored key** for a provider is used if set.
   - Otherwise **env vars** (e.g. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) or, for Gemini, AWS Secrets Manager.
-  - Bedrock can use admin-stored key (as `access_key:secret_key`) or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
 
 ### 3.2 How the active provider is chosen
 
@@ -95,8 +93,8 @@ So: **one LLM is used per request**; the “agent” is the same logic (prompts,
 ### 3.3 Admin panel (AI Assistant)
 
 - **Admin → AI Assistant** (in `routes/admin.py`):
-  - List the four providers; for each: set API key, model ID (and region for Bedrock), run **Test** (latency/validity).
-  - **Select active provider**: Auto or one of the four.
+  - List the three providers; for each: set API key, model ID, run **Test** (latency/validity).
+  - **Select active provider**: Auto or one of the three.
 - Test calls `call_llm('Say exactly: OK', ...)` and stores success/latency on `AiAssistantConfig`.
 
 ---
@@ -181,7 +179,7 @@ So: the **agent** = **deterministic search + filters + context builder + one LLM
   - Speech input: browser Speech Recognition → text into the chat input.
   - Speech output: for the assistant message, frontend can call **`/api/ai/text-to-speech`** with text, voice id, speed; backend uses **AWS Polly** and returns base64 audio. Long text can be summarized first via **`/api/ai/summarize`**.
 - **Images**
-  - User uploads an image; frontend sends it to **`/api/ai/upload-image`** or **`/api/ai/analyze-image`** / **`/api/ai/find-matches-for-image`**. Backend uses the **same selected LLM** (if it supports vision: OpenAI, Gemini, Anthropic, Bedrock) to analyze the image and optionally find similar products or fashion matches.
+  - User uploads an image; frontend sends it to **`/api/ai/upload-image`** or **`/api/ai/analyze-image`** / **`/api/ai/find-matches-for-image`**. Backend uses the **same selected LLM** (if it supports vision: OpenAI, Gemini, Anthropic) to analyze the image and optionally find similar products or fashion matches.
 
 So the agent “aims to function” as a **single conversational surface** (text + voice + image) that drives **product discovery**, **comparison**, and **grid/page updates** via backend-controlled product IDs and actions.
 

@@ -1072,16 +1072,13 @@ def _sdk_installed_backend(provider):
         if provider == 'anthropic':
             import anthropic
             return True
-        if provider == 'bedrock':
-            import boto3
-            return True
     except Exception:
         pass
     return False
 
 
 def _ensure_four_providers():
-    """Ensure exactly 4 rows exist (one per provider). Return list of configs in fixed order."""
+    """Ensure exactly one row per fixed provider (openai, gemini, anthropic). Return list of configs in fixed order."""
     for p in FIXED_PROVIDERS:
         c = AiAssistantConfig.query.filter_by(provider=p).first()
         if not c:
@@ -1113,10 +1110,10 @@ def _provider_dict(c):
 @admin_bp.route('/ai-assistant/providers', methods=['GET'])
 @require_admin
 def list_ai_providers():
-    """List the 4 fixed providers (OpenAI, Gemini, Anthropic, Bedrock) with key status and selected provider."""
+    """List the 3 fixed providers (OpenAI, Gemini, Anthropic) with key status and selected provider."""
     try:
         configs = _ensure_four_providers()
-        # Always return exactly 4 rows (one per fixed provider); build placeholder if any config missing
+        # Always return exactly one row per fixed provider; build placeholder if any config missing
         providers_list = []
         for i, p in enumerate(FIXED_PROVIDERS):
             c = configs[i] if i < len(configs) else None
@@ -1149,7 +1146,7 @@ def list_ai_providers():
 @admin_bp.route('/ai-assistant/providers/<provider>', methods=['PATCH'])
 @require_admin
 def patch_ai_provider(provider):
-    """Update API key (and optional model_id) for one of the 4 providers. Sets source to admin."""
+    """Update API key (and optional model_id) for one of the 3 providers. Sets source to admin."""
     if provider not in FIXED_PROVIDERS:
         return jsonify({'error': 'Invalid provider'}), 400
     try:
@@ -1159,16 +1156,6 @@ def patch_ai_provider(provider):
             db.session.add(config)
         data = request.get_json() or {}
         # Never log request body when it may contain secrets
-        if provider == 'bedrock' and ('access_key_id' in data or 'secret_access_key' in data):
-            ak = (data.get('access_key_id') or '').strip()
-            sk = (data.get('secret_access_key') or '').strip()
-            if ak and sk:
-                from utils.secret_storage import encrypt_plaintext
-                config.api_key = encrypt_plaintext(f'{ak}:{sk}')
-                config.source = 'admin'
-            elif not ak and not sk and 'api_key' not in data:
-                config.api_key = None
-                config.source = 'env'
         if 'api_key' in data:
             val = (data.get('api_key') or '').strip()
             if val:
@@ -1180,7 +1167,7 @@ def patch_ai_provider(provider):
                 config.source = 'env'
         if 'model_id' in data:
             config.model_id = (data.get('model_id') or '').strip() or None
-        if 'region' in data and provider == 'bedrock':
+        if 'region' in data:
             config.region = (data.get('region') or '').strip() or None
         db.session.commit()
         return jsonify({
@@ -1241,12 +1228,12 @@ def get_selected_provider():
 @admin_bp.route('/ai-assistant/selected-provider', methods=['PUT'])
 @require_admin
 def put_selected_provider():
-    """Set default model: auto | openai | gemini | anthropic | bedrock."""
+    """Set default model: auto | openai | gemini | anthropic."""
     try:
         data = request.get_json() or {}
         provider = (data.get('provider') or data.get('selected_provider') or 'auto').strip().lower()
         if provider not in ('auto',) + FIXED_PROVIDERS:
-            return jsonify({'error': 'Provider must be auto, openai, gemini, anthropic, or bedrock'}), 400
+            return jsonify({'error': 'Provider must be auto, openai, gemini, or anthropic'}), 400
         row = AISelectedProvider.query.first()
         if not row:
             row = AISelectedProvider(id=1, provider=provider)

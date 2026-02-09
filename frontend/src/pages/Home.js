@@ -124,84 +124,39 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Shop by Gender */}
-      <section className="categories gender-section">
-        <div className="container">
-          <h2 className="section-title">Shop by Gender</h2>
-          <div className="category-grid">
-            <div
-              className="category-card"
-              onClick={() => navigate('/products?category=men')}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?category=men')}
-              role="button"
-              tabIndex={0}
-              aria-label="Shop Men"
-            >
-              <div className="category-icon">
-                <FaUserTie />
-              </div>
-              <h3>Men</h3>
-            </div>
-            <div
-              className="category-card"
-              onClick={() => navigate('/products?category=women')}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?category=women')}
-              role="button"
-              tabIndex={0}
-              aria-label="Shop Women"
-            >
-              <div className="category-icon">
-                <FaUser />
-              </div>
-              <h3>Women</h3>
-            </div>
-            <div
-              className="category-card"
-              onClick={() => navigate('/products?category=kids')}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?category=kids')}
-              role="button"
-              tabIndex={0}
-              aria-label="Shop Kids"
-            >
-              <div className="category-icon">
-                <FaChild />
-              </div>
-              <h3>Kids</h3>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Shop by Category (clothing types) */}
+      {/* Shop by Category (gender + clothing types) */}
       <section className="shop-by-category">
         <div className="container">
           <h2 className="section-title">Shop by Category</h2>
           <div className="clothing-category-grid">
             {[
-              { id: 'pants', label: 'Pants', Icon: GiTrousers },
-              { id: 'shirts', label: 'Shirts', Icon: GiShirt },
-              { id: 't_shirts', label: 'T-Shirts', Icon: GiTShirt },
-              { id: 'jackets', label: 'Jackets', Icon: GiMonclerJacket },
-              { id: 'coats', label: 'Coats', Icon: FaCloudRain },
-              { id: 'socks', label: 'Socks', Icon: FaSocks },
-              { id: 'dresses', label: 'Dresses', Icon: GiDress },
-              { id: 'skirts', label: 'Skirts', Icon: GiSkirt },
-              { id: 'shorts', label: 'Shorts', Icon: GiShorts },
-              { id: 'sweaters', label: 'Sweaters', Icon: GiWool },
-              { id: 'hoodies', label: 'Hoodies', Icon: GiHoodie },
-              { id: 'shoes', label: 'Shoes', Icon: FaShoePrints },
-              { id: 'sandals', label: 'Sandals', Icon: GiSandal },
-              { id: 'sneakers', label: 'Sneakers', Icon: GiRunningShoe },
-              { id: 'pajamas', label: 'Pajamas', Icon: GiNightSleep },
-              { id: 'blouses', label: 'Blouses', Icon: GiAmpleDress },
-              { id: 'underwear', label: 'Underwear', Icon: GiUnderwear },
-              { id: 'suits', label: 'Suits', Icon: FaUserTie },
-            ].map(({ id, label, Icon }) => (
+              { type: 'gender', id: 'men', label: 'Men', Icon: FaUserTie, path: '/products?category=men' },
+              { type: 'gender', id: 'women', label: 'Women', Icon: FaUser, path: '/products?category=women' },
+              { type: 'gender', id: 'kids', label: 'Kids', Icon: FaChild, path: '/products?category=kids' },
+              { type: 'clothing', id: 'pants', label: 'Pants', Icon: GiTrousers, path: '/products?clothing_category=pants' },
+              { type: 'clothing', id: 'shirts', label: 'Shirts', Icon: GiShirt, path: '/products?clothing_category=shirts' },
+              { type: 'clothing', id: 't_shirts', label: 'T-Shirts', Icon: GiTShirt, path: '/products?clothing_category=t_shirts' },
+              { type: 'clothing', id: 'jackets', label: 'Jackets', Icon: GiMonclerJacket, path: '/products?clothing_category=jackets' },
+              { type: 'clothing', id: 'coats', label: 'Coats', Icon: FaCloudRain, path: '/products?clothing_category=coats' },
+              { type: 'clothing', id: 'socks', label: 'Socks', Icon: FaSocks, path: '/products?clothing_category=socks' },
+              { type: 'clothing', id: 'dresses', label: 'Dresses', Icon: GiDress, path: '/products?clothing_category=dresses' },
+              { type: 'clothing', id: 'skirts', label: 'Skirts', Icon: GiSkirt, path: '/products?clothing_category=skirts' },
+              { type: 'clothing', id: 'shorts', label: 'Shorts', Icon: GiShorts, path: '/products?clothing_category=shorts' },
+              { type: 'clothing', id: 'sweaters', label: 'Sweaters', Icon: GiWool, path: '/products?clothing_category=sweaters' },
+              { type: 'clothing', id: 'hoodies', label: 'Hoodies', Icon: GiHoodie, path: '/products?clothing_category=hoodies' },
+              { type: 'clothing', id: 'shoes', label: 'Shoes', Icon: FaShoePrints, path: '/products?clothing_category=shoes' },
+              { type: 'clothing', id: 'sandals', label: 'Sandals', Icon: GiSandal, path: '/products?clothing_category=sandals' },
+              { type: 'clothing', id: 'sneakers', label: 'Sneakers', Icon: GiRunningShoe, path: '/products?clothing_category=sneakers' },
+              { type: 'clothing', id: 'pajamas', label: 'Pajamas', Icon: GiNightSleep, path: '/products?clothing_category=pajamas' },
+              { type: 'clothing', id: 'blouses', label: 'Blouses', Icon: GiAmpleDress, path: '/products?clothing_category=blouses' },
+              { type: 'clothing', id: 'underwear', label: 'Underwear', Icon: GiUnderwear, path: '/products?clothing_category=underwear' },
+              { type: 'clothing', id: 'suits', label: 'Suits', Icon: FaUserTie, path: '/products?clothing_category=suits' },
+            ].map(({ id, label, Icon, path }) => (
               <div
-                key={id}
+                key={`${id}-${label}`}
                 className="clothing-category-card"
-                onClick={() => navigate(`/products?clothing_category=${id}`)}
-                onKeyDown={(e) => e.key === 'Enter' && navigate(`/products?clothing_category=${id}`)}
+                onClick={() => navigate(path)}
+                onKeyDown={(e) => e.key === 'Enter' && navigate(path)}
                 role="button"
                 tabIndex={0}
                 aria-label={`Shop ${label}`}

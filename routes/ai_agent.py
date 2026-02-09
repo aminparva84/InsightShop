@@ -65,12 +65,6 @@ def get_effective_api_key_for_provider(provider):
             key = _env_api_key('anthropic')
             if key:
                 return key, 'env'
-        if provider == 'bedrock':
-            import os
-            ak = os.getenv('AWS_ACCESS_KEY_ID') or getattr(Config, 'AWS_ACCESS_KEY_ID', None) or ''
-            sk = os.getenv('AWS_SECRET_ACCESS_KEY') or getattr(Config, 'AWS_SECRET_ACCESS_KEY', None) or ''
-            if ak and sk:
-                return f'{ak}:{sk}', 'env'
     except Exception:
         pass
     return None, 'env'
@@ -84,20 +78,20 @@ def get_config_for_provider(provider):
         base = c.to_internal_dict() if c else {'provider': provider, 'model_id': None, 'region': None}
         base['api_key'] = api_key
         base['source'] = source
-        if provider == 'bedrock' and not base.get('region'):
-            base['region'] = getattr(Config, 'AWS_REGION', 'us-east-1')
-        if provider == 'bedrock' and not base.get('model_id'):
-            base['model_id'] = getattr(Config, 'BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
         return base
     except Exception:
         return {'provider': provider, 'api_key': None, 'model_id': None, 'region': None}
 
 
 def get_selected_provider():
-    """Return selected provider: 'auto' or one of openai, gemini, anthropic, bedrock."""
+    """Return selected provider: 'auto' or one of openai, gemini, anthropic."""
     try:
         row = AISelectedProvider.query.first()
-        return (row.provider if row else 'auto')
+        selected = (row.provider if row else 'auto')
+        # Legacy: if DB had 'bedrock' selected, treat as auto (Bedrock removed)
+        if selected == 'bedrock':
+            return 'auto'
+        return selected
     except Exception:
         return 'auto'
 
@@ -282,48 +276,10 @@ def _call_anthropic(internal, prompt, system_prompt, timeout=60):
     return 'No response from AI'
 
 
-def _call_bedrock(internal, prompt, system_prompt, timeout=60):
-    """Call AWS Bedrock (Claude) with credentials from internal dict or env.
-    Returns (response_text, error_message). error_message is None on success;
-    'no_credentials' when keys are missing; or the exception string on API failure.
-    """
-    region = internal.get('region') or getattr(Config, 'AWS_REGION', 'us-east-1')
-    model_id = internal.get('model_id') or getattr(Config, 'BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
-    api_key = internal.get('api_key')
-    access_key = getattr(Config, 'AWS_ACCESS_KEY_ID', None)
-    secret_key = getattr(Config, 'AWS_SECRET_ACCESS_KEY', None)
-    if api_key and ':' in str(api_key):
-        parts = str(api_key).split(':', 1)
-        access_key = (parts[0] or '').strip()
-        secret_key = (parts[1] or '').strip()
-    elif api_key:
-        secret_key = (api_key or '').strip()
-    if not access_key or not secret_key:
-        return None, 'no_credentials'
-    try:
-        client_kw = {'region_name': region, 'aws_access_key_id': access_key, 'aws_secret_access_key': secret_key}
-        runtime = boto3.client('bedrock-runtime', **client_kw)
-        body = {
-            'anthropic_version': 'bedrock-2023-05-31',
-            'max_tokens': 1024,
-            'system': system_prompt or DEFAULT_SYSTEM_PROMPT,
-            'messages': [{'role': 'user', 'content': prompt}],
-        }
-        response = runtime.invoke_model(modelId=model_id, body=json.dumps(body))
-        response_body = json.loads(response['body'].read())
-        content = response_body.get('content', [])
-        if content:
-            return content[0].get('text', ''), None
-    except Exception as e:
-        print(f"Error calling Bedrock: {e}")
-        return None, str(e)
-    return None, 'no_response'
-
-
 def call_llm(prompt, system_prompt=None, config=None):
     """
     Call the LLM for the given config or effective selected provider.
-    Supports provider: openai, gemini, anthropic, bedrock.
+    Supports provider: openai, gemini, anthropic (simple API keys from Admin panel).
     """
     if system_prompt is None:
         system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -331,7 +287,7 @@ def call_llm(prompt, system_prompt=None, config=None):
         config = get_effective_provider_config()
     if not config:
         return {
-            'content': "I'm your AI shopping assistant! To get AI responses, the admin needs to set at least one API key in Admin → AI Assistant (OpenAI, Gemini, Anthropic, or Bedrock) and test it. Until then, I can still help you browse and search products."
+            'content': "I'm your AI shopping assistant! To get AI responses, the admin needs to set at least one API key in Admin → AI Assistant (OpenAI, Gemini, or Anthropic) and test it. Until then, I can still help you browse and search products."
         }
     internal = config if isinstance(config, dict) else getattr(config, 'to_internal_dict', lambda: config)()
     provider = (internal.get('provider') or 'openai').strip().lower()
@@ -367,24 +323,7 @@ def call_llm(prompt, system_prompt=None, config=None):
             print(f"Error calling Anthropic: {e}")
             return {'content': f'I encountered an error: {str(e)}'}
 
-    if provider == 'bedrock':
-        text, err = _call_bedrock(internal, prompt, system_prompt)
-        if text:
-            return {'content': text}
-        if err == 'no_credentials':
-            return {'content': 'Bedrock credentials are missing or invalid. In Admin → AI Assistant, for AWS Bedrock enter your Access Key ID and Secret Access Key (in the two fields), or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env and leave the fields blank.'}
-        if err and err != 'no_response':
-            err_lower = (err or '').lower()
-            if 'operation not allowed' in err_lower or 'validationexception' in err_lower:
-                return {'content': (
-                    "Bedrock returned \"Operation not allowed\". You must enable model access in AWS: "
-                    "Open Amazon Bedrock → Model access (left menu) → Manage model access → "
-                    "enable at least one Claude model (e.g. Claude 3 Haiku or Claude 3.5 Sonnet) for your region, then try again."
-                )}
-            return {'content': f'Bedrock error: {err}'}
-        return {'content': 'Bedrock is not configured. Set AWS credentials in Admin → AI Assistant (Access Key + Secret Key) or .env (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).'}
-
-    return {'content': f'Unknown provider: {provider}. Use openai, gemini, anthropic, or bedrock in Admin → AI Assistant.'}
+    return {'content': f'Unknown provider: {provider}. Use openai, gemini, or anthropic in Admin → AI Assistant.'}
 
 
 def test_provider_latency(provider):
@@ -497,48 +436,12 @@ def call_llm_vision(config, prompt, image_base64, system_prompt=None, media_type
             print(f"Error calling Anthropic vision: {e}")
             return None
 
-    if provider == 'bedrock' and internal.get('api_key'):
-        try:
-            region = internal.get('region') or getattr(Config, 'AWS_REGION', 'us-east-1')
-            model_id_b = internal.get('model_id') or getattr(Config, 'BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
-            ak, sk = getattr(Config, 'AWS_ACCESS_KEY_ID', None), getattr(Config, 'AWS_SECRET_ACCESS_KEY', None)
-            api_key = internal.get('api_key')
-            if api_key and ':' in str(api_key):
-                parts = str(api_key).split(':', 1)
-                ak, sk = (parts[0] or '').strip(), (parts[1] or '').strip()
-            elif api_key:
-                sk = api_key
-            if not ak or not sk:
-                return None
-            runtime = boto3.client('bedrock-runtime', region_name=region, aws_access_key_id=ak, aws_secret_access_key=sk)
-            body = {
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 2048,
-                'system': system_prompt or 'You are a fashion expert analyzing clothing from images.',
-                'messages': [{
-                    'role': 'user',
-                    'content': [
-                        {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': image_base64}},
-                        {'type': 'text', 'text': prompt},
-                    ],
-                }],
-            }
-            response = runtime.invoke_model(modelId=model_id_b, body=json.dumps(body))
-            data = json.loads(response['body'].read())
-            for block in (data.get('content') or []):
-                if block.get('type') == 'text':
-                    return block.get('text', '')
-            return None
-        except Exception as e:
-            print(f"Error calling Bedrock vision: {e}")
-            return None
-
     return None
 
 
 @ai_agent_bp.route('/models', methods=['GET'])
 def list_ai_models():
-    """Return selected provider for display (auto or openai/gemini/anthropic/bedrock). No auth required."""
+    """Return selected provider for display (auto or openai/gemini/anthropic). No auth required."""
     try:
         return jsonify({
             'success': True,

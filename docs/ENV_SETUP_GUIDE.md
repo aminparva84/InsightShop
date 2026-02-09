@@ -1,8 +1,8 @@
 # Environment Variables Setup Guide
 
-## AWS Credentials (Bedrock, S3, SES, Secrets Manager)
+## AWS Credentials (S3, SES, Secrets Manager, Polly)
 
-The app uses AWS for AI (Bedrock), backups (S3), email (SES), and optional secrets (Secrets Manager). Credentials are read from the environment and **must not be committed** to git.
+The app uses AWS for backups (S3), email (SES), optional secrets (Secrets Manager), and text-to-speech (Polly). Credentials are read from the environment and **must not be committed** to git.
 
 ### Set AWS credentials in `.env`
 
@@ -26,7 +26,7 @@ python scripts/set_aws_env.py YOUR_ACCESS_KEY_ID YOUR_SECRET_ACCESS_KEY
 python scripts/verify_aws_connection.py
 ```
 
-You should see your AWS account ID and ARN. If you see errors, check that the IAM user has at least `sts:GetCallerIdentity` (and Bedrock/S3/SES permissions as needed).
+You should see your AWS account ID and ARN. If you see errors, check that the IAM user has at least `sts:GetCallerIdentity` (and S3/SES/Polly permissions as needed).
 
 ### Security
 

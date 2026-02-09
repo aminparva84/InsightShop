@@ -64,8 +64,7 @@ This checks for `.env`, builds the image, and runs with `--env-file .env`. It do
 
 ## 3. After the app is running
 
-- The app uses **Config** (env) for AWS. If you use **Admin → AI Assistant** with **AWS Bedrock** and leave the API key **blank**, the Bedrock assistant will use these same credentials.
-- To use a different Bedrock account or keys only for the assistant, put `access_key:secret_key` in the Admin Bedrock **API key** field (see [PIPELINE_AWS_AND_DOCKER.md](PIPELINE_AWS_AND_DOCKER.md)).
+- The app uses **Config** (env) for AWS (Polly, S3, SES, Secrets Manager). **Admin → AI Assistant** uses simple API keys for OpenAI, Gemini, and Anthropic — see [AI_PROVIDERS_SETUP.md](AI_PROVIDERS_SETUP.md).
 
 ---
 

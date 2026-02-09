@@ -7,7 +7,6 @@ InsightShop uses AWS for several features. This doc describes how the connection
 1. **Environment**: The app reads `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION` from the environment.
 2. **`.env` file**: When you run locally, `python-dotenv` loads these from a `.env` file in the project root (see `config.py`). The `.env` file is **gitignored** and must never be committed.
 3. **AWS services used**:
-   - **Bedrock** — AI assistant (Claude) in `routes/ai_agent.py`
    - **Polly** — Text-to-speech for the AI agent
    - **S3** — Optional DB/image backups (`scripts/backup_to_s3.py`, `scripts/restore_from_s3.py`)
    - **SES** — Email (`utils/email.py`)
@@ -21,7 +20,7 @@ From the project root:
 python scripts/verify_aws_connection.py
 ```
 
-This calls AWS STS `GetCallerIdentity` and prints your account ID and ARN. If it succeeds, Bedrock/Polly/S3/SES will use the same credentials (subject to IAM permissions).
+This calls AWS STS `GetCallerIdentity` and prints your account ID and ARN. If it succeeds, Polly/S3/SES will use the same credentials (subject to IAM permissions).
 
 ## Setting credentials locally
 

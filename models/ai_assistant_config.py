@@ -1,21 +1,19 @@
-"""Models for AI assistant: 4 fixed providers (OpenAI, Gemini, Anthropic, Bedrock) and selected model."""
+"""Models for AI assistant: 3 fixed providers (OpenAI, Gemini, Anthropic) and selected model. All use simple API keys."""
 from models.database import db
 from datetime import datetime
 
-# Exactly 4 fixed providers. One row per provider.
-FIXED_PROVIDERS = ('openai', 'gemini', 'anthropic', 'bedrock')
+# Exactly 3 fixed providers. One row per provider. All use simple API keys from Admin panel.
+FIXED_PROVIDERS = ('openai', 'gemini', 'anthropic')
 PROVIDER_DISPLAY_NAMES = {
     'openai': 'OpenAI',
     'gemini': 'Google Gemini',
     'anthropic': 'Anthropic',
-    'bedrock': 'AWS Bedrock',
 }
 # SDK label shown in admin table (can be overridden per row if we add sdk column later)
 PROVIDER_SDK = {
     'openai': 'REST API',
     'gemini': 'REST API',
     'anthropic': 'REST API',
-    'bedrock': 'AWS SDK',
 }
 
 
@@ -24,12 +22,12 @@ class AiAssistantConfig(db.Model):
     __tablename__ = 'ai_assistant_configs'
 
     id = db.Column(db.Integer, primary_key=True)
-    provider = db.Column(db.String(50), nullable=False, unique=True)  # openai, gemini, anthropic, bedrock
+    provider = db.Column(db.String(50), nullable=False, unique=True)  # openai, gemini, anthropic
     name = db.Column(db.String(255), nullable=False)  # display name
     sdk = db.Column(db.String(64), nullable=True)  # e.g. REST API, AWS SDK
     api_key = db.Column(db.String(1024), nullable=True)  # from admin; empty = use env
     model_id = db.Column(db.String(255), nullable=True)
-    region = db.Column(db.String(64), nullable=True)  # for Bedrock
+    region = db.Column(db.String(64), nullable=True)  # optional, e.g. for future providers
     source = db.Column(db.String(20), nullable=False, default='env')  # 'admin' | 'env'
     is_valid = db.Column(db.Boolean, default=False, nullable=False)  # from last test
     last_tested_at = db.Column(db.DateTime, nullable=True)
@@ -75,5 +73,5 @@ class AISelectedProvider(db.Model):
     __tablename__ = 'ai_selected_provider'
 
     id = db.Column(db.Integer, primary_key=True)
-    provider = db.Column(db.String(20), nullable=False, default='auto')  # auto, openai, gemini, anthropic, bedrock
+    provider = db.Column(db.String(20), nullable=False, default='auto')  # auto, openai, gemini, anthropic
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

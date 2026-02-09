@@ -75,12 +75,14 @@ def get_config_for_provider(provider):
     try:
         c = AiAssistantConfig.query.filter_by(provider=provider).first()
         api_key, source = get_effective_api_key_for_provider(provider)
-        base = c.to_internal_dict() if c else {'provider': provider, 'model_id': None, 'region': None}
+        base = c.to_internal_dict() if c else {'provider': provider, 'model_id': None, 'region': None, 'is_enabled': False}
         base['api_key'] = api_key
         base['source'] = source
+        if 'is_enabled' not in base:
+            base['is_enabled'] = getattr(c, 'is_enabled', False) if c else False
         return base
     except Exception:
-        return {'provider': provider, 'api_key': None, 'model_id': None, 'region': None}
+        return {'provider': provider, 'api_key': None, 'model_id': None, 'region': None, 'is_enabled': False}
 
 
 def get_selected_provider():
@@ -97,13 +99,16 @@ def get_selected_provider():
 
 
 def get_effective_provider_config():
-    """Return internal dict for the provider to use (selected or first valid if auto)."""
+    """Return internal dict for the provider to use. Only enabled providers with an API key are used."""
     selected = get_selected_provider()
     if selected != 'auto':
-        return get_config_for_provider(selected)
+        cfg = get_config_for_provider(selected)
+        if cfg.get('is_enabled') and cfg.get('api_key'):
+            return cfg
+        return None
     for p in FIXED_PROVIDERS:
         cfg = get_config_for_provider(p)
-        if cfg.get('api_key'):
+        if cfg.get('is_enabled') and cfg.get('api_key'):
             return cfg
     return None
 
@@ -287,7 +292,7 @@ def call_llm(prompt, system_prompt=None, config=None):
         config = get_effective_provider_config()
     if not config:
         return {
-            'content': "I'm your AI shopping assistant! To get AI responses, the admin needs to set at least one API key in Admin → AI Assistant (OpenAI, Gemini, or Anthropic) and test it. Until then, I can still help you browse and search products."
+            'content': "I'm your AI shopping assistant! To get AI responses, the admin needs to set an API key in Admin → AI Assistant, run Test, then turn the provider On. Until then, I can still help you browse and search products."
         }
     internal = config if isinstance(config, dict) else getattr(config, 'to_internal_dict', lambda: config)()
     provider = (internal.get('provider') or 'openai').strip().lower()

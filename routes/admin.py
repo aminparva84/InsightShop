@@ -1094,14 +1094,14 @@ def _ensure_four_providers():
 
 
 def _provider_dict(c):
-    """Build dict for one provider. Never include raw API keys; only masked placeholders."""
-    from routes.ai_agent import get_effective_api_key_for_provider
-    effective_key, source = get_effective_api_key_for_provider(c.provider)
+    """Build dict for one provider for list endpoint. Lightweight: no decrypt, no AWS calls (avoids slow page load)."""
     d = c.to_dict(mask_secrets=True)
-    d['source'] = source
-    d['api_key_display'] = '••••••••' if effective_key else ('' if source == 'env' else '')
+    # api_key_display: show masked if we have a stored key; otherwise empty (env keys not resolved here)
+    d['api_key_display'] = '••••••••' if (c.api_key) else ''
+    d['source'] = c.source
     d['sdk_installed_backend'] = _sdk_installed_backend(c.provider)
-    # Ensure we never send raw key to client (to_dict already masks; enforce)
+    # Always include is_enabled so frontend can show the switch (visible, locked when no valid key)
+    d['is_enabled'] = getattr(c, 'is_enabled', False)
     if 'api_key' in d and d['api_key'] and d['api_key'] != '••••••••':
         d['api_key'] = '••••••••'
     return d
@@ -1125,6 +1125,7 @@ def list_ai_providers():
                     source='env',
                 )
                 c.is_valid = False
+                c.is_enabled = False
                 c.last_tested_at = None
             providers_list.append(_provider_dict(c))
         row = AISelectedProvider.query.first()
@@ -1169,6 +1170,13 @@ def patch_ai_provider(provider):
             config.model_id = (data.get('model_id') or '').strip() or None
         if 'region' in data:
             config.region = (data.get('region') or '').strip() or None
+        if 'is_enabled' in data:
+            # Only allow enabling when provider has valid key (is_valid); allow disabling anytime
+            val = data.get('is_enabled')
+            if val is True and not config.is_valid:
+                pass  # keep is_enabled False when not valid
+            else:
+                config.is_enabled = bool(val)
         db.session.commit()
         return jsonify({
             'success': True,

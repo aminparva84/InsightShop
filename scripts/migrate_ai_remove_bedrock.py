@@ -42,6 +42,7 @@ def main():
         for col, default, col_type in [
             ('source', "'env'", 'VARCHAR(20)'),
             ('is_valid', '0', 'BOOLEAN'),
+            ('is_enabled', '0', 'BOOLEAN'),
             ('last_tested_at', 'NULL', 'DATETIME'),
             ('sdk', 'NULL', 'VARCHAR(64)'),
         ]:

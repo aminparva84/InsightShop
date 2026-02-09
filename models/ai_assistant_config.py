@@ -30,6 +30,7 @@ class AiAssistantConfig(db.Model):
     region = db.Column(db.String(64), nullable=True)  # optional, e.g. for future providers
     source = db.Column(db.String(20), nullable=False, default='env')  # 'admin' | 'env'
     is_valid = db.Column(db.Boolean, default=False, nullable=False)  # from last test
+    is_enabled = db.Column(db.Boolean, default=False, nullable=False)  # admin can enable/disable; off when no valid key
     last_tested_at = db.Column(db.DateTime, nullable=True)
     latency_ms = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -46,6 +47,7 @@ class AiAssistantConfig(db.Model):
             'region': self.region,
             'source': self.source,
             'is_valid': self.is_valid,
+            'is_enabled': self.is_enabled,
             'last_tested_at': self.last_tested_at.isoformat() if self.last_tested_at else None,
             'latency_ms': self.latency_ms,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -63,6 +65,7 @@ class AiAssistantConfig(db.Model):
             'region': self.region,
             'source': self.source,
             'is_valid': self.is_valid,
+            'is_enabled': self.is_enabled,
             'last_tested_at': self.last_tested_at,
             'latency_ms': self.latency_ms,
         }

@@ -231,6 +231,26 @@ const Admin = () => {
     }
   };
 
+  const handleToggleProviderEnabled = async (provider, currentEnabled) => {
+    setAiProviderSaving(provider);
+    setMessage({ type: '', text: '' });
+    try {
+      const response = await axios.patch(
+        `/api/admin/ai-assistant/providers/${provider}`,
+        { is_enabled: !currentEnabled },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data.success) {
+        setMessage({ type: 'success', text: currentEnabled ? 'Provider disabled.' : 'Provider enabled.' });
+        loadAiProviders();
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to update' });
+    } finally {
+      setAiProviderSaving(null);
+    }
+  };
+
   const handleTestProvider = async (provider) => {
     setAiProviderTesting(provider);
     setMessage({ type: '', text: '' });
@@ -2571,7 +2591,7 @@ const Admin = () => {
                   <option value="anthropic">Anthropic</option>
                 </select>
               </div>
-              <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>Auto uses the first provider with a valid key.</span>
+              <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>Auto uses the first enabled provider with a valid key. Enable a provider with the switch after saving and testing its API key.</span>
             </div>
             {aiAssistantLoading ? (
               <div>Loading...</div>
@@ -2581,6 +2601,7 @@ const Admin = () => {
                   <thead>
                     <tr style={{ background: '#f8f9fa' }}>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Provider</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Enabled</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>SDK</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>API key</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Source</th>
@@ -2593,6 +2614,42 @@ const Admin = () => {
                     {aiProviders.map((p) => (
                       <tr key={p.provider} style={{ borderBottom: '1px solid #dee2e6' }}>
                         <td style={{ padding: '12px' }}>{p.name}</td>
+                        <td style={{ padding: '12px', minWidth: 56 }}>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={!!p.is_enabled}
+                            disabled={!p.is_valid}
+                            title={!p.is_valid ? 'Add and test an API key to unlock' : (p.is_enabled ? 'Disable provider' : 'Enable provider')}
+                            onClick={() => p.is_valid && handleToggleProviderEnabled(p.provider, !!p.is_enabled)}
+                            style={{
+                              position: 'relative',
+                              width: 44,
+                              height: 24,
+                              padding: 0,
+                              border: 'none',
+                              borderRadius: 12,
+                              cursor: p.is_valid ? 'pointer' : 'not-allowed',
+                              backgroundColor: !p.is_valid ? '#d1d5db' : (p.is_enabled ? '#22c55e' : '#d1d5db'),
+                              transition: 'background-color 0.2s',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <span
+                              style={{
+                                position: 'absolute',
+                                top: 2,
+                                left: p.is_enabled ? 22 : 2,
+                                width: 20,
+                                height: 20,
+                                borderRadius: '50%',
+                                backgroundColor: '#fff',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                                transition: 'left 0.2s',
+                              }}
+                            />
+                          </button>
+                        </td>
                         <td style={{ padding: '12px' }}>{p.sdk_installed_backend ? '✓' : '✗'}</td>
                         <td style={{ padding: '12px' }}>
                             <form

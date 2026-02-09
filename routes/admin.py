@@ -1,5 +1,5 @@
 """Admin routes for managing fashion knowledge base and system settings."""
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from models.database import db
 from models.user import User
 from models.payment_log import PaymentLog
@@ -11,6 +11,7 @@ from models.ai_assistant_config import AiAssistantConfig
 from routes.auth import require_auth
 from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
 from utils.seasonal_events import get_upcoming_holidays, get_current_holidays_and_events
+from utils.vector_db import add_product_to_vector_db, update_product_in_vector_db, delete_product_from_vector_db
 from functools import wraps
 from datetime import date, datetime
 import json
@@ -511,11 +512,21 @@ def create_product():
         
         db.session.add(product)
         db.session.commit()
+
+        # Sync to vector DB so the product appears in AI search
+        vector_synced = False
+        try:
+            vector_synced = add_product_to_vector_db(product.id, product.to_dict())
+            if not vector_synced:
+                print("Warning: Product created but vector DB add returned False (AI search may not include it).")
+        except Exception as vec_err:
+            print(f"Warning: Could not add product to vector DB: {vec_err}")
         
         return jsonify({
             'success': True,
             'message': 'Product created successfully',
-            'product': product.to_dict()
+            'product': product.to_dict(),
+            'vector_synced': vector_synced
         }), 201
         
     except Exception as e:
@@ -523,6 +534,29 @@ def create_product():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/products/sync-vector-db', methods=['POST'])
+@require_admin
+def sync_products_to_vector_db():
+    """Sync all active products from SQL to ChromaDB so they appear in AI search."""
+    try:
+        from utils.vector_db import sync_all_products_from_sql
+        synced = sync_all_products_from_sql(current_app._get_current_object())
+        return jsonify({
+            'success': True,
+            'message': f'Synced {synced} product(s) to AI search.',
+            'synced': synced
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to sync products to vector database.'
+        }), 500
+
 
 @admin_bp.route('/products/<int:product_id>', methods=['PUT'])
 @require_admin
@@ -592,11 +626,23 @@ def update_product(product_id):
             product.meta_description = data.get('meta_description')
         
         db.session.commit()
+
+        # Sync to vector DB so AI search stays up to date
+        vector_synced = False
+        try:
+            if product.is_active:
+                vector_synced = update_product_in_vector_db(product_id, product.to_dict())
+            else:
+                delete_product_from_vector_db(product_id)
+                vector_synced = True
+        except Exception as vec_err:
+            print(f"Warning: Could not sync product to vector DB: {vec_err}")
         
         return jsonify({
             'success': True,
             'message': 'Product updated successfully',
-            'product': product.to_dict()
+            'product': product.to_dict(),
+            'vector_synced': vector_synced
         }), 200
         
     except Exception as e:
@@ -617,10 +663,18 @@ def delete_product(product_id):
         # Soft delete - set is_active to False
         product.is_active = False
         db.session.commit()
+
+        # Remove from vector DB so AI search does not return deactivated products
+        vector_removed = False
+        try:
+            vector_removed = delete_product_from_vector_db(product_id)
+        except Exception as vec_err:
+            print(f"Warning: Could not remove product from vector DB: {vec_err}")
         
         return jsonify({
             'success': True,
-            'message': 'Product deleted successfully (deactivated)'
+            'message': 'Product deleted successfully (deactivated)',
+            'vector_removed': vector_removed
         }), 200
         
     except Exception as e:

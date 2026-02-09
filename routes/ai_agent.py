@@ -126,14 +126,16 @@ Rules:
 
 Action schemas (use only these keys):
 
-add_item: User wants to add product(s) to cart.
-  Params: product_id (optional, number), color (optional, string e.g. "white", "blue"), clothing_type (optional, string e.g. "shirt", "jacket", "T-Shirt"), quantity (optional, number, default 1), size (optional, string e.g. "L", "M"), category (optional: "men", "women", "kids").
-  Example: "add 3 white shirts to my cart" → {"action": "add_item", "params": {"color": "white", "clothing_type": "shirt", "quantity": 3}}
+add_item: User wants to add one product to cart. CRITICAL: quantity is the TOTAL count for that single product. We add to exactly ONE matching product. Never output params that would add to multiple products.
+  Params: product_id (optional, number), color (optional, string), clothing_type (optional, string e.g. "shirt", "jacket"), quantity (optional, number, default 1 = how many of that one item), size (optional), category (optional: "men", "women", "kids").
+  Example: "add 3 white shirts to my cart" → {"action": "add_item", "params": {"color": "white", "clothing_type": "shirt", "quantity": 3}}  (exactly one white shirt product, quantity 3)
+  Example: "add 1 blue jacket" → {"action": "add_item", "params": {"color": "blue", "clothing_type": "jacket", "quantity": 1}}
   Example: "add product 5 to cart" → {"action": "add_item", "params": {"product_id": 5, "quantity": 1}}
 
-remove_item: User wants to remove product(s) from cart.
-  Params: product_id (optional), color (optional), clothing_type (optional).
-  Example: "remove blue jacket from my cart" → {"action": "remove_item", "params": {"color": "blue", "clothing_type": "jacket"}}
+remove_item: User wants to remove some or all of an item from cart. Use quantity to remove only that many units (e.g. "remove one" = quantity 1); omit quantity to remove all of that item.
+  Params: product_id (optional), color (optional), clothing_type (optional), quantity (optional, number: how many units to remove; if omitted, remove all).
+  Example: "remove one black shirt" or "remove 1 black shirt" → {"action": "remove_item", "params": {"color": "black", "clothing_type": "shirt", "quantity": 1}}
+  Example: "remove all blue jackets" or "remove blue jacket" → {"action": "remove_item", "params": {"color": "blue", "clothing_type": "jacket"}}
   Example: "delete product 3 from cart" → {"action": "remove_item", "params": {"product_id": 3}}
 
 show_cart: User wants to see their shopping cart.
@@ -881,12 +883,15 @@ def agent():
         result = execute_action(action, params)
         executed = result.get('success', False)
         user_message = result.get('message', 'Done.' if executed else 'Something went wrong.')
+        # Redirections are part of the agent contract: cart actions → /cart
+        redirect_to = '/cart' if (executed and action in ('add_item', 'remove_item', 'show_cart', 'clear_cart')) else None
 
         return jsonify({
             'executed': executed,
             'action': action,
             'result': result,
             'user_message': user_message,
+            'redirect_to': redirect_to,
             'selected_provider': selected_provider,
         }), 200
 
@@ -945,11 +950,14 @@ def chat():
                             if action == 'show_cart' and result.get('items'):
                                 lines = [f"- {it.get('name', 'Item')} x{it.get('quantity', 1)} (${float(it.get('subtotal', 0)):.2f})" for it in result['items'][:15]]
                                 user_message = result.get('message', '') + '\n\n' + '\n'.join(lines) if lines else user_message
+                            # Cart actions redirect to cart page (part of agent action contract)
+                            redirect_to = '/cart' if action in ('add_item', 'remove_item', 'show_cart', 'clear_cart') else None
                             return jsonify({
                                 'response': user_message,
                                 'action': 'agent_executed',
                                 'agent_action': action,
                                 'agent_result': result,
+                                'redirect_to': redirect_to,
                                 'suggested_products': [],
                                 'suggested_product_ids': [],
                                 'selected_provider': selected_provider,

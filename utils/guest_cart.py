@@ -111,48 +111,51 @@ def update_guest_cart_item(product_id, quantity, selected_color=None, selected_s
     
     return False
 
-def remove_from_guest_cart(product_id, selected_color=None, selected_size=None):
-    """Remove ONE item from guest cart that matches the criteria."""
+def remove_from_guest_cart(product_id, selected_color=None, selected_size=None, quantity=None):
+    """
+    Remove item(s) from guest cart that match the criteria.
+    If quantity is given (e.g. 1), reduce that line's quantity by that amount; remove the line only if quantity becomes 0.
+    If quantity is None, remove the entire matching line (all units).
+    Returns the number of units removed (0 if no match). Truthy when something was removed (for backward compat).
+    """
     cart = get_guest_cart()
-    original_count = len(cart)
-    
-    # Normalize None values for comparison (handle both None and empty string)
+
     def normalize_value(val):
         if val is None or val == '':
             return None
         return val
-    
+
     normalized_selected_color = normalize_value(selected_color)
     normalized_selected_size = normalize_value(selected_size)
-    
-    # Find and remove the FIRST matching item (remove only one, not all)
-    removed = False
+
     for i, item in enumerate(cart):
         item_product_id = item.get('product_id')
         item_color = normalize_value(item.get('selected_color'))
         item_size = normalize_value(item.get('selected_size'))
-        
-        # Check if this item matches
+
         product_match = item_product_id == product_id
-        
-        if product_match:
-            # If color/size are specified, they must match
-            # If not specified, match any item with this product_id
-            color_match = (normalized_selected_color is None) or (item_color == normalized_selected_color)
-            size_match = (normalized_selected_size is None) or (item_size == normalized_selected_size)
-            
-            if color_match and size_match:
-                # Remove this item (only the first match)
-                cart.pop(i)
-                removed = True
-                break
-    
-    # Update session and mark as modified to ensure Flask saves it
-    if removed:
+        if not product_match:
+            continue
+        color_match = (normalized_selected_color is None) or (item_color == normalized_selected_color)
+        size_match = (normalized_selected_size is None) or (item_size == normalized_selected_size)
+        if not (color_match and size_match):
+            continue
+
+        current_qty = int(item.get('quantity', 1))
+        if quantity is None or quantity >= current_qty:
+            # Remove entire line
+            cart.pop(i)
+            session[GUEST_CART_SESSION_KEY] = cart
+            session.modified = True
+            return current_qty
+        # Reduce quantity by quantity
+        new_qty = current_qty - quantity
+        item['quantity'] = new_qty
         session[GUEST_CART_SESSION_KEY] = cart
-        session.modified = True  # Force Flask to save the session
-    
-    return removed
+        session.modified = True
+        return quantity
+
+    return 0
 
 def clear_guest_cart():
     """Clear guest cart."""

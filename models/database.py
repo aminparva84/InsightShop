@@ -141,7 +141,7 @@ def init_db(app):
                 init_vector_db()
             except Exception as e:
                 print(f"Warning: Could not initialize vector database: {e}")
-        
+
         # Seed products if database is empty (skip in test mode)
         if not app.config.get('TESTING'):
             try:
@@ -153,6 +153,14 @@ def init_db(app):
                     print(f"Database already has {Product.query.count()} products")
             except Exception as e:
                 print(f"Warning: Could not seed products: {e}")
+
+        # Keep ChromaDB in sync with SQL: index all active products (new + existing)
+        if not app.config.get('TESTING'):
+            try:
+                from utils.vector_db import sync_all_products_from_sql
+                sync_all_products_from_sql(app)
+            except Exception as e:
+                print(f"Warning: Could not sync products to vector DB: {e}")
         
         if not app.config.get('TESTING'):
             print("Database initialized successfully!")

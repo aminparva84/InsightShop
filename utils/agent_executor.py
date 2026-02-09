@@ -283,39 +283,67 @@ def execute_add_item(params, user):
 
 def execute_remove_item(params, user):
     """
-    Execute remove_item: remove product(s) from cart.
-    params: product_id (optional), color (optional), clothing_type (optional).
-    If product_id given, remove that product (any variant). Else resolve by color + clothing_type and remove matching cart lines.
+    Execute remove_item: remove product(s) from cart, optionally by quantity.
+    params: product_id (optional), color (optional), clothing_type (optional), quantity (optional).
+    If quantity is set (e.g. 1), reduce that item's quantity by that amount; remove the line only if it becomes 0.
+    If quantity is omitted, remove all matching items (entire line).
+    When resolving by color/clothing_type, only the first matching product is used (one cart line).
     """
     product_id = params.get('product_id')
     color = params.get('color')
     clothing_type = params.get('clothing_type')
+    quantity = params.get('quantity')  # None = remove all; 1 = remove one unit, etc.
+    if quantity is not None:
+        quantity = max(1, int(quantity))
     removed = []
+    total_units_removed = 0
 
     if product_id is not None:
         products = resolve_products(product_id=int(product_id), limit=1)
     else:
-        products = resolve_products(color=color, clothing_type=clothing_type, limit=10)
+        products = resolve_products(color=color, clothing_type=clothing_type, limit=1)
+
+    if not products:
+        return {
+            'success': True,
+            'message': 'No matching product in your cart.',
+            'removed': [],
+        }
+
+    product = products[0]
+    sel_color = _normalize_color_for_db(color) if color else None
+    sel_size = None
 
     if user:
-        for product in products:
-            items = CartItem.query.filter_by(user_id=user.id, product_id=product.id).all()
-            for item in items:
+        items = CartItem.query.filter_by(user_id=user.id, product_id=product.id).all()
+        # Match color/size if we have them
+        for item in items:
+            if sel_color is not None and item.selected_color != sel_color:
+                continue
+            if sel_size is not None and item.selected_size != sel_size:
+                continue
+            current = item.quantity
+            to_remove = quantity if quantity is not None else current
+            if to_remove >= current:
+                total_units_removed += current
                 db.session.delete(item)
-                removed.append({'product_id': product.id, 'name': product.name})
-        if removed:
-            db.session.commit()
+                removed.append({'product_id': product.id, 'name': product.name, 'quantity': current})
+            else:
+                item.quantity = current - to_remove
+                total_units_removed += to_remove
+                removed.append({'product_id': product.id, 'name': product.name, 'quantity': to_remove})
+            break  # only one matching line
+        db.session.commit()
     else:
-        guest_cart = get_guest_cart()
-        for product in products:
-            sel_color = _normalize_color_for_db(color) if color else None
-            sel_size = None
-            remove_from_guest_cart(product.id, sel_color, sel_size)
-            removed.append({'product_id': product.id, 'name': product.name})
+        units = remove_from_guest_cart(product.id, sel_color, sel_size, quantity=quantity)
+        if units > 0:
+            total_units_removed = units
+            removed.append({'product_id': product.id, 'name': product.name, 'quantity': units})
 
+    msg = f'Removed {total_units_removed} item(s) from your cart.' if total_units_removed else 'No matching item found in your cart.'
     return {
         'success': True,
-        'message': f'Removed {len(removed)} item(s) from your cart.',
+        'message': msg,
         'removed': removed,
     }
 

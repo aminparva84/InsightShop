@@ -152,18 +152,29 @@ def serve_generated_image(filename):
         from flask import abort
         abort(404)
 
-# Health check endpoint (includes DB connectivity)
+# Health check endpoint (SQL DB + vector DB connectivity)
 @app.route('/api/health')
 def health():
     payload = {'status': 'healthy', 'service': 'InsightShop API'}
+    sql_ok = False
     try:
         from sqlalchemy import text
         db.session.execute(text('SELECT 1'))
         payload['db'] = 'connected'
+        sql_ok = True
     except Exception as e:
         payload['status'] = 'degraded'
         payload['db'] = 'error'
         payload['db_error'] = str(e)
+
+    try:
+        from utils.vector_db import is_vector_db_available
+        payload['vector_db'] = 'connected' if is_vector_db_available() else 'unavailable'
+    except Exception as e:
+        payload['vector_db'] = 'error'
+        payload['vector_db_error'] = str(e)
+
+    if not sql_ok:
         return payload, 503
     return payload, 200
 

@@ -45,6 +45,7 @@ const Admin = () => {
   const [editingSale, setEditingSale] = useState(null);
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [syncVectorLoading, setSyncVectorLoading] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -841,6 +842,21 @@ const Admin = () => {
           is_active: true
         });
         loadProducts();
+        // Trigger sync so SQL and ChromaDB stay in sync for AI search
+        try {
+          const syncData = await runSyncVectorDbApi();
+          setMessage({
+            type: syncData.success ? 'success' : 'error',
+            text: syncData.success
+              ? `Product created. ${syncData.message || 'Synced to AI search.'}`
+              : `Product created. Sync to AI search failed: ${syncData.message || syncData.error || 'Unknown error'}`
+          });
+        } catch (syncErr) {
+          setMessage({
+            type: 'success',
+            text: 'Product created. (Sync to AI search could not be completed.)'
+          });
+        }
       }
     } catch (error) {
       console.error('Error creating product:', error);
@@ -892,6 +908,21 @@ const Admin = () => {
         setMessage({ type: 'success', text: 'Product updated successfully!' });
         setEditingProduct(null);
         loadProducts();
+        // Trigger sync so SQL and ChromaDB stay in sync for AI search
+        try {
+          const syncData = await runSyncVectorDbApi();
+          setMessage({
+            type: syncData.success ? 'success' : 'error',
+            text: syncData.success
+              ? `Product updated. ${syncData.message || 'Synced to AI search.'}`
+              : `Product updated. Sync to AI search failed: ${syncData.message || syncData.error || 'Unknown error'}`
+          });
+        } catch (syncErr) {
+          setMessage({
+            type: 'success',
+            text: 'Product updated. (Sync to AI search could not be completed.)'
+          });
+        }
       }
     } catch (error) {
       console.error('Error updating product:', error);
@@ -909,6 +940,35 @@ const Admin = () => {
     }
   };
 
+  /** Call sync-vector-db API; returns { success, message, synced } or throws. */
+  const runSyncVectorDbApi = async () => {
+    const response = await axios.post('/api/admin/products/sync-vector-db', {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data || {};
+  };
+
+  const handleSyncVectorDb = async () => {
+    setSyncVectorLoading(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const data = await runSyncVectorDbApi();
+      if (data.success) {
+        setMessage({
+          type: 'success',
+          text: data.message || `Synced ${data.synced ?? 0} product(s) to AI search.`
+        });
+      } else {
+        setMessage({ type: 'error', text: data.message || data.error || 'Sync failed.' });
+      }
+    } catch (error) {
+      const errMsg = error.response?.data?.message || error.response?.data?.error || 'Failed to sync products to AI search.';
+      setMessage({ type: 'error', text: errMsg });
+    } finally {
+      setSyncVectorLoading(false);
+    }
+  };
+
   const handleDeleteProduct = async (productId) => {
     if (!window.confirm('Are you sure you want to delete this product?')) {
       return;
@@ -922,6 +982,21 @@ const Admin = () => {
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Product deleted successfully!' });
         loadProducts();
+        // Trigger sync so ChromaDB no longer returns the removed product in AI search
+        try {
+          const syncData = await runSyncVectorDbApi();
+          setMessage({
+            type: syncData.success ? 'success' : 'error',
+            text: syncData.success
+              ? `Product deleted. ${syncData.message || 'AI search updated.'}`
+              : `Product deleted. Sync to AI search failed: ${syncData.message || syncData.error || 'Unknown error'}`
+          });
+        } catch (syncErr) {
+          setMessage({
+            type: 'success',
+            text: 'Product deleted. (Sync to AI search could not be completed.)'
+          });
+        }
       }
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -1894,35 +1969,47 @@ const Admin = () => {
           <div className="admin-section" ref={productFormRef}>
             <div className="admin-section-header">
               <h2>Product Management</h2>
-              <button className="save-btn" onClick={() => {
-                setShowProductForm(!showProductForm);
-                setProductValidationErrors([]);
-                if (showProductForm) {
-                  setEditingProduct(null);
-                  setNewProduct({
-                    name: '',
-                    description: '',
-                    price: '',
-                    category: 'men',
-                    color: '',
-                    size: '',
-                    available_colors: [],
-                    available_sizes: [],
-                    fabric: '',
-                    clothing_type: '',
-                    dress_style: '',
-                    occasion: '',
-                    age_group: '',
-                    season: 'all_season',
-                    clothing_category: 'other',
-                    image_url: '',
-                    stock_quantity: 0,
-                    is_active: true
-                  });
-                }
-              }}>
-                {showProductForm ? 'Cancel' : '+ Create New Product'}
-              </button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="save-btn"
+                  onClick={handleSyncVectorDb}
+                  disabled={syncVectorLoading}
+                  title="Sync all active products to ChromaDB so they appear in AI chat search"
+                  style={{ background: syncVectorLoading ? '#94a3b8' : '#64748b', color: '#fff' }}
+                >
+                  {syncVectorLoading ? 'Syncing…' : 'Sync to AI Search'}
+                </button>
+                <button className="save-btn" onClick={() => {
+                  setShowProductForm(!showProductForm);
+                  setProductValidationErrors([]);
+                  if (showProductForm) {
+                    setEditingProduct(null);
+                    setNewProduct({
+                      name: '',
+                      description: '',
+                      price: '',
+                      category: 'men',
+                      color: '',
+                      size: '',
+                      available_colors: [],
+                      available_sizes: [],
+                      fabric: '',
+                      clothing_type: '',
+                      dress_style: '',
+                      occasion: '',
+                      age_group: '',
+                      season: 'all_season',
+                      clothing_category: 'other',
+                      image_url: '',
+                      stock_quantity: 0,
+                      is_active: true
+                    });
+                  }
+                }}>
+                  {showProductForm ? 'Cancel' : '+ Create New Product'}
+                </button>
+              </div>
             </div>
 
             {productValidationErrors.length > 0 && (

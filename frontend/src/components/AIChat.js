@@ -966,9 +966,15 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
 
       setMessages(prev => [...prev, aiMessage]);
 
-      // When agent executed a cart action (add/remove/show/clear), refresh cart in UI
+      // When agent executed a cart action: refresh cart, redirect if requested, then close chat
       if (response.data.action === 'agent_executed') {
-        fetchCart && fetchCart();
+        if (fetchCart) fetchCart();
+        const redirectTo = response.data.redirect_to;
+        if (redirectTo) {
+          navigate(redirectTo);
+          if (onClose) onClose();
+          return;
+        }
       }
       
       // Scroll chat to show new AI message and keep input focused

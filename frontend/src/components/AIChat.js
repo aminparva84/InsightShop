@@ -2,12 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from './ProductCard';
+import { useCart } from '../contexts/CartContext';
 import { ScoopIcon, BowIcon, PaddingIcon, SlitIcon, getDressStyleIcon, MicrophoneIcon, SpeakerIcon, SpeakerOffIcon, StopIcon, PlayIcon } from './DressStyleIcons';
 import './AIChat.css';
 
 const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { fetchCart } = useCart();
   const [initialMessage, setInitialMessage] = useState("Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!");
   
   // Load current date and sales context for initial message
@@ -963,6 +965,11 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       };
 
       setMessages(prev => [...prev, aiMessage]);
+
+      // When agent executed a cart action (add/remove/show/clear), refresh cart in UI
+      if (response.data.action === 'agent_executed') {
+        fetchCart && fetchCart();
+      }
       
       // Scroll chat to show new AI message and keep input focused
       setTimeout(() => {

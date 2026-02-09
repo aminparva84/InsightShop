@@ -8,6 +8,12 @@ from utils.spelling_tolerance import normalize_clothing_type, normalize_category
 from utils.fashion_match_rules import find_matching_products, get_match_explanation
 from utils.seasonal_events import get_seasonal_context_text, get_current_season, get_upcoming_holidays, get_seasonal_recommendations
 from utils.product_relations import ensure_product_relations, get_related_clothing_types
+from utils.agent_executor import (
+    ALLOWED_ACTIONS,
+    parse_agent_response,
+    can_execute_action,
+    execute_action,
+)
 from routes.auth import require_auth
 from config import Config
 import boto3
@@ -107,6 +113,39 @@ Show REAL excitement when you find great products - react like "OMG, wait till y
 You're NOT a robot or corporate assistant - you're someone who gets genuinely PUMPED about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
 
 Keep it super conversational, warm, helpful, real, and EXCITED - like you're sharing amazing finds with your best friend!"""
+
+
+# System prompt for the action agent: user prompt → single JSON action (strict, no explanation)
+AGENT_SYSTEM_PROMPT = """You are an AI agent that converts user requests into exactly one JSON action for a shopping site.
+
+Rules:
+- Only return valid JSON. No explanation, no markdown, no extra text.
+- Allowed actions: add_item, remove_item, show_cart, clear_cart, none.
+- If the request does not match any action, return: {"action": "none"}.
+- Do NOT explain anything. Output only the JSON object.
+
+Action schemas (use only these keys):
+
+add_item: User wants to add product(s) to cart.
+  Params: product_id (optional, number), color (optional, string e.g. "white", "blue"), clothing_type (optional, string e.g. "shirt", "jacket", "T-Shirt"), quantity (optional, number, default 1), size (optional, string e.g. "L", "M"), category (optional: "men", "women", "kids").
+  Example: "add 3 white shirts to my cart" → {"action": "add_item", "params": {"color": "white", "clothing_type": "shirt", "quantity": 3}}
+  Example: "add product 5 to cart" → {"action": "add_item", "params": {"product_id": 5, "quantity": 1}}
+
+remove_item: User wants to remove product(s) from cart.
+  Params: product_id (optional), color (optional), clothing_type (optional).
+  Example: "remove blue jacket from my cart" → {"action": "remove_item", "params": {"color": "blue", "clothing_type": "jacket"}}
+  Example: "delete product 3 from cart" → {"action": "remove_item", "params": {"product_id": 3}}
+
+show_cart: User wants to see their shopping cart.
+  Params: none. Example: {"action": "show_cart", "params": {}}
+
+clear_cart: User wants to empty the cart.
+  Params: none. Example: {"action": "clear_cart", "params": {}}
+
+none: General chat, search, or non-cart request.
+  Example: {"action": "none", "params": {}}
+
+Output exactly one JSON object. No other text."""
 
 
 def _env_api_key(provider):
@@ -770,6 +809,98 @@ def list_ai_models():
         return jsonify({'error': str(e)}), 500
 
 
+@ai_agent_bp.route('/agent', methods=['POST'])
+def agent():
+    """
+    AI Agent: turn user prompt → structured action (LLM) → validate & execute (backend).
+    Returns: executed (bool), action (str), result (dict), user_message (str for chat).
+    """
+    try:
+        data = request.get_json()
+        message = (data.get('message') or '').strip()
+        if not message:
+            return jsonify({'error': 'Message is required'}), 400
+
+        ai_config = get_active_ai_config()
+        selected_provider = get_selected_provider()
+        if not ai_config:
+            return jsonify({
+                'error': 'No AI provider available. Set an API key in Admin → AI Assistant.',
+                'selected_provider': get_selected_provider(),
+            }), 503
+
+        # Single LLM call: user message → one JSON action
+        user_prompt = f"User request: {message}\n\nOutput the single JSON action object:"
+        llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config)
+        content = (llm_result.get('content') or '').strip()
+        if not content:
+            return jsonify({
+                'executed': False,
+                'action': None,
+                'result': {'success': False, 'message': 'No response from AI.'},
+                'user_message': "I couldn't understand that. Try: add/remove items, show cart, or clear cart.",
+                'selected_provider': selected_provider,
+            }), 200
+
+        parsed = parse_agent_response(content)
+        if not parsed or 'action' not in parsed:
+            return jsonify({
+                'executed': False,
+                'action': None,
+                'result': {'success': False, 'message': 'Invalid AI response format.'},
+                'user_message': "I couldn't parse that request. Try: 'add 2 white shirts to my cart' or 'show my cart'.",
+                'selected_provider': selected_provider,
+            }), 200
+
+        action = (parsed.get('action') or '').strip().lower()
+        params = parsed.get('params')
+        if not isinstance(params, dict):
+            params = {}
+
+        if action not in ALLOWED_ACTIONS:
+            return jsonify({
+                'executed': False,
+                'action': action,
+                'result': {'success': False, 'message': 'Action not allowed.'},
+                'user_message': "That action isn't supported. You can add/remove items, show cart, or clear cart.",
+                'selected_provider': selected_provider,
+            }), 200
+
+        from routes.auth import get_current_user_optional
+        current_user = get_current_user_optional()
+        allowed, err_msg = can_execute_action(action, params, current_user)
+        if not allowed:
+            return jsonify({
+                'executed': False,
+                'action': action,
+                'result': {'success': False, 'message': err_msg or 'Not allowed.'},
+                'user_message': err_msg or "I can't do that.",
+                'selected_provider': selected_provider,
+            }), 200
+
+        result = execute_action(action, params)
+        executed = result.get('success', False)
+        user_message = result.get('message', 'Done.' if executed else 'Something went wrong.')
+
+        return jsonify({
+            'executed': executed,
+            'action': action,
+            'result': result,
+            'user_message': user_message,
+            'selected_provider': selected_provider,
+        }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'executed': False,
+            'action': None,
+            'result': {'success': False, 'message': str(e)},
+            'user_message': 'An error occurred. Please try again.',
+        }), 500
+
+
 @ai_agent_bp.route('/chat', methods=['POST'])
 def chat():
     """Chat with AI agent. Uses selected provider from Admin (auto = first valid)."""
@@ -790,7 +921,40 @@ def chat():
                 'error': "No AI provider is available. In Admin → AI Assistant, set an API key for at least one provider (e.g. Gemini) and click Test, or ensure AWS Secrets Manager (AWS_SECRETS_INSIGHTSHOP) contains the key (e.g. GEMINI_API_KEY) and select that provider.",
                 'selected_provider': selected_provider,
             }), 503
-        
+
+        # Cart intent: try agent first (add/remove/show/clear cart)
+        cart_keywords = ['cart', 'shopping cart', 'my cart', 'add to cart', 'remove from cart', 'delete from cart', 'clear cart', 'empty cart', 'show cart', 'what\'s in my cart']
+        looks_like_cart = any(kw in message for kw in cart_keywords) or ('add' in message and ('cart' in message or 'shirt' in message or 'jacket' in message or 'product' in message))
+        if looks_like_cart:
+            user_prompt = f"User request: {message}\n\nOutput the single JSON action object:"
+            llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config)
+            content = (llm_result.get('content') or '').strip()
+            parsed = parse_agent_response(content) if content else None
+            if parsed and parsed.get('action') and parsed['action'] != 'none':
+                action = (parsed.get('action') or '').strip().lower()
+                params = parsed.get('params') if isinstance(parsed.get('params'), dict) else {}
+                if action in ALLOWED_ACTIONS:
+                    from routes.auth import get_current_user_optional
+                    current_user = get_current_user_optional()
+                    allowed, err_msg = can_execute_action(action, params, current_user)
+                    if allowed:
+                        result = execute_action(action, params)
+                        if result.get('success'):
+                            user_message = result.get('message', 'Done.')
+                            # Optional: include cart summary in response for show_cart
+                            if action == 'show_cart' and result.get('items'):
+                                lines = [f"- {it.get('name', 'Item')} x{it.get('quantity', 1)} (${float(it.get('subtotal', 0)):.2f})" for it in result['items'][:15]]
+                                user_message = result.get('message', '') + '\n\n' + '\n'.join(lines) if lines else user_message
+                            return jsonify({
+                                'response': user_message,
+                                'action': 'agent_executed',
+                                'agent_action': action,
+                                'agent_result': result,
+                                'suggested_products': [],
+                                'suggested_product_ids': [],
+                                'selected_provider': selected_provider,
+                            }), 200
+
         # Check if user wants to compare products
         is_comparison_request = any(keyword in message for keyword in [
             'compare', 'comparison', 'which is better', 'which one is better',

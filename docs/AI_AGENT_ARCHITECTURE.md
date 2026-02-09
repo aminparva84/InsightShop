@@ -196,7 +196,20 @@ So the agent “aims to function” as a **single conversational surface** (text
 | **utils/fashion_match_rules.py** | “Complete the look” style rules; `find_matching_products`, `get_match_explanation`. |
 | **utils/product_relations.py** | DB-backed product relations for fashion-match suggestions. |
 | **utils/color_names.py** | Normalize color names from message. |
+| **utils/agent_executor.py** | Action executor: allowed actions (add_item, remove_item, show_cart, clear_cart, none), permission checks, product resolution, safe cart execution. |
 | **routes/ai_cart.py** | Add to cart by product id (and optional color/size); used when the user says things like “add product 5 to cart”. (Blueprint must be registered in the app if used.) |
+
+---
+
+## 6.1 Action Agent (Cart and Structured Actions)
+
+The agent converts natural-language requests into **structured JSON actions** that the backend executes with hard permission checks.
+
+- **Flow**: User prompt → LLM (constrained prompt) → single JSON `{ "action", "params" }` → backend validates action ∈ allowed list → permission check → execute (cart add/remove/show/clear) → return result.
+- **Allowed actions** (in `utils/agent_executor.py`): `add_item`, `remove_item`, `show_cart`, `clear_cart`, `none`.
+- **Permission model**: Cart actions allowed for authenticated users and guests. Backend enforces the allowed-action set; it does not trust the LLM alone.
+- **Product resolution**: e.g. "add 3 white shirts" → LLM returns `{"action":"add_item","params":{"color":"white","clothing_type":"shirt","quantity":3}}`; executor resolves products and adds to cart.
+- **Chat integration**: When the message looks like a cart intent, `/api/ai/chat` runs the agent first; if an action is executed, the chat returns the result and the frontend refreshes the cart.
 
 ---
 
@@ -204,7 +217,8 @@ So the agent “aims to function” as a **single conversational surface** (text
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /api/ai/chat` | Main chat: one user message → LLM reply + optional product IDs and action. |
+| `POST /api/ai/agent` | **Action agent**: user message → LLM → JSON action → validate & execute → returns `executed`, `action`, `result`, `user_message`. |
+| `POST /api/ai/chat` | Main chat: one user message → LLM reply + optional product IDs and action. Cart intents may be handled by the action agent first. |
 | `GET /api/ai/models` | Returns current selected provider (for UI). |
 | `POST /api/ai/search` | AI/vector product search. |
 | `POST /api/ai/filter` | AI-powered filter. |

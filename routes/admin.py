@@ -1279,6 +1279,20 @@ def test_ai_provider(provider):
         config.last_tested_at = datetime.utcnow()
         config.latency_ms = latency_ms
         config.is_valid = err is None
+        # When Test succeeds with a key in the request, persist it and enable the provider so chat works without requiring a separate Save + toggle
+        if err is None and data.get('api_key'):
+            key_val = (data.get('api_key') or '').strip()
+            if key_val:
+                valid_fmt, _ = _validate_api_key_format(provider, key_val)
+                if valid_fmt:
+                    from utils.secret_storage import encrypt_plaintext
+                    config.api_key = encrypt_plaintext(key_val)
+                    config.source = 'admin'
+                    config.is_enabled = True
+        if data.get('model_id') is not None:
+            config.model_id = (data.get('model_id') or '').strip() or None
+        if data.get('region') is not None:
+            config.region = (data.get('region') or '').strip() or None
         db.session.commit()
 
         if err:

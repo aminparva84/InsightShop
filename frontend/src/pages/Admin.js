@@ -2601,30 +2601,30 @@ const Admin = () => {
           <div className="admin-section">
             <h2>AI Assistant</h2>
             <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <label style={{ fontWeight: 600 }}>Model (default for chatbot):</label>
-              <div style={{ width: 68, flexShrink: 0 }}>
+              <label style={{ fontWeight: 600 }}>Assistant (default for chatbot):</label>
+              <div style={{ minWidth: 180, flexShrink: 0 }}>
                 <select
                   value={aiSelectedProvider}
                   onChange={(e) => handleSelectedProviderChange(e.target.value)}
                   style={{
                     width: '100%',
-                    maxWidth: '100%',
-                    padding: '4px 6px',
+                    minWidth: 180,
+                    padding: '6px 10px',
                     borderRadius: 6,
                     border: '1px solid #d1d5db',
-                    fontSize: '0.85rem',
+                    fontSize: '0.9rem',
                     boxSizing: 'border-box',
-                    minWidth: 0,
                   }}
+                  aria-label="Select AI assistant provider"
                 >
-                  <option value="auto">Auto</option>
+                  <option value="auto">Auto (first valid provider)</option>
                   <option value="openai">OpenAI</option>
-                  <option value="gemini">Google Gemini</option>
-                  <option value="anthropic">Anthropic</option>
+                  <option value="gemini">Google Gemini (AI Studio)</option>
                   <option value="vertex">Google Vertex AI</option>
+                  <option value="anthropic">Anthropic</option>
                 </select>
               </div>
-              <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>Paste an API key and click Test to check health and latency (no need to Save first). Then Save and enable the provider with the switch.</span>
+              <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>Paste an API key and click Test to check health and latency (no need to Save first). Then Save and enable the provider with the switch. Vertex AI uses a different key than Gemini.</span>
             </div>
             {aiAssistantLoading ? (
               <div>Loading...</div>

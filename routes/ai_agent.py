@@ -78,17 +78,23 @@ def _normalize_llm_error(exc):
         return 'Request timed out'
     if 'Connection' in s or 'connection' in s:
         return 'Connection failed — check network'
-    # Try to extract JSON error message from response body (e.g. OpenAI/Anthropic)
+    # Try to extract JSON error message from response body (e.g. OpenAI/Anthropic, Google)
     if hasattr(exc, 'response') and exc.response is not None:
         try:
             body = getattr(exc.response, 'text', None) or ''
             if body:
                 data = json.loads(body)
                 err = data.get('error') or data.get('error_message')
+                msg = None
                 if isinstance(err, dict) and err.get('message'):
-                    return err['message'][:200]
-                if isinstance(err, str):
-                    return err[:200]
+                    msg = err['message'][:200]
+                elif isinstance(err, str):
+                    msg = err[:200]
+                if msg:
+                    # Vertex/GCP often returns "API key not valid. Please pass a valid API key."
+                    if 'api key' in msg.lower() and 'valid' in msg.lower():
+                        msg += ' Use a Vertex AI API key (Google Cloud Console or GOOGLE_API_KEY / VERTEX_API_KEY), not a Gemini AI Studio key.'
+                    return msg
         except Exception:
             pass
     # Fallback: first line, truncated
@@ -113,7 +119,14 @@ def _env_api_key(provider):
     if provider == 'anthropic':
         return os.getenv('ANTHROPIC_API_KEY') or getattr(Config, 'ANTHROPIC_API_KEY', None)
     if provider == 'vertex':
-        return os.getenv('VERTEX_API_KEY') or os.getenv('GOOGLE_APPLICATION_CREDENTIALS') or getattr(Config, 'VERTEX_API_KEY', None)
+        # Vertex AI quickstart uses GOOGLE_API_KEY; also support VERTEX_API_KEY and GOOGLE_APPLICATION_CREDENTIALS
+        return (
+            os.getenv('VERTEX_API_KEY')
+            or os.getenv('GOOGLE_API_KEY')
+            or os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+            or getattr(Config, 'VERTEX_API_KEY', None)
+            or getattr(Config, 'GOOGLE_API_KEY', None)
+        )
     return None
 
 
@@ -445,7 +458,7 @@ def _vertex_use_api_key(api_key):
 
 
 def _call_vertex(internal, prompt, system_prompt, timeout=60):
-    api_key = internal.get('api_key')
+    api_key = (internal.get('api_key') or '').strip()
     model_id = (internal.get('model_id') or 'gemini-2.5-flash-lite').strip()
     body = {
         'contents': [{'role': 'user', 'parts': [{'text': prompt}]}],
@@ -453,7 +466,7 @@ def _call_vertex(internal, prompt, system_prompt, timeout=60):
         'generationConfig': {'maxOutputTokens': 1024},
     }
     if _vertex_use_api_key(api_key):
-        # Vertex AI with API key: global endpoint (same style as your curl)
+        # Vertex AI with API key: global endpoint (per Google Cloud quickstart; use GOOGLE_API_KEY or VERTEX_API_KEY)
         url = f'https://aiplatform.googleapis.com/v1/publishers/google/models/{model_id}:generateContent?key={api_key}'
         r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=timeout)
         r.raise_for_status()
@@ -700,6 +713,7 @@ def call_llm_vision(config, prompt, image_base64, system_prompt=None, media_type
 
     if provider == 'vertex' and api_key:
         try:
+            key_stripped = (api_key or '').strip()
             mid = (model_id or 'gemini-2.5-flash-lite').strip()
             body = {
                 'contents': [{
@@ -712,11 +726,11 @@ def call_llm_vision(config, prompt, image_base64, system_prompt=None, media_type
             }
             if system_prompt:
                 body['systemInstruction'] = {'parts': [{'text': system_prompt}]}
-            if _vertex_use_api_key(api_key):
-                url = f'https://aiplatform.googleapis.com/v1/publishers/google/models/{mid}:generateContent?key={api_key}'
+            if _vertex_use_api_key(key_stripped):
+                url = f'https://aiplatform.googleapis.com/v1/publishers/google/models/{mid}:generateContent?key={key_stripped}'
                 r = requests.post(url, json=body, headers={'Content-Type': 'application/json'}, timeout=90)
             else:
-                project_id, token = _get_vertex_credentials(api_key)
+                project_id, token = _get_vertex_credentials(key_stripped)
                 if not project_id or not token:
                     return None
                 region = (internal.get('region') or 'us-central1').strip()

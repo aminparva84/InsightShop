@@ -1,7 +1,7 @@
 # Deploy InsightShop to AWS App Runner on push to main
 # Prerequisites: Run scripts/setup-apprunner.ps1 once and add GitHub secrets (see script output).
 
-name: Deploy to AWS App Runner
+name: Deploy to AWS App Runner 
 
 on:
   push:
@@ -24,27 +24,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Prefer static credentials when set (OIDC requires role + IdP in AWS)
-      - name: Configure AWS credentials (static)
-        if: secrets.AWS_ACCESS_KEY_ID != ''
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Configure AWS credentials (OIDC)
-        if: secrets.AWS_ACCESS_KEY_ID == '' && secrets.AWS_ROLE_ARN != ''
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Fail when no AWS credentials configured
-        if: secrets.AWS_ACCESS_KEY_ID == '' && secrets.AWS_ROLE_ARN == ''
-        run: |
-          echo "::error::No AWS credentials. Add AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, or AWS_ROLE_ARN for OIDC. See docs/deploy-apprunner.md"
-          exit 1
 
       - name: Login to Amazon ECR
         id: ecr-login
@@ -71,23 +56,37 @@ jobs:
           CREATED="false"
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" == "None" ]; then
             echo "Creating App Runner service..."
-            # Use CLI shorthand: ImageRepository with only ImageRepositoryType, ImageIdentifier, ImageConfiguration. No AuthenticationConfiguration (ECR auth via AWS credentials).
+            INSTANCE_CONFIG="{}"
             if [ -n "$INSTANCE_ROLE_ARN" ]; then
-              SERVICE_ARN=$(aws apprunner create-service \
-                --region $AWS_REGION \
-                --service-name "$APP_RUNNER_SERVICE_NAME" \
-                --source-configuration "ImageRepository={ImageRepositoryType=ECR,ImageIdentifier=$IMAGE_URI,ImageConfiguration={Port=5000,RuntimeEnvironmentVariables={FLASK_ENV=production,PYTHONUNBUFFERED=1}}}" \
-                --instance-configuration "InstanceRoleArn=$INSTANCE_ROLE_ARN" \
-                --health-check-configuration "Protocol=HTTP,Path=/api/health,Interval=10,Timeout=5,HealthyThreshold=1,UnhealthyThreshold=5" \
-                --query 'Service.ServiceArn' --output text)
-            else
-              SERVICE_ARN=$(aws apprunner create-service \
-                --region $AWS_REGION \
-                --service-name "$APP_RUNNER_SERVICE_NAME" \
-                --source-configuration "ImageRepository={ImageRepositoryType=ECR,ImageIdentifier=$IMAGE_URI,ImageConfiguration={Port=5000,RuntimeEnvironmentVariables={FLASK_ENV=production,PYTHONUNBUFFERED=1}}}" \
-                --health-check-configuration "Protocol=HTTP,Path=/api/health,Interval=10,Timeout=5,HealthyThreshold=1,UnhealthyThreshold=5" \
-                --query 'Service.ServiceArn' --output text)
+              INSTANCE_CONFIG="{\"InstanceRoleArn\": \"$INSTANCE_ROLE_ARN\"}"
             fi
+            SERVICE_ARN=$(aws apprunner create-service \
+              --region $AWS_REGION \
+              --service-name "$APP_RUNNER_SERVICE_NAME" \
+              --source-configuration "{
+                \"ImageRepository\": {
+                  \"ImageIdentifier\": \"$IMAGE_URI\",
+                  \"ImageRepositoryType\": \"ECR\",
+                  \"ImageConfiguration\": {
+                    \"Port\": \"5000\",
+                    \"RuntimeEnvironmentVariables\": {
+                      \"FLASK_ENV\": \"production\",
+                      \"PYTHONUNBUFFERED\": \"1\"
+                    }
+                  }
+                },
+                \"AutoDeploymentsEnabled\": false
+              }" \
+              --instance-configuration "$INSTANCE_CONFIG" \
+              --health-check-configuration "{
+                \"Protocol\": \"HTTP\",
+                \"Path\": \"/api/health\",
+                \"Interval\": 10,
+                \"Timeout\": 5,
+                \"HealthyThreshold\": 1,
+                \"UnhealthyThreshold\": 5
+              }" \
+              --query 'Service.ServiceArn' --output text)
             echo "Service created: $SERVICE_ARN"
             CREATED="true"
           else
@@ -118,3 +117,4 @@ jobs:
             --service-arn "${{ steps.apprunner.outputs.service_arn }}" \
             --query 'Service.ServiceUrl' --output text)
           echo "::notice title=InsightShop deployed::Service URL: https://$SERVICE_URL"
+

@@ -41,8 +41,13 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HT
 
 # Initialize database (only if not in test mode and not already initialized)
 if not app.config.get('TESTING') and not hasattr(app, '_db_initialized'):
-    init_db(app)
-    app._db_initialized = True
+    try:
+        init_db(app)
+        app._db_initialized = True
+    except Exception as e:
+        print(f"[DB] WARNING: Database initialization failed: {e}")
+        print("[DB] App will start; /api/health may report degraded until DB is fixed.")
+        app._db_initialized = False
 
 # Enable CORS for React frontend with credentials support for sessions
 CORS(app, resources={

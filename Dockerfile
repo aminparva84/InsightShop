@@ -39,16 +39,19 @@ COPY . .
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/frontend/build ./frontend/build
 
-# Create directories for database and vector DB
-RUN mkdir -p /app/data /app/vector_db
+# Create directories for database, instance (Flask DB), and vector DB
+RUN mkdir -p /app/data /app/instance /app/vector_db
 
 # Expose port
 EXPOSE 5000
 
-# Set environment variables
+# Set environment variables (App Runner can override at runtime)
 ENV FLASK_APP=app.py
 ENV PYTHONUNBUFFERED=1
+# Required in production by config.py; 32+ chars so app starts in container
+ENV FLASK_ENV=production
+ENV JWT_SECRET=InsightShop-AppRunner-Default-ChangeInConsole32
 
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "app:app"]
+# Single worker for faster startup and to avoid 4x init_db/seed races with SQLite
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "120", "app:app"]
 

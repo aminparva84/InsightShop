@@ -94,6 +94,36 @@ jobs:
           echo "service_arn=$SERVICE_ARN" >> $GITHUB_OUTPUT
           echo "created=$CREATED" >> $GITHUB_OUTPUT
 
+      - name: Wait for service RUNNING (before triggering deployment)
+        if: steps.apprunner.outputs.created != 'true'
+        run: |
+          echo "Waiting for service to be in RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --query 'Service.Status' --output text)
+            echo "Service status: $STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "Service is RUNNING."
+              exit 0
+            fi
+            if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
+              echo "::error::Service is in $STATUS state."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "::error::Timeout waiting for service to reach RUNNING state."
+          exit 1
+
+      - name: Ensure service is RUNNING
+        if: steps.apprunner.outputs.created != 'true'
+        run: |
+          STATUS=$(aws apprunner describe-service --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --query 'Service.Status' --output text)
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "::error::Service is not in RUNNING state; status: $STATUS. Resolve in AWS Console (App Runner → insightshop) or check health check config."
+            exit 1
+          fi
+          echo "Service status: RUNNING."
+
       - name: Trigger App Runner deployment
         if: steps.apprunner.outputs.created != 'true'
         run: |

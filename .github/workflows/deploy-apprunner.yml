@@ -50,8 +50,13 @@ jobs:
           IMAGE_URI: ${{ steps.build.outputs.image }}
           ACCESS_ROLE_ARN: ${{ secrets.APP_RUNNER_ACCESS_ROLE_ARN }}
           INSTANCE_ROLE_ARN: ${{ secrets.APP_RUNNER_INSTANCE_ROLE_ARN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           set -e
+          # App requires JWT_SECRET (>=32 chars) when FLASK_ENV=production; use default if secret not set so service can start.
+          if [ -z "$JWT_SECRET" ] || [ ${#JWT_SECRET} -lt 32 ]; then
+            export JWT_SECRET="InsightShop-AppRunner-Default-ChangeInConsole32"
+          fi
           SERVICE_ARN=$(aws apprunner list-services --region $AWS_REGION --query "ServiceSummaryList[?ServiceName=='$APP_RUNNER_SERVICE_NAME'].ServiceArn" --output text)
           CREATED="false"
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" == "None" ]; then
@@ -61,6 +66,8 @@ jobs:
           import json, os
           # SourceConfiguration: AuthenticationConfiguration and ImageRepository are siblings (API shape).
           # ImageRepository must contain only ImageIdentifier, ImageConfiguration, ImageRepositoryType.
+          # JWT_SECRET is required by app in production (config.py); without it the app crashes at startup -> CREATE_FAILED.
+          runtime_vars = {"FLASK_ENV": "production", "PYTHONUNBUFFERED": "1", "JWT_SECRET": os.environ.get("JWT_SECRET", "InsightShop-AppRunner-Default-ChangeInConsole32")}
           source_config = {
             "AuthenticationConfiguration": {"AccessRoleArn": os.environ["ACCESS_ROLE_ARN"]},
             "AutoDeploymentsEnabled": False,
@@ -69,7 +76,7 @@ jobs:
               "ImageRepositoryType": "ECR",
               "ImageConfiguration": {
                 "Port": "5000",
-                "RuntimeEnvironmentVariables": {"FLASK_ENV": "production", "PYTHONUNBUFFERED": "1"}
+                "RuntimeEnvironmentVariables": runtime_vars
               }
             }
           }
@@ -106,7 +113,8 @@ jobs:
               exit 0
             fi
             if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
-              echo "::error::Service is in $STATUS state."
+              echo "::error::Service is in $STATUS state. Deleting so next run can recreate."
+              aws apprunner delete-service --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --output text --query 'Service.Status' || true
               exit 1
             fi
             sleep 10

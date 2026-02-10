@@ -24,12 +24,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      # Prefer static credentials when set (OIDC requires role + IdP in AWS)
+      - name: Configure AWS credentials (static)
+        if: secrets.AWS_ACCESS_KEY_ID != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials (OIDC)
+        if: secrets.AWS_ACCESS_KEY_ID == '' && secrets.AWS_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fail when no AWS credentials configured
+        if: secrets.AWS_ACCESS_KEY_ID == '' && secrets.AWS_ROLE_ARN == ''
+        run: |
+          echo "::error::No AWS credentials. Add AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, or AWS_ROLE_ARN for OIDC. See docs/deploy-apprunner.md"
+          exit 1
 
       - name: Login to Amazon ECR
         id: ecr-login
@@ -73,12 +88,12 @@ jobs:
                       \"FLASK_ENV\": \"production\",
                       \"PYTHONUNBUFFERED\": \"1\"
                     }
-                  },
-                  \"AuthenticationConfiguration\": {
-                    \"AccessRoleArn\": \"$ACCESS_ROLE_ARN\"
                   }
                 },
-                \"AutoDeploymentsEnabled\": false
+                \"AutoDeploymentsEnabled\": false,
+                \"AuthenticationConfiguration\": {
+                  \"AccessRoleArn\": \"$ACCESS_ROLE_ARN\"
+                }
               }" \
               --instance-configuration "$INSTANCE_CONFIG" \
               --health-check-configuration "{

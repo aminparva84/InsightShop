@@ -56,37 +56,36 @@ jobs:
           CREATED="false"
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" == "None" ]; then
             echo "Creating App Runner service..."
-            INSTANCE_CONFIG="{}"
-            if [ -n "$INSTANCE_ROLE_ARN" ]; then
-              INSTANCE_CONFIG="{\"InstanceRoleArn\": \"$INSTANCE_ROLE_ARN\"}"
-            fi
-            SERVICE_ARN=$(aws apprunner create-service \
-              --region $AWS_REGION \
-              --service-name "$APP_RUNNER_SERVICE_NAME" \
-              --source-configuration "{
-                \"ImageRepository\": {
-                  \"ImageIdentifier\": \"$IMAGE_URI\",
-                  \"ImageRepositoryType\": \"ECR\",
-                  \"ImageConfiguration\": {
-                    \"Port\": \"5000\",
-                    \"RuntimeEnvironmentVariables\": {
-                      \"FLASK_ENV\": \"production\",
-                      \"PYTHONUNBUFFERED\": \"1\"
-                    }
-                  }
-                },
-                \"AutoDeploymentsEnabled\": false
-              }" \
-              --instance-configuration "$INSTANCE_CONFIG" \
-              --health-check-configuration "{
-                \"Protocol\": \"HTTP\",
-                \"Path\": \"/api/health\",
-                \"Interval\": 10,
-                \"Timeout\": 5,
-                \"HealthyThreshold\": 1,
-                \"UnhealthyThreshold\": 5
-              }" \
-              --query 'Service.ServiceArn' --output text)
+            # Option A: JSON payload with SourceConfiguration.AuthenticationConfiguration (ECR access role) as sibling of ImageRepository, per API.
+            python3 << 'PYEOF'
+          import json, os
+          # SourceConfiguration: AuthenticationConfiguration and ImageRepository are siblings (API shape).
+          # ImageRepository must contain only ImageIdentifier, ImageConfiguration, ImageRepositoryType.
+          source_config = {
+            "AuthenticationConfiguration": {"AccessRoleArn": os.environ["ACCESS_ROLE_ARN"]},
+            "AutoDeploymentsEnabled": False,
+            "ImageRepository": {
+              "ImageIdentifier": os.environ["IMAGE_URI"],
+              "ImageRepositoryType": "ECR",
+              "ImageConfiguration": {
+                "Port": "5000",
+                "RuntimeEnvironmentVariables": {"FLASK_ENV": "production", "PYTHONUNBUFFERED": "1"}
+              }
+            }
+          }
+          inst_cfg = {}
+          if os.environ.get("INSTANCE_ROLE_ARN"):
+            inst_cfg["InstanceRoleArn"] = os.environ["INSTANCE_ROLE_ARN"]
+          req = {
+            "ServiceName": os.environ["APP_RUNNER_SERVICE_NAME"],
+            "SourceConfiguration": source_config,
+            "InstanceConfiguration": inst_cfg,
+            "HealthCheckConfiguration": {"Protocol": "HTTP", "Path": "/api/health", "Interval": 10, "Timeout": 5, "HealthyThreshold": 1, "UnhealthyThreshold": 5}
+          }
+          with open("create-service-input.json", "w") as f:
+            json.dump(req, f, indent=2, sort_keys=False)
+          PYEOF
+            SERVICE_ARN=$(aws apprunner create-service --region $AWS_REGION --cli-input-json file://create-service-input.json --query 'Service.ServiceArn' --output text)
             echo "Service created: $SERVICE_ARN"
             CREATED="true"
           else

@@ -71,35 +71,23 @@ jobs:
           CREATED="false"
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" == "None" ]; then
             echo "Creating App Runner service..."
-            # ImageRepository may only contain: ImageIdentifier, ImageConfiguration, ImageRepositoryType.
-            # Do NOT put AuthenticationConfiguration inside ImageRepository. Same-account ECR uses auto access role when omitted.
-            python3 << 'PYEOF'
-          import json, os
-          img_uri = os.environ['IMAGE_URI']
-          inst_role = os.environ.get('INSTANCE_ROLE_ARN', '')
-          image_repo = {
-            "ImageIdentifier": img_uri,
-            "ImageRepositoryType": "ECR",
-            "ImageConfiguration": {
-              "Port": "5000",
-              "RuntimeEnvironmentVariables": {"FLASK_ENV": "production", "PYTHONUNBUFFERED": "1"}
-            }
-          }
-          source_config = {
-            "AutoDeploymentsEnabled": False,
-            "ImageRepository": image_repo
-          }
-          inst_cfg = {"InstanceRoleArn": inst_role} if inst_role else {}
-          req = {
-            "ServiceName": os.environ["APP_RUNNER_SERVICE_NAME"],
-            "SourceConfiguration": source_config,
-            "InstanceConfiguration": inst_cfg,
-            "HealthCheckConfiguration": {"Protocol": "HTTP", "Path": "/api/health", "Interval": 10, "Timeout": 5, "HealthyThreshold": 1, "UnhealthyThreshold": 5}
-          }
-          with open("create-service-input.json", "w") as f:
-            json.dump(req, f, indent=2, sort_keys=False)
-          PYEOF
-            SERVICE_ARN=$(aws apprunner create-service --region $AWS_REGION --cli-input-json file://create-service-input.json --query 'Service.ServiceArn' --output text)
+            # Use CLI shorthand: ImageRepository with only ImageRepositoryType, ImageIdentifier, ImageConfiguration. No AuthenticationConfiguration (ECR auth via AWS credentials).
+            if [ -n "$INSTANCE_ROLE_ARN" ]; then
+              SERVICE_ARN=$(aws apprunner create-service \
+                --region $AWS_REGION \
+                --service-name "$APP_RUNNER_SERVICE_NAME" \
+                --source-configuration "ImageRepository={ImageRepositoryType=ECR,ImageIdentifier=$IMAGE_URI,ImageConfiguration={Port=5000,RuntimeEnvironmentVariables={FLASK_ENV=production,PYTHONUNBUFFERED=1}}}" \
+                --instance-configuration "InstanceRoleArn=$INSTANCE_ROLE_ARN" \
+                --health-check-configuration "Protocol=HTTP,Path=/api/health,Interval=10,Timeout=5,HealthyThreshold=1,UnhealthyThreshold=5" \
+                --query 'Service.ServiceArn' --output text)
+            else
+              SERVICE_ARN=$(aws apprunner create-service \
+                --region $AWS_REGION \
+                --service-name "$APP_RUNNER_SERVICE_NAME" \
+                --source-configuration "ImageRepository={ImageRepositoryType=ECR,ImageIdentifier=$IMAGE_URI,ImageConfiguration={Port=5000,RuntimeEnvironmentVariables={FLASK_ENV=production,PYTHONUNBUFFERED=1}}}" \
+                --health-check-configuration "Protocol=HTTP,Path=/api/health,Interval=10,Timeout=5,HealthyThreshold=1,UnhealthyThreshold=5" \
+                --query 'Service.ServiceArn' --output text)
+            fi
             echo "Service created: $SERVICE_ARN"
             CREATED="true"
           else

@@ -75,35 +75,30 @@ jobs:
             if [ -n "$INSTANCE_ROLE_ARN" ]; then
               INSTANCE_CONFIG="{\"InstanceRoleArn\": \"$INSTANCE_ROLE_ARN\"}"
             fi
+            python3 -c "
+          import json, os
+          src = {
+            'ImageRepository': {
+              'ImageIdentifier': os.environ['IMAGE_URI'],
+              'ImageRepositoryType': 'ECR',
+              'ImageConfiguration': {
+                'Port': '5000',
+                'RuntimeEnvironmentVariables': {'FLASK_ENV': 'production', 'PYTHONUNBUFFERED': '1'}
+              }
+            },
+            'AutoDeploymentsEnabled': False,
+            'AuthenticationConfiguration': {'AccessRoleArn': os.environ['ACCESS_ROLE_ARN']}
+          }
+          with open('source-config.json', 'w') as f:
+            json.dump(src, f, indent=2)
+          "
+            echo '{"Protocol":"HTTP","Path":"/api/health","Interval":10,"Timeout":5,"HealthyThreshold":1,"UnhealthyThreshold":5}' > health-config.json
             SERVICE_ARN=$(aws apprunner create-service \
               --region $AWS_REGION \
               --service-name "$APP_RUNNER_SERVICE_NAME" \
-              --source-configuration "{
-                \"ImageRepository\": {
-                  \"ImageIdentifier\": \"$IMAGE_URI\",
-                  \"ImageRepositoryType\": \"ECR\",
-                  \"ImageConfiguration\": {
-                    \"Port\": \"5000\",
-                    \"RuntimeEnvironmentVariables\": {
-                      \"FLASK_ENV\": \"production\",
-                      \"PYTHONUNBUFFERED\": \"1\"
-                    }
-                  }
-                },
-                \"AutoDeploymentsEnabled\": false,
-                \"AuthenticationConfiguration\": {
-                  \"AccessRoleArn\": \"$ACCESS_ROLE_ARN\"
-                }
-              }" \
+              --source-configuration file://source-config.json \
               --instance-configuration "$INSTANCE_CONFIG" \
-              --health-check-configuration "{
-                \"Protocol\": \"HTTP\",
-                \"Path\": \"/api/health\",
-                \"Interval\": 10,
-                \"Timeout\": 5,
-                \"HealthyThreshold\": 1,
-                \"UnhealthyThreshold\": 5
-              }" \
+              --health-check-configuration file://health-config.json \
               --query 'Service.ServiceArn' --output text)
             echo "Service created: $SERVICE_ARN"
             CREATED="true"

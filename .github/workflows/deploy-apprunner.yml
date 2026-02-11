@@ -81,9 +81,9 @@ jobs:
                     "PYTHONUNBUFFERED": "1",
                     "JWT_SECRET": jwt
                   }
-                },
-                "AuthenticationConfiguration": {"AccessRoleArn": access_arn}
+                }
               },
+              "AuthenticationConfiguration": {"AccessRoleArn": access_arn},
               "AutoDeploymentsEnabled": False
             },
             "InstanceConfiguration": {

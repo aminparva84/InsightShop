@@ -11,10 +11,10 @@
           "PYTHONUNBUFFERED": "1",
           "JWT_SECRET": "REPLACE_WITH_32_CHAR_SECRET"
         }
-      },
-      "AuthenticationConfiguration": {
-        "AccessRoleArn": "arn:aws:iam::ACCOUNT_ID:role/InsightShopAppRunnerECRAccess"
       }
+    },
+    "AuthenticationConfiguration": {
+      "AccessRoleArn": "arn:aws:iam::ACCOUNT_ID:role/InsightShopAppRunnerECRAccess"
     },
     "AutoDeploymentsEnabled": false
   },

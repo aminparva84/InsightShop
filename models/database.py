@@ -154,13 +154,17 @@ def init_db(app):
             except Exception as e:
                 print(f"Warning: Could not seed products: {e}")
 
-        # Keep ChromaDB in sync with SQL: index all active products (new + existing)
+        # Defer vector DB sync to a background thread so the app can bind and pass health check (e.g. App Runner).
+        # Sync runs after startup; ONNX/Chroma can be slow or fail in minimal containers.
         if not app.config.get('TESTING'):
-            try:
-                from utils.vector_db import sync_all_products_from_sql
-                sync_all_products_from_sql(app)
-            except Exception as e:
-                print(f"Warning: Could not sync products to vector DB: {e}")
+            import threading
+            def _deferred_sync():
+                try:
+                    from utils.vector_db import sync_all_products_from_sql
+                    sync_all_products_from_sql(app)
+                except Exception as e:
+                    print(f"Warning: Could not sync products to vector DB: {e}")
+            threading.Thread(target=_deferred_sync, daemon=True).start()
         
         if not app.config.get('TESTING'):
             print("Database initialized successfully!")

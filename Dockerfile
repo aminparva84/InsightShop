@@ -30,7 +30,10 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install numpy first with strict <2 constraint so chromadb never pulls NumPy 2.x
+RUN pip install --no-cache-dir "numpy>=1.24,<2"
+
+# Install remaining Python dependencies (numpy already satisfied, won't upgrade to 2.x)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code

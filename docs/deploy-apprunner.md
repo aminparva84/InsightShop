@@ -1,6 +1,6 @@
 # Deploy InsightShop to AWS App Runner (us-east-1)
 
-This guide sets up AWS App Runner in **us-east-1** and deploys the app on every push to the **main** branch via GitHub Actions.
+This guide sets up AWS App Runner in **us-east-1** and deploys the **frontend and backend** (Docker) on every push to the **main** branch via GitHub Actions.
 
 ## Prerequisites
 
@@ -42,10 +42,10 @@ You do **not** need `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY`; the workflow
 
 ## 3. Deploy on push to main
 
-- **First push to main**: The workflow builds the Docker image, pushes it to ECR, **creates** the App Runner service (if it does not exist), and waits for the first deployment.
-- **Later pushes to main**: The workflow builds, pushes the new image, triggers a new App Runner deployment, and waits for it to finish.
+- **First push to main**: The workflow builds the Docker image (frontend + backend), pushes it to ECR, **creates** the App Runner service via AWS CLI (if it does not exist), and waits for the first deployment.
+- **Later pushes to main**: The workflow builds, pushes the new image, triggers a new App Runner deployment with `aws apprunner start-deployment`, and waits for it to finish.
 
-Workflow file: [.github/workflows/deploy-apprunner.yml](../.github/workflows/deploy-apprunner.yml).
+Workflow file: [.github/workflows/deploy-apprunner.yml](../.github/workflows/deploy-apprunner.yml). The service is created using `aws apprunner create-service` when it does not exist.
 
 ## 4. App Runner configuration
 
@@ -87,3 +87,16 @@ If the App Runner service ends up in **CREATE_FAILED**, use the AWS Console to s
 - **Image pull** – ECR permissions or wrong image; ensure `APP_RUNNER_ACCESS_ROLE_ARN` is set and the role can pull from the ECR repo.
 - **Health check** – App must respond to **GET /api/health** on port **5000** within the configured timeout.
 - **Startup** – App crashes on start; check application logs in the console.
+
+## 7. Create App Runner service via AWS CLI (optional)
+
+If you want to create the service manually (e.g. after building and pushing the image yourself):
+
+1. Ensure the image exists in ECR: `ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/insightshop:latest`
+2. Create the service (replace placeholders with your access role ARN and optional instance role ARN):
+
+```bash
+aws apprunner create-service --region us-east-1 --cli-input-json file://create-service-input.json
+```
+
+Use the same JSON structure as the workflow: `ServiceName`, `SourceConfiguration` (ImageRepository with ECR, `AuthenticationConfiguration.AccessRoleArn`), `InstanceConfiguration`, `HealthCheckConfiguration` (Protocol HTTP, Path `/api/health`). See the workflow’s “Get or create App Runner service” step for the exact structure.

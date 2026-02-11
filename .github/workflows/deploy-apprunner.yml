@@ -1,0 +1,174 @@
+# Deploy InsightShop (frontend + backend) to AWS App Runner on push to main
+# Uses Docker: build image, push to ECR, create or update App Runner service via AWS CLI.
+# Prerequisites: Run scripts/setup-apprunner.ps1 once and add GitHub secrets (see script output).
+
+name: Deploy to AWS App Runner
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO_NAME: insightshop
+  APP_RUNNER_SERVICE_NAME: insightshop
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPO_NAME:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPO_NAME:latest .
+          docker push $ECR_REGISTRY/$ECR_REPO_NAME:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPO_NAME:latest
+          echo "image_uri=$ECR_REGISTRY/$ECR_REPO_NAME:latest" >> $GITHUB_OUTPUT
+
+      - name: Get or create App Runner service
+        id: apprunner
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          APP_RUNNER_SERVICE_NAME: ${{ env.APP_RUNNER_SERVICE_NAME }}
+          IMAGE_URI: ${{ steps.build.outputs.image_uri }}
+          ACCESS_ROLE_ARN: ${{ secrets.APP_RUNNER_ACCESS_ROLE_ARN }}
+          INSTANCE_ROLE_ARN: ${{ secrets.APP_RUNNER_INSTANCE_ROLE_ARN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          set -e
+          SERVICE_ARN=$(aws apprunner list-services --region $AWS_REGION --query "ServiceSummaryList[?ServiceName=='$APP_RUNNER_SERVICE_NAME'].ServiceArn" --output text)
+          if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" == "None" ]; then
+            echo "Creating App Runner service..."
+            export JWT_SECRET="${JWT_SECRET:-InsightShop-AppRunner-Default-ChangeInConsole32}"
+            python3 << 'PY'
+          import json, os
+          image_uri = os.environ["IMAGE_URI"]
+          access_arn = os.environ["ACCESS_ROLE_ARN"]
+          instance_arn = os.environ.get("INSTANCE_ROLE_ARN", "").strip()
+          jwt = os.environ.get("JWT_SECRET", "InsightShop-AppRunner-Default-ChangeInConsole32")
+          service_name = os.environ["APP_RUNNER_SERVICE_NAME"]
+          cfg = {
+            "ServiceName": service_name,
+            "SourceConfiguration": {
+              "ImageRepository": {
+                "ImageIdentifier": image_uri,
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": {
+                  "Port": "5000",
+                  "RuntimeEnvironmentVariables": {
+                    "FLASK_ENV": "production",
+                    "PYTHONUNBUFFERED": "1",
+                    "JWT_SECRET": jwt
+                  }
+                },
+                "AuthenticationConfiguration": {"AccessRoleArn": access_arn}
+              },
+              "AutoDeploymentsEnabled": False
+            },
+            "InstanceConfiguration": {
+              "Cpu": "1024",
+              "Memory": "2048"
+            },
+            "HealthCheckConfiguration": {
+              "Protocol": "HTTP",
+              "Path": "/api/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }
+          }
+          if instance_arn:
+            cfg["InstanceConfiguration"]["InstanceRoleArn"] = instance_arn
+          with open("create-service-input.json", "w") as f:
+            json.dump(cfg, f, indent=2)
+          PY
+            SERVICE_ARN=$(aws apprunner create-service --region $AWS_REGION --cli-input-json file://create-service-input.json --query 'Service.ServiceArn' --output text)
+            echo "created=true" >> $GITHUB_OUTPUT
+          else
+            echo "created=false" >> $GITHUB_OUTPUT
+          fi
+          echo "service_arn=$SERVICE_ARN" >> $GITHUB_OUTPUT
+
+      - name: Wait for App Runner service (create)
+        if: steps.apprunner.outputs.created == 'true'
+        run: |
+          set -e
+          SERVICE_ARN="${{ steps.apprunner.outputs.service_arn }}"
+          for i in $(seq 1 36); do
+            STATUS=$(aws apprunner describe-service --region $AWS_REGION --service-arn "$SERVICE_ARN" --query 'Service.Status' --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "Service is RUNNING."
+              break
+            fi
+            if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
+              echo "::error::Service state: $STATUS"
+              aws apprunner list-operations --region $AWS_REGION --service-arn "$SERVICE_ARN" --max-results 3 --output table 2>/dev/null || true
+              exit 1
+            fi
+            sleep 10
+          done
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "::error::Service did not reach RUNNING; status: $STATUS"
+            exit 1
+          fi
+
+      - name: Trigger App Runner deployment
+        if: steps.apprunner.outputs.created != 'true'
+        run: |
+          aws apprunner start-deployment \
+            --region $AWS_REGION \
+            --service-arn "${{ steps.apprunner.outputs.service_arn }}"
+
+      - name: Wait for deployment
+        if: steps.apprunner.outputs.created != 'true'
+        run: |
+          set -e
+          SERVICE_ARN="${{ steps.apprunner.outputs.service_arn }}"
+          echo "Waiting for deployment to complete (up to ~6 min)..."
+          for i in $(seq 1 36); do
+            STATUS=$(aws apprunner describe-service --region $AWS_REGION --service-arn "$SERVICE_ARN" --query 'Service.Status' --output text)
+            echo "Service status: $STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "Deployment finished."
+              break
+            fi
+            if [ "$STATUS" = "OPERATION_IN_PROGRESS" ]; then
+              echo "Deployment in progress..."
+            fi
+            sleep 10
+          done
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "::error::Deployment did not complete; status: $STATUS"
+            exit 1
+          fi
+
+      - name: Output service URL
+        run: |
+          SERVICE_URL=$(aws apprunner describe-service \
+            --region $AWS_REGION \
+            --service-arn "${{ steps.apprunner.outputs.service_arn }}" \
+            --query 'Service.ServiceUrl' --output text)
+          echo "::notice title=InsightShop deployed::Service URL: https://$SERVICE_URL"

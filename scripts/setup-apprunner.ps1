@@ -200,7 +200,8 @@ $githubPolicy = @"
         "apprunner:ListServices",
         "apprunner:DescribeService",
         "apprunner:StartDeployment",
-        "apprunner:DescribeOperation"
+        "apprunner:DescribeOperation",
+        "apprunner:ListOperations"
       ],
       "Resource": "*"
     },

@@ -101,13 +101,14 @@ jobs:
           echo "service_arn=$SERVICE_ARN" >> $GITHUB_OUTPUT
           echo "created=$CREATED" >> $GITHUB_OUTPUT
 
+      # App Runner can stay OPERATION_IN_PROGRESS for 3-5+ min (image pull, start, health checks). Wait up to 6 min.
       - name: Wait for service RUNNING (before triggering deployment)
         if: steps.apprunner.outputs.created != 'true'
         run: |
-          echo "Waiting for service to be in RUNNING state (up to 2 minutes)..."
-          for i in $(seq 1 12); do
+          echo "Waiting for service to be in RUNNING state (up to 6 minutes)..."
+          for i in $(seq 1 36); do
             STATUS=$(aws apprunner describe-service --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --query 'Service.Status' --output text)
-            echo "Service status: $STATUS"
+            echo "Service status: $STATUS (poll $i/36)"
             if [ "$STATUS" = "RUNNING" ]; then
               echo "Service is RUNNING."
               exit 0
@@ -117,9 +118,21 @@ jobs:
               aws apprunner delete-service --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --output text --query 'Service.Status' || true
               exit 1
             fi
+            if [ "$STATUS" = "UPDATE_FAILED" ]; then
+              echo "::error::Service is in UPDATE_FAILED state. Check AWS Console (App Runner → insightshop) for health check or deployment logs."
+              aws apprunner list-operations --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --max-results 3 --output table 2>/dev/null || true
+              exit 1
+            fi
+            # Fail fast if latest operation is FAILED (deployment failed)
+            OP_STATUS=$(aws apprunner list-operations --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --max-results 1 --query 'OperationSummaryList[0].Status' --output text 2>/dev/null || echo "Unknown")
+            if [ "$OP_STATUS" = "FAILED" ] || [ "$OP_STATUS" = "ROLLBACK_FAILED" ]; then
+              echo "::error::Latest operation status: $OP_STATUS. Check App Runner service in AWS Console for details."
+              aws apprunner list-operations --region $AWS_REGION --service-arn "${{ steps.apprunner.outputs.service_arn }}" --max-results 3 --output table 2>/dev/null || true
+              exit 1
+            fi
             sleep 10
           done
-          echo "::error::Timeout waiting for service to reach RUNNING state."
+          echo "::error::Timeout waiting for service to reach RUNNING state (6 min). Service may be stuck in OPERATION_IN_PROGRESS; check AWS Console."
           exit 1
 
       - name: Ensure service is RUNNING

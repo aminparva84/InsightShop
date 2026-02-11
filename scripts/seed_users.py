@@ -3,7 +3,6 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import app
 from models.database import db
 from models.user import User
 import bcrypt
@@ -12,35 +11,38 @@ def hash_password(password):
     """Hash a password using bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-def seed_users():
-    """Create superadmin and demo users."""
+def run_seed_users(app):
+    """Create superadmin and demo users. Call with Flask app (e.g. from init_db)."""
     with app.app_context():
         try:
-            # Check if superadmin already exists (try both email formats)
-            superadmin = User.query.filter_by(email='superadmin@insightshop.com').first() or \
+            from config import Config
+            superadmin_email = (Config.SUPERADMIN_EMAIL or 'superadmin@insightshop.com').strip().lower()
+            superadmin_password = Config.SUPERADMIN_PASSWORD or 'Super12345'
+            # Check if superadmin already exists (default email or env email)
+            superadmin = User.query.filter_by(email=superadmin_email).first() or \
+                        User.query.filter_by(email='superadmin@insightshop.com').first() or \
                         User.query.filter_by(email='superadmin').first()
             if not superadmin:
                 print("Creating superadmin user...")
                 superadmin = User(
-                    email='superadmin@insightshop.com',
+                    email=superadmin_email,
                     first_name='Super',
                     last_name='Admin',
-                    password_hash=hash_password('Super12345')
+                    password_hash=hash_password(superadmin_password)
                 )
                 superadmin.is_verified = True
                 superadmin.is_admin = True
                 superadmin.is_superadmin = True
                 db.session.add(superadmin)
-                print("[OK] Superadmin created: superadmin@insightshop.com / Super12345")
-                print("  (Login with email: superadmin@insightshop.com or try 'superadmin')")
+                print(f"[OK] Superadmin created: {superadmin_email} (set SUPERADMIN_PASSWORD in production)")
             else:
-                # Update existing superadmin
+                # Update existing superadmin (keep existing email; ensure flags and password)
                 superadmin.is_superadmin = True
                 superadmin.is_admin = True
                 superadmin.is_verified = True
                 if not superadmin.password_hash:
-                    superadmin.password_hash = hash_password('Super12345')
-                print(f"[OK] Superadmin updated: {superadmin.email} / Super12345")
+                    superadmin.password_hash = hash_password(superadmin_password)
+                print(f"[OK] Superadmin updated: {superadmin.email}")
             
             # Create demo users
             demo_users = [
@@ -112,11 +114,9 @@ def seed_users():
             db.session.commit()
             
             print(f"\n[SUCCESS] User seeding completed!")
-            print(f"   - Superadmin: 1 user")
+            print(f"   - Superadmin: 1 user ({superadmin_email})")
             print(f"   - Demo users: {created_count} created, {updated_count} updated")
-            print(f"\nLogin Credentials:")
-            print(f"   Superadmin: superadmin@insightshop.com / Super12345")
-            print(f"   Demo users: [email] / Demo12345")
+            print(f"   Login at /login; in production set SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD if needed.")
             
         except Exception as e:
             db.session.rollback()
@@ -124,8 +124,13 @@ def seed_users():
             import traceback
             traceback.print_exc()
             return False
-    
+
     return True
+
+def seed_users():
+    """Create superadmin and demo users (CLI entrypoint; uses app from import)."""
+    from app import app
+    return run_seed_users(app)
 
 if __name__ == '__main__':
     # First, add the superadmin column if it doesn't exist

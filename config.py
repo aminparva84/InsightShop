@@ -42,6 +42,10 @@ class Config:
     FROM_EMAIL = os.getenv('FROM_EMAIL', 'noreply@insightshop.com')
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@insightshop.com')
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
+
+    # Superadmin seed (production / App Runner): override via env to set credentials
+    SUPERADMIN_EMAIL = os.getenv('SUPERADMIN_EMAIL', 'superadmin@insightshop.com')
+    SUPERADMIN_PASSWORD = os.getenv('SUPERADMIN_PASSWORD', 'Super12345')
     
     # WorkMail SMTP Configuration (for email sending)
     WORKMAIL_SMTP_SERVER = os.getenv('WORKMAIL_SMTP_SERVER', 'smtp.mail.us-east-1.awsapps.com')

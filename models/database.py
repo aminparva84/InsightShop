@@ -116,7 +116,21 @@ def init_db(app):
                     conn.commit()
         except Exception as e:
             print(f"[WARNING] Could not add/backfill products.clothing_category column: {e}")
-        
+
+        # Add User.is_superadmin column if missing (existing databases)
+        try:
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                if db.engine.dialect.name == 'sqlite':
+                    cursor = conn.execute(text("PRAGMA table_info(users)"))
+                    columns = [row[1] for row in cursor.fetchall()]
+                    if 'is_superadmin' not in columns:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN is_superadmin BOOLEAN DEFAULT 0"))
+                        conn.commit()
+                        print("[OK] Added column users.is_superadmin for existing database")
+        except Exception as e:
+            print(f"[WARNING] Could not add users.is_superadmin column: {e}")
+
         # Verify Sale table was created
         try:
             # Try a simple query to verify table exists
@@ -153,6 +167,14 @@ def init_db(app):
                     print(f"Database already has {Product.query.count()} products")
             except Exception as e:
                 print(f"Warning: Could not seed products: {e}")
+
+        # Seed superadmin and demo users so admin can manage the app (production / App Runner)
+        if not app.config.get('TESTING'):
+            try:
+                from scripts.seed_users import run_seed_users
+                run_seed_users(app)
+            except Exception as e:
+                print(f"Warning: Could not seed users (superadmin): {e}")
 
         # Defer vector DB sync to a background thread so the app can bind and pass health check (e.g. App Runner).
         # Sync runs after startup; ONNX/Chroma can be slow or fail in minimal containers.

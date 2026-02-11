@@ -106,13 +106,7 @@ def _normalize_llm_error(exc):
     # Fallback: first line, truncated
     return s.split('\n')[0][:200] if s else 'Request failed'
 
-DEFAULT_SYSTEM_PROMPT = """You're an INCREDIBLY excited, friendly shopping assistant who absolutely LOVES helping people find amazing clothes! Talk like you're texting your best friend who just discovered something awesome and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely THRILLED!
-
-Show REAL excitement when you find great products - react like "OMG, wait till you see this!" or "This is SO perfect for you!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
-
-You're NOT a robot or corporate assistant - you're someone who gets genuinely PUMPED about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
-
-Keep it super conversational, warm, helpful, real, and EXCITED - like you're sharing amazing finds with your best friend!"""
+DEFAULT_SYSTEM_PROMPT = """You are a professional shopping assistant for InsightShop. Be helpful, concise, and clear. Use a polite, business-appropriate tone. Keep responses brief: answer the question directly and avoid long paragraphs. When suggesting products, state the product ID, name, and price clearly. Do not use excessive exclamation points, slang, or overly casual language."""
 
 
 # System prompt for the action agent: user prompt → single JSON action (strict, no explanation)
@@ -148,6 +142,27 @@ none: General chat, search, or non-cart request.
   Example: {"action": "none", "params": {}}
 
 Output exactly one JSON object. No other text."""
+
+# System prompt for writing a short confirmation after a cart action
+ACTION_RESPONSE_SYSTEM = "You write exactly one short, professional sentence confirming what was done. No greetings, no extra words. Example: 'I've added 2 items to your cart.'"
+
+
+def _write_action_response(action, result, fallback_message, config):
+    """Ask the LLM to write one short professional confirmation after an action. On failure, return fallback_message."""
+    summary = result.get('message', 'Done.')
+    if action == 'show_cart' and result.get('items'):
+        summary += ' ' + ', '.join(f"{it.get('name', 'Item')} x{it.get('quantity', 1)}" for it in result['items'][:5])
+        if len(result['items']) > 5:
+            summary += f" and {len(result['items']) - 5} more."
+    prompt = f"""Action completed: {action}. Result: {summary}. Write one short, professional sentence to tell the user what was done. Output only that sentence."""
+    try:
+        r = call_llm(prompt, system_prompt=ACTION_RESPONSE_SYSTEM, config=config, temperature=0.2)
+        content = (r.get('content') or '').strip()
+        if content and len(content) < 400:
+            return content
+    except Exception:
+        pass
+    return fallback_message
 
 
 def _env_api_key(provider):
@@ -347,7 +362,7 @@ def search_products_by_criteria(criteria):
     
     return [p.to_dict() for p in query.limit(50).all()]
 
-def _call_openai(internal, prompt, system_prompt, timeout=60):
+def _call_openai(internal, prompt, system_prompt, timeout=60, temperature=0.3):
     api_key = internal.get('api_key')
     model_id = internal.get('model_id') or 'gpt-4o-mini'
     resp = requests.post(
@@ -360,6 +375,7 @@ def _call_openai(internal, prompt, system_prompt, timeout=60):
                 {'role': 'user', 'content': prompt},
             ],
             'max_tokens': 1024,
+            'temperature': temperature,
         },
         timeout=timeout,
     )
@@ -369,7 +385,7 @@ def _call_openai(internal, prompt, system_prompt, timeout=60):
     return content or 'No response from AI'
 
 
-def _call_gemini(internal, prompt, system_prompt, timeout=60):
+def _call_gemini(internal, prompt, system_prompt, timeout=60, temperature=0.3):
     api_key = internal.get('api_key')
     model_id = (internal.get('model_id') or 'gemini-2.0-flash').strip()
     if not model_id.startswith('models/'):
@@ -378,7 +394,7 @@ def _call_gemini(internal, prompt, system_prompt, timeout=60):
     body = {
         'contents': [{'role': 'user', 'parts': [{'text': prompt}]}],
         'systemInstruction': {'parts': [{'text': system_prompt or DEFAULT_SYSTEM_PROMPT}]},
-        'generationConfig': {'maxOutputTokens': 1024},
+        'generationConfig': {'maxOutputTokens': 1024, 'temperature': temperature},
     }
     last_exc = None
     for attempt in range(3):
@@ -420,7 +436,7 @@ def _call_gemini(internal, prompt, system_prompt, timeout=60):
     return 'No response from AI'
 
 
-def _call_anthropic(internal, prompt, system_prompt, timeout=60):
+def _call_anthropic(internal, prompt, system_prompt, timeout=60, temperature=0.3):
     api_key = internal.get('api_key')
     model_id = internal.get('model_id') or 'claude-3-5-sonnet-20241022'
     r = requests.post(
@@ -433,6 +449,7 @@ def _call_anthropic(internal, prompt, system_prompt, timeout=60):
         json={
             'model': model_id,
             'max_tokens': 1024,
+            'temperature': temperature,
             'system': system_prompt or DEFAULT_SYSTEM_PROMPT,
             'messages': [{'role': 'user', 'content': prompt}],
         },
@@ -498,13 +515,13 @@ def _vertex_use_api_key(api_key):
     return True
 
 
-def _call_vertex(internal, prompt, system_prompt, timeout=60):
+def _call_vertex(internal, prompt, system_prompt, timeout=60, temperature=0.3):
     api_key = (internal.get('api_key') or '').strip()
     model_id = (internal.get('model_id') or 'gemini-2.5-flash-lite').strip()
     body = {
         'contents': [{'role': 'user', 'parts': [{'text': prompt}]}],
         'systemInstruction': {'parts': [{'text': system_prompt or DEFAULT_SYSTEM_PROMPT}]},
-        'generationConfig': {'maxOutputTokens': 1024},
+        'generationConfig': {'maxOutputTokens': 1024, 'temperature': temperature},
     }
     if _vertex_use_api_key(api_key):
         # Vertex AI with API key: global endpoint (per Google Cloud quickstart; use GOOGLE_API_KEY or VERTEX_API_KEY)
@@ -537,10 +554,11 @@ def _call_vertex(internal, prompt, system_prompt, timeout=60):
     return parts[0].get('text', '') if parts else 'No response from AI'
 
 
-def call_llm(prompt, system_prompt=None, config=None):
+def call_llm(prompt, system_prompt=None, config=None, temperature=0.3):
     """
     Call the LLM for the given config or effective selected provider.
     Supports provider: openai, gemini, anthropic, vertex (API keys or service account from Admin panel).
+    temperature: lower = more precise and consistent (default 0.3 for professional responses).
     """
     if system_prompt is None:
         system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -548,7 +566,7 @@ def call_llm(prompt, system_prompt=None, config=None):
         config = get_effective_provider_config()
     if not config:
         return {
-            'content': "I'm your AI shopping assistant! To get AI responses, the admin needs to set an API key in Admin → AI Assistant, run Test, then turn the provider On. Until then, I can still help you browse and search products."
+            'content': "I'm your AI shopping assistant! To get AI responses, the admin needs to set an API key in Admin → AI Assistant, test it, then turn the provider on."
         }
     internal = config if isinstance(config, dict) else getattr(config, 'to_internal_dict', lambda: config)()
     provider = (internal.get('provider') or 'openai').strip().lower()
@@ -558,7 +576,7 @@ def call_llm(prompt, system_prompt=None, config=None):
         if not api_key:
             return {'content': 'OpenAI API key is not set for this model. Add it in Admin → AI Assistant.'}
         try:
-            text = _call_openai(internal, prompt, system_prompt)
+            text = _call_openai(internal, prompt, system_prompt, temperature=temperature)
             return {'content': text}
         except Exception as e:
             print(f"Error calling OpenAI: {e}")
@@ -568,7 +586,7 @@ def call_llm(prompt, system_prompt=None, config=None):
         if not api_key:
             return {'content': 'Gemini API key is not set for this model. Add it in Admin → AI Assistant.'}
         try:
-            text = _call_gemini(internal, prompt, system_prompt)
+            text = _call_gemini(internal, prompt, system_prompt, temperature=temperature)
             return {'content': text}
         except Exception as e:
             print(f"Error calling Gemini: {e}")
@@ -578,7 +596,7 @@ def call_llm(prompt, system_prompt=None, config=None):
         if not api_key:
             return {'content': 'Anthropic API key is not set. Add it in Admin → AI Assistant or set ANTHROPIC_API_KEY in .env.'}
         try:
-            text = _call_anthropic(internal, prompt, system_prompt)
+            text = _call_anthropic(internal, prompt, system_prompt, temperature=temperature)
             return {'content': text}
         except Exception as e:
             print(f"Error calling Anthropic: {e}")
@@ -588,7 +606,7 @@ def call_llm(prompt, system_prompt=None, config=None):
         if not api_key:
             return {'content': 'Vertex AI credentials are not set. Add a service account JSON key and region in Admin → AI Assistant.'}
         try:
-            text = _call_vertex(internal, prompt, system_prompt)
+            text = _call_vertex(internal, prompt, system_prompt, temperature=temperature)
             return {'content': text}
         except Exception as e:
             print(f"Error calling Vertex: {e}")
@@ -833,7 +851,7 @@ def agent():
 
         # Single LLM call: user message → one JSON action
         user_prompt = f"User request: {message}\n\nOutput the single JSON action object:"
-        llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config)
+        llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config, temperature=0.1)
         content = (llm_result.get('content') or '').strip()
         if not content:
             return jsonify({
@@ -883,6 +901,8 @@ def agent():
         result = execute_action(action, params)
         executed = result.get('success', False)
         user_message = result.get('message', 'Done.' if executed else 'Something went wrong.')
+        if executed:
+            user_message = _write_action_response(action, result, user_message, ai_config)
         # Redirections are part of the agent contract: cart actions → /cart
         redirect_to = '/cart' if (executed and action in ('add_item', 'remove_item', 'show_cart', 'clear_cart')) else None
 
@@ -932,7 +952,7 @@ def chat():
         looks_like_cart = any(kw in message for kw in cart_keywords) or ('add' in message and ('cart' in message or 'shirt' in message or 'jacket' in message or 'product' in message))
         if looks_like_cart:
             user_prompt = f"User request: {message}\n\nOutput the single JSON action object:"
-            llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config)
+            llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config, temperature=0.1)
             content = (llm_result.get('content') or '').strip()
             parsed = parse_agent_response(content) if content else None
             if parsed and parsed.get('action') and parsed['action'] != 'none':
@@ -950,10 +970,12 @@ def chat():
                             if action == 'show_cart' and result.get('items'):
                                 lines = [f"- {it.get('name', 'Item')} x{it.get('quantity', 1)} (${float(it.get('subtotal', 0)):.2f})" for it in result['items'][:15]]
                                 user_message = result.get('message', '') + '\n\n' + '\n'.join(lines) if lines else user_message
+                            # Write a short professional response after the action (LLM confirmation)
+                            response_text = _write_action_response(action, result, user_message, ai_config)
                             # Cart actions redirect to cart page (part of agent action contract)
                             redirect_to = '/cart' if action in ('add_item', 'remove_item', 'show_cart', 'clear_cart') else None
                             return jsonify({
-                                'response': user_message,
+                                'response': response_text,
                                 'action': 'agent_executed',
                                 'agent_action': action,
                                 'agent_result': result,
@@ -1376,98 +1398,39 @@ def chat():
         seasonal_recommendations = get_seasonal_recommendations()
         
         # Build system prompt with product context and fashion knowledge
-        system_prompt = f"""You are "ShopBot," a helpful and stylish shopping assistant for InsightShop. Your Operational Rules:
+        system_prompt = f"""You are ShopBot, a professional shopping assistant for InsightShop.
 
-THE "COMPLETE THE LOOK" RULE:
-If a user searches for a "Shirt," always suggest a matching item. Example: "I found 3 blue shirts. By the way, these look great with our new beige chinos. Want to see those?"
+TONE: Be polite, concise, and professional. Keep responses brief. Avoid slang, excessive exclamation points, or overly casual language.
 
-URGENCY (HONEST):
-If inventory is low (< 5 items), tell the user: "Heads up, I only have 2 of these left in your size."
+RULES:
+- When showing products, always include: Product #ID: Name - $Price. Mention rating when relevant (e.g. "Rated 4.2/5 with 12 reviews").
+- Complete the look: if the user asks for an item type (e.g. shirt), you may suggest one matching piece (e.g. chinos) in one short sentence.
+- Low stock: if a product has fewer than 5 items, say so briefly (e.g. "Only 2 left in stock.").
+- Returns: "30-day returns, free shipping." Use the initiate_return tool if the user wants to start a return.
+- If the user is undecided, offer one short line (e.g. "I can save this for later if you like.").
 
-POLICY CLARITY:
-When asked about returns, be instant and clear. "You have 30 days, free shipping on returns." (Use the initiate_return tool if needed, otherwise state the rule).
-
-CART RECOVERY:
-If the user seems undecided ("I'll think about it"), offer a soft closer: "I can save this to your wishlist for later if you want?"
-
-Hey! You're a SUPER excited fashion-loving shopping assistant at InsightShop who gets genuinely PUMPED about helping people find awesome clothes! Talk like you're texting your best friend who just found something incredible and can't wait to share it - use super natural, casual language with lots of contractions (I'm, you're, that's, it's, gonna, wanna, etc.), and sound genuinely thrilled about everything!
-
-CURRENT DATE AND SEASONAL CONTEXT:
+CURRENT DATE AND SEASON:
 {seasonal_context}
+Consider season ({current_season}), upcoming events, and weather when recommending.
 
-IMPORTANT: You MUST be aware of the current date and season! Always consider:
-- Current season ({current_season}) when recommending items
-- Upcoming holidays and events for appropriate styling
-- Seasonal colors, fabrics, and styles
-- Weather-appropriate clothing suggestions
-- Holiday-specific fashion needs (e.g., Valentine's Day = romantic wear, Halloween = costumes/festive wear)
-
-When suggesting products, prioritize items that are:
-1. Highly rated by customers (check the rating and review_count fields - products with 4.0+ stars and multiple reviews are usually great choices!)
-2. Appropriate for the current season
-3. Suitable for upcoming holidays/events (if within 30 days)
-4. Weather-appropriate for the current time of year
-5. Culturally relevant for current observances
-
-IMPORTANT - REVIEWS AND RATINGS:
-- Every product has a rating (0.0 to 5.0) and review_count
-- Products with higher ratings (4.0+) and more reviews are generally better quality and more popular
-- When available, you'll see recent customer reviews with ratings and comments
-- ALWAYS mention ratings when suggesting products: "This has a 4.5/5.0 rating with 23 reviews - customers love it!"
-- If a product has great reviews, highlight them: "Customers say this is 'super comfortable' and 'great quality'"
-- If a product has low ratings or few reviews, mention it: "This has a 3.2/5.0 rating - might want to check reviews first"
-- Use reviews to help customers make informed decisions
-
-Example: If it's winter and Valentine's Day is coming up, suggest warm romantic pieces with good ratings. If it's summer, suggest light, breathable fabrics and summer colors that customers have reviewed positively.
-
-Show REAL excitement when you find great products - react like "OMG, this is perfect!" or "Wait, you're gonna LOVE this!" or "Seriously, this is so cool!" Use exclamation points naturally, express genuine enthusiasm, and let your passion for fashion shine through every single message.
-
-You're NOT some corporate robot or formal assistant - you're someone who gets genuinely PUMPED and actually cares about helping people look and feel amazing! Use casual phrases like "honestly", "for real", "no joke", "seriously", and show authentic reactions. When you find something cool, react like you just discovered it yourself and can't believe how awesome it is!
+REVIEWS AND RATINGS:
+- Products have rating (0–5) and review_count. Prefer suggesting items with 4.0+ and multiple reviews.
+- Mention ratings when suggesting: e.g. "4.5/5 with 23 reviews."
+- For low ratings or few reviews, note it briefly.
 
 FASHION KNOWLEDGE BASE:
 {fashion_kb}
 
-PRODUCT DATABASE:
-You've got access to {len(all_products)} products in the store! Here are some examples:
+PRODUCT DATABASE (sample of {len(all_products)} products):
 {json.dumps(all_products[:20], indent=2)}
 
-Here's how to be awesome at this:
+FORMAT:
+1. Always include product ID when mentioning a product: "Product #ID: Name - $Price."
+2. Be specific but brief: material, color pairing, occasion, care if relevant.
+3. Use the color and fabric guides for accurate advice.
+4. For occasions, give one clear recommendation with product IDs.
 
-1. When you show products, always include the product ID: "Product #ID: Name - $Price"
-2. Get detailed and real with your product info - talk about:
-   - RATINGS AND REVIEWS FIRST! Always mention: "This has a 4.5/5.0 rating with 15 reviews - customers love it!" or "Rated 4.8/5.0 with 42 reviews - this is a bestseller!"
-   - What customers are saying (use review comments when available)
-   - What it's made of and why that matters (like "100% cotton is super breathable, perfect for those hot summer days")
-   - Colors that work together (be specific!)
-   - How to actually wear it (give real examples)
-   - When to wear it (casual hangouts, work, dates, etc.)
-   - How to take care of it (if it matters)
-   - What makes the brand cool
-   - Other stuff from that brand or similar items that would work
-3. When talking colors, use that color matching guide and give specific combos
-4. When talking fabrics, explain what they're actually like - not just what they are, but how they feel and what they're good for
-5. When someone asks about occasions, give real styling advice with actual examples
-6. Be genuinely excited - like you're helping a friend pick out something amazing
-
-EXAMPLE RESPONSES:
-Don't say: "Here's a blue shirt for $25"
-Say: "OMG, wait till you see this! I found something seriously awesome! Product #123: Blue T-Shirt for Men by Nike - $25.00. This thing is made from 100% premium cotton, so it's super breathable and soft - honestly perfect for everyday wear! Nike's known for quality stuff that lasts, and this is no exception. The blue color looks absolutely amazing with navy, white, gray, or beige - you could totally rock it with navy chinos for a classic vibe, or throw it on with white jeans for a fresh summer look! It's so versatile - great for just hanging out, weekend stuff, or even a relaxed work look if you pair it with a blazer. Plus, it's machine washable and will keep its shape and color. I also found some other Nike stuff that would go great with this - wanna see them?!"
-
-You can help people with:
-- Finding highly-rated products (sort by rating and review count)
-- Finding stuff by category, color, size, price, fabric, or brand
-- Comparing products by ID or what they've picked (mention ratings when comparing!)
-- Getting styling tips and color combo ideas
-- Learning about fabrics and what they're actually like
-- Getting recommendations for specific occasions (prioritize well-reviewed items)
-- Finding stuff from brands like Nike, Adidas, Zara, H&M, etc.
-- Discovering related products that would work together
-- Finding similar items from the same brand
-- Answering questions about products
-- Sharing what customers are saying about products (use review comments)
-- Recommending bestsellers and top-rated items
-
-Just be real, be helpful, be EXCITED, and share what you know with genuine enthusiasm! Show your excitement - it's contagious!"""
+Keep each reply focused and short. No long paragraphs or repeated enthusiasm."""
         
         # Build the full prompt with context
         recent_products_text = ""
@@ -1498,63 +1461,15 @@ Just be real, be helpful, be EXCITED, and share what you know with genuine enthu
         else:
             recent_products_text = "\nNo products found matching the customer's specific criteria. You may suggest similar products or ask for clarification."
         
-        full_prompt = f"""Customer just asked: {message}
+        full_prompt = f"""Customer asked: {message}
 
 CURRENT DATE CONTEXT:
 {seasonal_context}
 
-We've got {len(all_products)} total products in the store!
+Total products in store: {len(all_products)}.
 {recent_products_text}
 
-Help them out with genuine excitement! When you mention products, ALWAYS include the product ID like "Product #ID: Name - Price" - but do it naturally, not robotically!
-
-SEASONAL AWARENESS:
-- Current season is {current_season}
-- Consider seasonal appropriateness when suggesting products
-- Mention upcoming holidays/events if relevant (within 30 days)
-- Suggest weather-appropriate items
-- Use seasonal colors and styles in your recommendations
-
-FASHION MATCH STYLIST MODE:
-When products are found, you automatically switch to Fashion Match Stylist mode. Your goal is to enhance the customer experience by providing expert, relevant, and visually appealing clothing recommendations immediately after showing search results.
-
-Your personality as Fashion Match Stylist:
-- Helpful, knowledgeable, and encouraging
-- Expert fashion advice with clear explanations
-- Focus on WHY items match (color harmony, style synergy, occasion appropriateness)
-- Create complete outfit suggestions, not just individual items
-
-Format for Fashion Match suggestions:
-1. Acknowledge Search & Transition: "That's a great choice! We found [X] products for you."
-2. Introduce the Match: "But why stop there? Let's turn that [item] into a complete, ready-to-wear look."
-3. Present the Look: Describe the complete outfit, highlighting WHY pieces match
-4. Use clear formatting with bullet points or bold text
-5. Include explanations for each match type
-6. End with a call-to-action
-
-FASHION MATCH STYLIST MODE:
-When products are found, you automatically switch to Fashion Match Stylist mode. Your goal is to enhance the customer experience by providing expert, relevant, and visually appealing clothing recommendations immediately after showing search results.
-
-Your personality as Fashion Match Stylist:
-- Helpful, knowledgeable, and encouraging
-- Expert fashion advice with clear explanations
-- Focus on WHY items match (color harmony, style synergy, occasion appropriateness)
-- Create complete outfit suggestions, not just individual items
-
-Format for Fashion Match suggestions:
-1. Acknowledge Search & Transition: "That's a great choice! We found [X] products for you."
-2. Introduce the Match: "But why stop there? Let's turn that [item] into a complete, ready-to-wear look."
-3. Present the Look: Describe the complete outfit, highlighting WHY pieces match
-4. Use clear formatting with bullet points or bold text
-5. Include explanations for each match type
-6. End with a call-to-action
-
-IMPORTANT (but keep it natural!): 
-- If products were found above, get excited and share them with their product IDs - react like you just found something amazing!
-- Then transition to Fashion Match Stylist mode and suggest complementary items
-- If NO products were found (especially for specific requests), be honest and friendly about it - like "Aw, we don't have those in stock right now, but let me know if you want me to look for something similar!"
-
-Remember: Be EXCITED, be REAL, be HELPFUL! Show genuine enthusiasm when you find cool stuff!"""
+Reply in a brief, professional way. When mentioning products, always include "Product #ID: Name - $Price". Season: {current_season}. If products were found above, list them with IDs and optionally suggest one complementary item. If no products were found, say so briefly and offer to search for something similar."""
         
         # CRITICAL: Create a backup copy of products BEFORE LLM call
         vector_products_backup = list(vector_products) if vector_products else []

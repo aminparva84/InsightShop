@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InsightShop MCP Tools",
+  "description": "Tool definitions for AI chat: name, description, strict input schema, permission (user | admin)",
+  "tools": [
+    {
+      "name": "auth_login",
+      "description": "Log in with email and password. Returns JWT and user info. Use when the user wants to log in or sign in.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["email", "password"],
+        "additionalProperties": false,
+        "properties": {
+          "email": { "type": "string", "format": "email", "maxLength": 255 },
+          "password": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    },
+    {
+      "name": "auth_logout",
+      "description": "Log out the current user. Client should discard token.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "name": "search_products",
+      "description": "Search for products by query and optional filters (category, size, max price, sort). Use when the user wants to find, search, or browse items.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": { "type": "string", "maxLength": 500 },
+          "category": { "type": "string", "enum": ["", "men", "women", "kids"] },
+          "size": { "type": "string", "maxLength": 20 },
+          "max_price": { "type": "number", "minimum": 0, "maximum": 100000 },
+          "sort_by": { "type": "string", "enum": ["relevance", "rating", "price_low", "price_high"] }
+        }
+      }
+    },
+    {
+      "name": "cart_add_item",
+      "description": "Add one or more units of a product to the current user's or guest cart. Identify by product_id or by color and clothing_type (e.g. large white shirts). Use when the user says to add items to cart.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "selected_color": { "type": "string", "maxLength": 50 },
+          "selected_size": { "type": "string", "maxLength": 20 },
+          "clothing_type": { "type": "string", "maxLength": 100 },
+          "category": { "type": "string", "enum": ["men", "women", "kids"] }
+        }
+      }
+    },
+    {
+      "name": "cart_remove_item",
+      "description": "Remove some or all units of a product from the current user's or guest cart. Use product_id or color/clothing_type; optional quantity (default remove all).",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "selected_color": { "type": "string", "maxLength": 50 },
+          "selected_size": { "type": "string", "maxLength": 20 },
+          "clothing_type": { "type": "string", "maxLength": 100 }
+        }
+      }
+    },
+    {
+      "name": "cart_show",
+      "description": "Return the current cart contents (items, quantities, subtotals, total). Use when the user asks to see their cart.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "name": "cart_clear",
+      "description": "Clear the current user's or guest cart. Use when the user says to clear or empty the cart.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "name": "compare_products",
+      "description": "Compare two or more products by ID (price, category, color). Use when the user wants to compare items.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["product_ids"],
+        "additionalProperties": false,
+        "properties": {
+          "product_ids": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 10,
+            "items": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    {
+      "name": "review_create",
+      "description": "Create a review for a product (rating 1-5 and optional comment). Use when the user wants to write a review.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["product_id", "rating"],
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 },
+          "rating": { "type": "number", "minimum": 1.0, "maximum": 5.0 },
+          "comment": { "type": "string", "maxLength": 2000 },
+          "user_name": { "type": "string", "maxLength": 255 }
+        }
+      }
+    },
+    {
+      "name": "checkout_proceed",
+      "description": "Create an order from the current cart with shipping details; optionally start payment. Use when the user says to proceed to checkout or place order.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["shipping_name", "shipping_address", "shipping_city", "shipping_state", "shipping_zip", "email"],
+        "additionalProperties": false,
+        "properties": {
+          "email": { "type": "string", "format": "email", "maxLength": 255 },
+          "shipping_name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "shipping_address": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "shipping_city": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "shipping_state": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "shipping_zip": { "type": "string", "minLength": 1, "maxLength": 20 },
+          "shipping_country": { "type": "string", "maxLength": 50 },
+          "shipping_phone": { "type": "string", "maxLength": 30 }
+        }
+      }
+    },
+    {
+      "name": "order_status",
+      "description": "Get the status of an order by order_id and email. Use when the user asks for order status.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["order_id", "email"],
+        "additionalProperties": false,
+        "properties": {
+          "order_id": { "type": "integer", "minimum": 1 },
+          "email": { "type": "string", "format": "email", "maxLength": 255 }
+        }
+      }
+    },
+    {
+      "name": "order_track",
+      "description": "Get tracking info for a shipment by tracking number. Use when the user asks to track a shipment.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["tracking_number"],
+        "additionalProperties": false,
+        "properties": {
+          "tracking_number": { "type": "string", "minLength": 1, "maxLength": 100 }
+        }
+      }
+    },
+    {
+      "name": "admin_product_create",
+      "description": "Create a new product (name, price, category, optional fields). Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["name", "price", "category"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 10000 },
+          "price": { "type": "number", "minimum": 0 },
+          "category": { "type": "string", "enum": ["men", "women", "kids"] },
+          "stock_quantity": { "type": "integer", "minimum": 0 },
+          "color": { "type": "string", "maxLength": 50 },
+          "size": { "type": "string", "maxLength": 20 },
+          "available_colors": { "type": "array", "items": { "type": "string" } },
+          "available_sizes": { "type": "array", "items": { "type": "string" } },
+          "image_url": { "type": "string", "maxLength": 500 },
+          "is_active": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "name": "admin_product_update",
+      "description": "Update an existing product by ID. Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["product_id"],
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 10000 },
+          "price": { "type": "number", "minimum": 0 },
+          "category": { "type": "string", "enum": ["men", "women", "kids"] },
+          "stock_quantity": { "type": "integer", "minimum": 0 },
+          "color": { "type": "string", "maxLength": 50 },
+          "size": { "type": "string", "maxLength": 20 },
+          "available_colors": { "type": "array", "items": { "type": "string" } },
+          "available_sizes": { "type": "array", "items": { "type": "string" } },
+          "image_url": { "type": "string", "maxLength": 500 },
+          "is_active": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "name": "admin_product_delete",
+      "description": "Soft-delete a product (set inactive). Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["product_id"],
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    {
+      "name": "admin_orders_list",
+      "description": "List orders with optional filters (status, user_id, search, pagination). Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "page": { "type": "integer", "minimum": 1 },
+          "per_page": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "status": { "type": "string", "enum": ["pending", "processing", "shipped", "delivered", "cancelled"] },
+          "user_id": { "type": "integer", "minimum": 1 },
+          "search": { "type": "string", "maxLength": 200 }
+        }
+      }
+    },
+    {
+      "name": "admin_order_update_status",
+      "description": "Change an order's status. Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["order_id", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "order_id": { "type": "integer", "minimum": 1 },
+          "status": { "type": "string", "enum": ["pending", "processing", "shipped", "delivered", "cancelled"] }
+        }
+      }
+    },
+    {
+      "name": "admin_sale_create",
+      "description": "Create a new sale (name, discount %, start/end dates). Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["name", "discount_percentage", "start_date", "end_date"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 1000 },
+          "discount_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+          "start_date": { "type": "string", "minLength": 10, "maxLength": 10 },
+          "end_date": { "type": "string", "minLength": 10, "maxLength": 10 },
+          "is_active": { "type": "boolean" },
+          "auto_activate": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "name": "admin_sale_run_automation",
+      "description": "Run the sale automation (activate/sync holiday sales). Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "name": "admin_cart_clear_user",
+      "description": "Clear a specific user's cart by user_id. Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["user_id"],
+        "additionalProperties": false,
+        "properties": {
+          "user_id": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    {
+      "name": "admin_review_delete",
+      "description": "Delete any review by ID. Admin only.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["review_id"],
+        "additionalProperties": false,
+        "properties": {
+          "review_id": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  ]
+}

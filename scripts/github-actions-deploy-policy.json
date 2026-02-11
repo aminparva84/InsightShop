@@ -1,0 +1,54 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECRAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRPush",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": "arn:aws:ecr:us-east-1:255315172922:repository/insightshop"
+    },
+    {
+      "Sid": "AppRunner",
+      "Effect": "Allow",
+      "Action": [
+        "apprunner:CreateService",
+        "apprunner:ListServices",
+        "apprunner:DescribeService",
+        "apprunner:StartDeployment",
+        "apprunner:DescribeOperation",
+        "apprunner:ListOperations"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PassRole",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::255315172922:role/InsightShopAppRunnerECRAccess",
+        "arn:aws:iam::255315172922:role/InsightShopAppRunnerInstanceRole"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "build.apprunner.amazonaws.com",
+            "tasks.apprunner.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}

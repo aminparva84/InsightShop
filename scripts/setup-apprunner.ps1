@@ -10,6 +10,8 @@ $ECR_REPO_NAME = "insightshop"
 $APP_RUNNER_SERVICE_NAME = "insightshop"
 $ACCESS_ROLE_NAME = "InsightShopAppRunnerECRAccess"
 $INSTANCE_ROLE_NAME = "InsightShopAppRunnerInstanceRole"
+# GitHub repo for OIDC trust policy (owner/repo). Must match your repository so Actions can assume the role.
+$GITHUB_REPO = "aminparva84/InsightShop"
 
 Write-Host "Region: $REGION" -ForegroundColor Cyan
 Write-Host ""
@@ -159,7 +161,7 @@ $githubTrustPolicy = @"
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:*/*:*"
+          "token.actions.githubusercontent.com:sub": "repo:${GITHUB_REPO}:*"
         }
       }
     }
@@ -212,7 +214,15 @@ $githubPolicy = @"
       "Resource": [
         "$ACCESS_ROLE_ARN",
         "$INSTANCE_ROLE_ARN"
-      ]
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "build.apprunner.amazonaws.com",
+            "tasks.apprunner.amazonaws.com"
+          ]
+        }
+      }
     }
   ]
 }
@@ -221,13 +231,14 @@ $githubPolicyFile = [System.IO.Path]::GetTempFileName()
 $githubPolicy | Out-File -FilePath $githubPolicyFile -Encoding utf8 -NoNewline
 
 try {
-    $ghRoleExists = Run-Aws iam get-role --role-name $GITHUB_ACTIONS_ROLE_NAME
-    if (-not $ghRoleExists) {
+    $ghRoleExists = Run-Aws iam get-role --role-name $GITHUB_ACTIONS_ROLE_NAME 2>$null; $roleExists = $LASTEXITCODE -eq 0
+    if (-not $roleExists) {
         Run-Aws iam create-role --role-name $GITHUB_ACTIONS_ROLE_NAME --assume-role-policy-document "file://$githubTrustFile" | Out-Null
         if ($LASTEXITCODE -ne 0) { Write-Host "GitHub Actions role create returned an error (may already exist). Continuing." -ForegroundColor Yellow }
         else { Write-Host "GitHub Actions role '$GITHUB_ACTIONS_ROLE_NAME' created." -ForegroundColor Green }
     } else {
-        Write-Host "GitHub Actions role '$GITHUB_ACTIONS_ROLE_NAME' already exists." -ForegroundColor Yellow
+        Write-Host "GitHub Actions role '$GITHUB_ACTIONS_ROLE_NAME' already exists. Updating trust policy for repo $GITHUB_REPO." -ForegroundColor Yellow
+        Run-Aws iam update-assume-role-policy --role-name $GITHUB_ACTIONS_ROLE_NAME --policy-document "file://$githubTrustFile" | Out-Null
     }
     Run-Aws iam put-role-policy --role-name $GITHUB_ACTIONS_ROLE_NAME --policy-name "InsightShopDeploy" --policy-document "file://$githubPolicyFile" | Out-Null
     if ($LASTEXITCODE -eq 0) { Write-Host "GitHub Actions role policy set/updated." -ForegroundColor Green }
@@ -248,8 +259,7 @@ Write-Host "   - (Optional) APP_RUNNER_INSTANCE_ROLE_ARN = $INSTANCE_ROLE_ARN"
 Write-Host "     (Must be an IAM role for your App Runner instance; e.g. for Secrets Manager.)"
 Write-Host "   (No AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY needed; the workflow uses OIDC.)"
 Write-Host ""
-Write-Host "2. Optional: Restrict the GitHub Actions role to your repo only. In IAM -> Roles -> $GITHUB_ACTIONS_ROLE_NAME"
-Write-Host "   -> Trust relationships -> Edit: change 'repo:*/*:*' to e.g. 'repo:YOUR_ORG/InsightShop:*'"
+Write-Host "2. Trust policy is set to repo: $GITHUB_REPO (edit GITHUB_REPO at top of this script if different)."
 Write-Host ""
 Write-Host "3. Push to the main branch. The GitHub Actions workflow will:"
 Write-Host "   - Build the Docker image and push to ECR"

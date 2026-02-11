@@ -214,15 +214,7 @@ $githubPolicy = @"
       "Resource": [
         "$ACCESS_ROLE_ARN",
         "$INSTANCE_ROLE_ARN"
-      ],
-      "Condition": {
-        "StringEquals": {
-          "iam:PassedToService": [
-            "build.apprunner.amazonaws.com",
-            "tasks.apprunner.amazonaws.com"
-          ]
-        }
-      }
+      ]
     }
   ]
 }

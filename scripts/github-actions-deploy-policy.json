@@ -40,15 +40,7 @@
       "Resource": [
         "arn:aws:iam::255315172922:role/InsightShopAppRunnerECRAccess",
         "arn:aws:iam::255315172922:role/InsightShopAppRunnerInstanceRole"
-      ],
-      "Condition": {
-        "StringEquals": {
-          "iam:PassedToService": [
-            "build.apprunner.amazonaws.com",
-            "tasks.apprunner.amazonaws.com"
-          ]
-        }
-      }
+      ]
     }
   ]
 }

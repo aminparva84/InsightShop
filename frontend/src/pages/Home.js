@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain, FaSearch } from 'react-icons/fa';
 import {
@@ -19,7 +19,32 @@ import {
   GiUnderwear,
 } from 'react-icons/gi';
 import ProductGrid from '../components/ProductGrid';
+import LogoLoop from '../components/LogoLoop';
 import './Home.css';
+
+const CATEGORIES = [
+  { type: 'gender', id: 'men', label: 'Men', Icon: FaUserTie, path: '/products?category=men' },
+  { type: 'gender', id: 'women', label: 'Women', Icon: FaUser, path: '/products?category=women' },
+  { type: 'gender', id: 'kids', label: 'Kids', Icon: FaChild, path: '/products?category=kids' },
+  { type: 'clothing', id: 'pants', label: 'Pants', Icon: GiTrousers, path: '/products?clothing_category=pants' },
+  { type: 'clothing', id: 'shirts', label: 'Shirts', Icon: GiShirt, path: '/products?clothing_category=shirts' },
+  { type: 'clothing', id: 't_shirts', label: 'T-Shirts', Icon: GiTShirt, path: '/products?clothing_category=t_shirts' },
+  { type: 'clothing', id: 'jackets', label: 'Jackets', Icon: GiMonclerJacket, path: '/products?clothing_category=jackets' },
+  { type: 'clothing', id: 'coats', label: 'Coats', Icon: FaCloudRain, path: '/products?clothing_category=coats' },
+  { type: 'clothing', id: 'socks', label: 'Socks', Icon: FaSocks, path: '/products?clothing_category=socks' },
+  { type: 'clothing', id: 'dresses', label: 'Dresses', Icon: GiDress, path: '/products?clothing_category=dresses' },
+  { type: 'clothing', id: 'skirts', label: 'Skirts', Icon: GiSkirt, path: '/products?clothing_category=skirts' },
+  { type: 'clothing', id: 'shorts', label: 'Shorts', Icon: GiShorts, path: '/products?clothing_category=shorts' },
+  { type: 'clothing', id: 'sweaters', label: 'Sweaters', Icon: GiWool, path: '/products?clothing_category=sweaters' },
+  { type: 'clothing', id: 'hoodies', label: 'Hoodies', Icon: GiHoodie, path: '/products?clothing_category=hoodies' },
+  { type: 'clothing', id: 'shoes', label: 'Shoes', Icon: FaShoePrints, path: '/products?clothing_category=shoes' },
+  { type: 'clothing', id: 'sandals', label: 'Sandals', Icon: GiSandal, path: '/products?clothing_category=sandals' },
+  { type: 'clothing', id: 'sneakers', label: 'Sneakers', Icon: GiRunningShoe, path: '/products?clothing_category=sneakers' },
+  { type: 'clothing', id: 'pajamas', label: 'Pajamas', Icon: GiNightSleep, path: '/products?clothing_category=pajamas' },
+  { type: 'clothing', id: 'blouses', label: 'Blouses', Icon: GiAmpleDress, path: '/products?clothing_category=blouses' },
+  { type: 'clothing', id: 'underwear', label: 'Underwear', Icon: GiUnderwear, path: '/products?clothing_category=underwear' },
+  { type: 'clothing', id: 'suits', label: 'Suits', Icon: FaUserTie, path: '/products?clothing_category=suits' },
+];
 
 const openAIChatPopup = () => {
   window.dispatchEvent(new CustomEvent('openAIChat'));
@@ -30,6 +55,27 @@ const Home = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const categoryLogos = useMemo(() => CATEGORIES, []);
+
+  const renderCategoryItem = useMemo(
+    () => (item, key) => {
+      const Icon = item.Icon;
+      return (
+        <Link
+          to={item.path}
+          className="clothing-category-card logoloop-category-card"
+          aria-label={`Shop ${item.label}`}
+        >
+          <div className="clothing-category-icon">
+            <Icon />
+          </div>
+          <h3>{item.label}</h3>
+        </Link>
+      );
+    },
+    []
+  );
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -124,49 +170,25 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Shop by Category (gender + clothing types) */}
+      {/* Shop by Category (LogoLoop: horizontal scrolling categories) */}
       <section className="shop-by-category">
         <div className="container">
           <h2 className="section-title">Shop by Category</h2>
-          <div className="clothing-category-grid">
-            {[
-              { type: 'gender', id: 'men', label: 'Men', Icon: FaUserTie, path: '/products?category=men' },
-              { type: 'gender', id: 'women', label: 'Women', Icon: FaUser, path: '/products?category=women' },
-              { type: 'gender', id: 'kids', label: 'Kids', Icon: FaChild, path: '/products?category=kids' },
-              { type: 'clothing', id: 'pants', label: 'Pants', Icon: GiTrousers, path: '/products?clothing_category=pants' },
-              { type: 'clothing', id: 'shirts', label: 'Shirts', Icon: GiShirt, path: '/products?clothing_category=shirts' },
-              { type: 'clothing', id: 't_shirts', label: 'T-Shirts', Icon: GiTShirt, path: '/products?clothing_category=t_shirts' },
-              { type: 'clothing', id: 'jackets', label: 'Jackets', Icon: GiMonclerJacket, path: '/products?clothing_category=jackets' },
-              { type: 'clothing', id: 'coats', label: 'Coats', Icon: FaCloudRain, path: '/products?clothing_category=coats' },
-              { type: 'clothing', id: 'socks', label: 'Socks', Icon: FaSocks, path: '/products?clothing_category=socks' },
-              { type: 'clothing', id: 'dresses', label: 'Dresses', Icon: GiDress, path: '/products?clothing_category=dresses' },
-              { type: 'clothing', id: 'skirts', label: 'Skirts', Icon: GiSkirt, path: '/products?clothing_category=skirts' },
-              { type: 'clothing', id: 'shorts', label: 'Shorts', Icon: GiShorts, path: '/products?clothing_category=shorts' },
-              { type: 'clothing', id: 'sweaters', label: 'Sweaters', Icon: GiWool, path: '/products?clothing_category=sweaters' },
-              { type: 'clothing', id: 'hoodies', label: 'Hoodies', Icon: GiHoodie, path: '/products?clothing_category=hoodies' },
-              { type: 'clothing', id: 'shoes', label: 'Shoes', Icon: FaShoePrints, path: '/products?clothing_category=shoes' },
-              { type: 'clothing', id: 'sandals', label: 'Sandals', Icon: GiSandal, path: '/products?clothing_category=sandals' },
-              { type: 'clothing', id: 'sneakers', label: 'Sneakers', Icon: GiRunningShoe, path: '/products?clothing_category=sneakers' },
-              { type: 'clothing', id: 'pajamas', label: 'Pajamas', Icon: GiNightSleep, path: '/products?clothing_category=pajamas' },
-              { type: 'clothing', id: 'blouses', label: 'Blouses', Icon: GiAmpleDress, path: '/products?clothing_category=blouses' },
-              { type: 'clothing', id: 'underwear', label: 'Underwear', Icon: GiUnderwear, path: '/products?clothing_category=underwear' },
-              { type: 'clothing', id: 'suits', label: 'Suits', Icon: FaUserTie, path: '/products?clothing_category=suits' },
-            ].map(({ id, label, Icon, path }) => (
-              <div
-                key={`${id}-${label}`}
-                className="clothing-category-card"
-                onClick={() => navigate(path)}
-                onKeyDown={(e) => e.key === 'Enter' && navigate(path)}
-                role="button"
-                tabIndex={0}
-                aria-label={`Shop ${label}`}
-              >
-                <div className="clothing-category-icon">
-                  <Icon />
-                </div>
-                <h3>{label}</h3>
-              </div>
-            ))}
+          <div className="shop-by-category-loop-wrapper">
+            <LogoLoop
+              logos={categoryLogos}
+              speed={40}
+              direction="right"
+              logoHeight={56}
+              gap={24}
+              hoverSpeed={60}
+              scaleOnHover
+              fadeOut
+              fadeOutColor="#ffffff"
+              renderItem={renderCategoryItem}
+              ariaLabel="Shop by category"
+              className="shop-by-category-logoloop"
+            />
           </div>
         </div>
       </section>

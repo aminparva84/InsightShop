@@ -406,11 +406,51 @@
   width: 60%;
 }
 
-/* Shop by Category (clothing types) */
+/* Shop by Category (LogoLoop horizontal scroll) */
 .shop-by-category {
   padding: 80px 0;
   background: #fff;
   border-top: 1px solid #eee;
+}
+
+.shop-by-category-loop-wrapper {
+  height: 140px;
+  position: relative;
+  overflow: hidden;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.shop-by-category-logoloop {
+  height: 100%;
+}
+
+.shop-by-category-logoloop.logoloop--fade::before,
+.shop-by-category-logoloop.logoloop--fade::after {
+  --logoloop-fadeColor: #ffffff;
+}
+
+/* Category cards inside LogoLoop */
+.logoloop-category-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  padding: 16px 20px;
+  text-decoration: none;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.logoloop-category-card .clothing-category-icon {
+  margin-bottom: 8px;
+}
+
+.logoloop-category-card h3 {
+  margin: 0;
+  font-size: 16px;
+  white-space: nowrap;
 }
 
 .clothing-category-grid {

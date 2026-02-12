@@ -106,7 +106,7 @@ def _normalize_llm_error(exc):
     # Fallback: first line, truncated
     return s.split('\n')[0][:200] if s else 'Request failed'
 
-DEFAULT_SYSTEM_PROMPT = """You are a professional shopping assistant for InsightShop. Be helpful, concise, and clear. Use a polite, business-appropriate tone. Keep responses brief: answer the question directly and avoid long paragraphs. When suggesting products, state the product ID, name, and price clearly. Do not use excessive exclamation points, slang, or overly casual language."""
+DEFAULT_SYSTEM_PROMPT = """You are a professional shopping assistant for InsightShop. Be helpful, concise, and clear. Use a polite, business-appropriate tone. Answer only what the user asked; do not recommend or suggest products unless they explicitly asked for recommendations or suggestions. When listing products they asked for, state Product #ID, name, and price. Do not use excessive exclamation points, slang, or overly casual language."""
 
 
 # System prompt for the action agent: user prompt → single JSON action (strict, no explanation)
@@ -146,17 +146,55 @@ Output exactly one JSON object. No other text."""
 # System prompt for writing a short confirmation after a cart action
 ACTION_RESPONSE_SYSTEM = "You write exactly one short, professional sentence confirming what was done. No greetings, no extra words. Example: 'I've added 2 items to your cart.'"
 
+# System prompt for follow-up questions that help build a better search query
+CLARIFICATION_SYSTEM_PROMPT = """You are a shopping assistant. The user asked to find or show products but did not give enough detail to run a precise search.
+Your task: output 1-2 short, natural follow-up questions so we can build a better query (e.g. size, style, occasion, fit). These answers will be used to refine the search.
+Output ONLY the questions, one per line. No greeting, no "I'd be happy to help", no product list. Example:
+What size do you need?
+Any preferred style (casual or formal)?"""
 
-def _write_action_response(action, result, fallback_message, config):
-    """Ask the LLM to write one short professional confirmation after an action. On failure, return fallback_message."""
+
+def _strip_search_boilerplate(text):
+    """Remove default boilerplate phrases from LLM response so only the real answer is shown.
+    Removes e.g. 'I found N products for you! Check the AI Dashboard tab to see them.' and similar."""
+    if not text or not isinstance(text, str):
+        return text
+    import re
+    s = text.strip()
+    # Remove trailing boilerplate (at end)
+    patterns_trailing = [
+        r'\n*\s*I found \d+ products? for you!?\s*[.\s]*(?:Check the AI Dashboard tab to see them\.?|They\'?re displayed below\.?|See them (?:in the )?AI Dashboard(?: tab)?\.?)\s*$',
+        r'\n*\s*Check the AI Dashboard tab to see them\.?\s*$',
+        r'\n*\s*They\'?re displayed below\.?\s*$',
+        r'\n*\s*See them (?:in the )?AI Dashboard(?: tab)?\.?\s*$',
+        r'\n*\s*I found \d+ products? for you!?\s*$',
+    ]
+    for p in patterns_trailing:
+        s = re.sub(p, '', s, flags=re.IGNORECASE)
+    # Remove leading boilerplate
+    s = re.sub(r'^\s*I found \d+ products? for you!?\s*[.\s]*(?:Check the AI Dashboard tab to see them\.?)\s*\n+', '', s, flags=re.IGNORECASE)
+    # Remove boilerplate sentence anywhere in text (full sentence)
+    s = re.sub(r'\n\s*I found \d+ products? for you!?\s*Check the AI Dashboard tab to see them\.?\s*\n?', '\n', s, flags=re.IGNORECASE)
+    s = re.sub(r'\n\s*Check the AI Dashboard tab to see them\.?\s*\n?', '\n', s, flags=re.IGNORECASE)
+    s = re.sub(r'\n\s*They\'?re displayed below\.?\s*\n?', '\n', s, flags=re.IGNORECASE)
+    return s.strip()
+
+
+def _write_action_response(action, result, fallback_message, config, is_success=True):
+    """Ask the LLM to write one short professional confirmation after an action. On failure, use result message or fallback."""
     summary = result.get('message', 'Done.')
     if action == 'show_cart' and result.get('items'):
         summary += ' ' + ', '.join(f"{it.get('name', 'Item')} x{it.get('quantity', 1)}" for it in result['items'][:5])
         if len(result['items']) > 5:
             summary += f" and {len(result['items']) - 5} more."
-    prompt = f"""Action completed: {action}. Result: {summary}. Write one short, professional sentence to tell the user what was done. Output only that sentence."""
+    if not is_success:
+        prompt = f"""Action failed: {action}. Result: {summary}. Write one short, professional sentence to tell the user the action was not completed and why. Output only that sentence."""
+        system = "You write exactly one short, professional sentence explaining that the action could not be completed. No apologies, no extra words."
+    else:
+        prompt = f"""Action completed: {action}. Result: {summary}. Write one short, professional sentence to tell the user what was done. Output only that sentence."""
+        system = ACTION_RESPONSE_SYSTEM
     try:
-        r = call_llm(prompt, system_prompt=ACTION_RESPONSE_SYSTEM, config=config, temperature=0.2)
+        r = call_llm(prompt, system_prompt=system, config=config, temperature=0.2)
         content = (r.get('content') or '').strip()
         if content and len(content) < 400:
             return content
@@ -903,7 +941,14 @@ def agent():
         user_message = result.get('message', 'Done.' if executed else 'Something went wrong.')
         if executed:
             user_message = _write_action_response(action, result, user_message, ai_config)
-        # Redirections are part of the agent contract: cart actions → /cart
+        else:
+            try:
+                user_message = _write_action_response(
+                    action, result, user_message, ai_config, is_success=False
+                )
+            except Exception:
+                user_message = result.get('message', "The action couldn't be completed.")
+        # Redirections only on success
         redirect_to = '/cart' if (executed and action in ('add_item', 'remove_item', 'show_cart', 'clear_cart')) else None
 
         return jsonify({
@@ -970,16 +1015,40 @@ def chat():
                             if action == 'show_cart' and result.get('items'):
                                 lines = [f"- {it.get('name', 'Item')} x{it.get('quantity', 1)} (${float(it.get('subtotal', 0)):.2f})" for it in result['items'][:15]]
                                 user_message = result.get('message', '') + '\n\n' + '\n'.join(lines) if lines else user_message
-                            # Write a short professional response after the action (LLM confirmation)
+                            # Write a short professional success confirmation (LLM)
                             response_text = _write_action_response(action, result, user_message, ai_config)
-                            # Cart actions redirect to cart page (part of agent action contract)
                             redirect_to = '/cart' if action in ('add_item', 'remove_item', 'show_cart', 'clear_cart') else None
                             return jsonify({
                                 'response': response_text,
                                 'action': 'agent_executed',
                                 'agent_action': action,
                                 'agent_result': result,
+                                'agent_success': True,
                                 'redirect_to': redirect_to,
+                                'suggested_products': [],
+                                'suggested_product_ids': [],
+                                'selected_provider': selected_provider,
+                            }), 200
+                        else:
+                            # Action was allowed but execution failed (e.g. no matching product)
+                            failure_message = result.get('message', "The action couldn't be completed.")
+                            try:
+                                failure_response = _write_action_response(
+                                    action,
+                                    result,
+                                    failure_message,
+                                    ai_config,
+                                    is_success=False,
+                                )
+                            except Exception:
+                                failure_response = failure_message
+                            return jsonify({
+                                'response': failure_response,
+                                'action': 'agent_executed',
+                                'agent_action': action,
+                                'agent_result': result,
+                                'agent_success': False,
+                                'redirect_to': None,
                                 'suggested_products': [],
                                 'suggested_product_ids': [],
                                 'selected_provider': selected_provider,
@@ -1046,6 +1115,35 @@ def chat():
         
         # Get all products for context
         all_products = get_all_products_for_ai()
+        
+        # When the user is answering a follow-up question (size, style, etc.), merge with their previous
+        # product request so we build a better query and run search with the refined criteria.
+        if conversation_history and len(conversation_history) >= 2:
+            last_entry = conversation_history[-1]
+            last_role = (last_entry.get('role') or '').strip().lower()
+            last_content = (last_entry.get('content') or '').strip().lower()
+            # Last turn was assistant asking a question (e.g. size, style)
+            assistant_asked_followup = (
+                last_role == 'assistant'
+                and ('?' in last_content or 'size' in last_content or 'style' in last_content or 'occasion' in last_content)
+            )
+            # Current message looks like an answer: short and contains size/style/occasion
+            followup_answer_words = (
+                'small', 'medium', 'large', 'xl', 'xxl', 'xs', 's ', ' m ', ' l ', 'casual', 'formal',
+                'business', 'wedding', 'party', 'relaxed', 'sport', 'office', 'any', 'no preference'
+            )
+            current_looks_like_answer = (
+                len(message) <= 50
+                and any(w in message for w in followup_answer_words)
+            )
+            if assistant_asked_followup and current_looks_like_answer:
+                # Find the last user message (the original product request)
+                for i in range(len(conversation_history) - 1, -1, -1):
+                    if (conversation_history[i].get('role') or '').strip().lower() == 'user':
+                        prev_user_content = (conversation_history[i].get('content') or '').strip()
+                        if prev_user_content and len(prev_user_content) > 3:
+                            message = (prev_user_content + ' ' + message).strip().lower()
+                        break
         
         # Enhanced search: Check for occasion and age-based queries BEFORE vector search
         occasion_keywords = {
@@ -1176,17 +1274,108 @@ def chat():
                 detected_dress_style = style
                 break
         
+        # Determine if this is a product search intent (user asked to find/show/list) vs general chat
+        product_request_keywords = [
+            'show', 'find', 'search', 'look', 'need', 'want',
+            'looking for', 'show me', 'find me', 'i need', 'i want',
+            'display', 'list', 'get', 'bring', 'give me', 'see',
+        ]
+        product_type_keywords = [
+            'shirt', 'pants', 'dress', 'shoes', 'jacket', 'sweater',
+            'men', 'women', 'kids', 'blue', 'red', 'black', 'white',
+            'wedding', 'party', 'business', 'casual', 'formal', 'occasion',
+        ]
+        explicit_find_show_intent = any(k in message for k in product_request_keywords)
+        has_product_type = any(k in message for k in product_type_keywords)
+        is_likely_product_request = explicit_find_show_intent and has_product_type
+        
+        # Underspecified: user asked to find/show but gave few details (e.g. "find red shirts" without size/style)
+        # Bypass follow-up when user asks for a specific product (e.g. "show me product #5" or "product 12")
+        import re
+        product_id_in_message = bool(re.search(r'product\s*#?\s*\d+|#\d+', message, re.I))
+        size_indicators = ['size', 'small', 'medium', 'large', 'xl', 'xxl', ' xs ', ' s ', ' m ', ' l ', ' xl ']
+        size_mentioned = any(s in message for s in size_indicators)
+        attributes_given = sum([
+            bool(detected_category),
+            bool(detected_color),
+            bool(detected_clothing_type),
+            bool(detected_occasion),
+            bool(detected_dress_style),
+        ])
+        # Specific request: product ID mentioned, or size given, or 3+ attributes → run search directly
+        is_specific_product_request = product_id_in_message or size_mentioned or attributes_given >= 3
+        is_underspecified = (
+            is_likely_product_request
+            and not is_specific_product_request
+            and attributes_given <= 2
+        )
+        
+        # When the request is underspecified, ask follow-up questions instead of running search
+        if is_underspecified:
+            clarification_response_text = None
+            try:
+                clarification_prompt = f"""The customer asked: "{message}". They did not specify size, style, or occasion — we need this to build a better search query.
+Your job: reply with exactly 1 or 2 short follow-up questions so we can refine the search and show more relevant results. Examples: "What size do you need?" or "Any preferred style (casual or formal)?"
+Output ONLY the questions, one per line. No greeting, no "I'd be happy to help", no other text."""
+                clarification_response = call_llm(
+                    clarification_prompt,
+                    system_prompt=CLARIFICATION_SYSTEM_PROMPT,
+                    config=ai_config,
+                    temperature=0.3,
+                )
+                content = (clarification_response.get('content') or '').strip()
+                # Accept any non-empty, reasonable-length response as follow-up (relaxed validation)
+                if content and len(content) <= 400:
+                    # If it looks like an error message from the API, don't use it
+                    if not any(x in content.lower() for x in ['api key', 'not set', 'error', 'failed', 'invalid']):
+                        clarification_response_text = content
+            except Exception as e:
+                print(f"[AI] Clarification LLM call failed: {e}")
+            # Use fallback follow-up if LLM didn't return usable questions
+            if not clarification_response_text:
+                clarification_response_text = "What size do you need? Any preferred style (e.g. casual or formal)?"
+            if clarification_response_text:
+                return jsonify({
+                    'response': clarification_response_text,
+                    'suggested_products': [],
+                    'suggested_product_ids': [],
+                    'action': None,
+                    'selected_provider': selected_provider,
+                }), 200
+            # If we somehow have no text, fall through to normal search
+        
         # Perform enhanced search with filters
         vector_product_ids = []
         vector_products = []
         strict_filter_no_results = False  # Initialize flag for tracking no results with strict filters
         
-        # Color detection already done above using normalize_color_name()
-        # No need to detect again here
+        # When user asks for a specific product by ID (e.g. "show me product 5"), fetch by ID directly
+        if product_id_in_message:
+            id_matches = re.findall(r'product\s*#?\s*(\d+)|#(\d+)', message, re.I)
+            extracted_ids = []
+            for m in id_matches:
+                for g in m:
+                    if g:
+                        try:
+                            extracted_ids.append(int(g))
+                        except ValueError:
+                            pass
+            extracted_ids = list(dict.fromkeys(extracted_ids))[:10]  # unique, max 10
+            if extracted_ids:
+                by_id_products = Product.query.filter(
+                    Product.id.in_(extracted_ids),
+                    Product.is_active == True
+                ).all()
+                if by_id_products:
+                    vector_product_ids = [p.id for p in by_id_products]
+                    vector_products = [p.to_dict() for p in by_id_products]
+                    # Preserve order of requested IDs when possible
+                    id_to_product = {p.id: p for p in by_id_products}
+                    vector_products = [id_to_product[pid].to_dict() for pid in extracted_ids if pid in id_to_product]
+                    vector_product_ids = [pid for pid in extracted_ids if pid in id_to_product]
         
-        # If we have specific filters, use direct database query first
-        # CRITICAL: When category is detected, we MUST only show products from that category
-        if detected_occasion or detected_age_group or detected_category or detected_clothing_type or detected_color or detected_dress_style:
+        # If we didn't fetch by product ID, use filters or vector search
+        if not vector_products and (detected_occasion or detected_age_group or detected_category or detected_clothing_type or detected_color or detected_dress_style):
             query = Product.query.filter_by(is_active=True)
             
             # STRICT: If category is detected, ONLY show products from that category
@@ -1283,8 +1472,8 @@ def chat():
                 strict_filter_no_results = True
             else:
                 strict_filter_no_results = False
-        else:
-            # Regular vector search if no specific filters
+        elif not vector_products:
+            # Regular vector search when no product-ID fetch and no filters
             vector_product_ids = search_products_vector(message, n_results=10)
             if vector_product_ids:
                 products = Product.query.filter(Product.id.in_(vector_product_ids)).filter_by(is_active=True).all()
@@ -1363,31 +1552,11 @@ def chat():
                     vector_product_ids = [p.id for p in fallback_products]
                     vector_products = [p.to_dict() for p in fallback_products]
         
-        # Determine if this is a product search request BEFORE calling LLM
-        # Check for product request keywords
-        product_request_keywords = [
-            'show', 'find', 'search', 'look', 'need', 'want', 
-            'looking for', 'show me', 'find me', 'i need', 'i want',
-            'display', 'list', 'get', 'bring', 'give me', 'see',
-            'shirt', 'pants', 'dress', 'shoes', 'jacket', 'sweater',
-            'men', 'women', 'kids', 'blue', 'red', 'black', 'white',
-            'wedding', 'party', 'business', 'casual', 'formal', 'occasion',
-            'above 50', 'over 50', 'mature', 'senior', 'young', 'age'
-        ]
-        is_likely_product_request = any(keyword in message for keyword in product_request_keywords)
-        
-        # If vector search found products AND message seems like a product request, treat as product list
+        # Only set action to search_results when the user explicitly asked to find/show/list products
+        # (not for every message that mentions products — e.g. "what's your return policy?" needs no action)
         action = None
-        # Always set action to search_results if we have products and it's a product request
-        if len(vector_products) > 0:
-            if is_likely_product_request:
-                # Definitely a product list request
-                action = 'search_results'
-            elif len(vector_products) >= 3:  # If 3+ products found, likely a search
-                action = 'search_results'
-            elif len(vector_products) > 0 and ('show' in message or 'find' in message or 'search' in message or 'look' in message):
-                # If user explicitly asks to see/find/search, treat as product list
-                action = 'search_results'
+        if len(vector_products) > 0 and explicit_find_show_intent:
+            action = 'search_results'
         
         # Get fashion knowledge base
         fashion_kb = get_fashion_knowledge_base_text()
@@ -1397,52 +1566,59 @@ def chat():
         current_season = get_current_season()
         seasonal_recommendations = get_seasonal_recommendations()
         
-        # Build system prompt with product context and fashion knowledge
+        # Build system prompt: output must be strictly tied to what the customer asked
         system_prompt = f"""You are ShopBot, a professional shopping assistant for InsightShop.
 
-TONE: Be polite, concise, and professional. Keep responses brief. Avoid slang, excessive exclamation points, or overly casual language.
+CRITICAL — INPUT-OUTPUT RULE:
+Your response must directly and only address what the customer asked. No more, no less.
+- If they asked to find/show/list products: present only those products (Product #ID: Name - $Price). Do NOT add "you might also like", "complete the look", or other recommendations unless they explicitly asked for recommendations or suggestions.
+- If they asked a yes/no question (e.g. "do you have X?"): answer yes or no and only add minimal detail if needed. Do NOT list other products.
+- If they asked about policy, returns, shipping, greeting, or general chat: answer only that. Do NOT list or recommend products.
+- Do NOT recommend, suggest, or "complete the look" unless the customer explicitly asked (e.g. "recommend", "suggest", "what goes with this", "what else can I wear with this").
+- Do NOT add unsolicited product lists, "you might also like", or styling tips when they only asked to see specific items.
+
+TONE: Polite, concise, professional. Brief. No slang or excessive enthusiasm.
 
 RULES:
-- When showing products, always include: Product #ID: Name - $Price. Mention rating when relevant (e.g. "Rated 4.2/5 with 12 reviews").
-- Complete the look: if the user asks for an item type (e.g. shirt), you may suggest one matching piece (e.g. chinos) in one short sentence.
-- Low stock: if a product has fewer than 5 items, say so briefly (e.g. "Only 2 left in stock.").
-- Returns: "30-day returns, free shipping." Use the initiate_return tool if the user wants to start a return.
-- If the user is undecided, offer one short line (e.g. "I can save this for later if you like.").
+- Use RECENT CONVERSATION to stay consistent (e.g. if they reply "medium" after you asked for size, treat it as size).
+- When the customer asked to find/show/list products and you have a product list: first give a brief natural-language response (1–2 sentences) that acknowledges what they asked (e.g. "Here are some red shirts in medium for casual wear:" or "I found a few options that match."). Then list the products with Product #ID: Name - $Price. Do not just dump a bare list — always respond in sentences first, then list.
+- If they asked for a specific product by ID or name: answer about that product only.
+- Low stock: mention only if they asked about a product or availability.
+- Returns/shipping: answer only when they ask. "30-day returns, free shipping."
+- For greetings or general chat: respond in a simple human way. No product lists.
 
 CURRENT DATE AND SEASON:
 {seasonal_context}
-Consider season ({current_season}), upcoming events, and weather when recommending.
+Use season ({current_season}) only when the customer's question is about weather, occasion, or what to wear for a season/event. Do not volunteer seasonal recommendations otherwise.
 
 REVIEWS AND RATINGS:
-- Products have rating (0–5) and review_count. Prefer suggesting items with 4.0+ and multiple reviews.
-- Mention ratings when suggesting: e.g. "4.5/5 with 23 reviews."
-- For low ratings or few reviews, note it briefly.
+- When the customer asked about products you are showing, you may mention rating (e.g. "4.2/5 with 12 reviews") for those products only. Do not add ratings for products they did not ask about.
 
 FASHION KNOWLEDGE BASE:
 {fashion_kb}
+Use this only when the customer explicitly asked for advice (e.g. what goes with X, what to wear for Y). Do not volunteer styling or pairing advice unless asked.
 
-PRODUCT DATABASE (sample of {len(all_products)} products):
+PRODUCT DATABASE (sample):
 {json.dumps(all_products[:20], indent=2)}
+Use only to answer the specific question. When listing products, use format: Product #ID: Name - $Price.
 
-FORMAT:
-1. Always include product ID when mentioning a product: "Product #ID: Name - $Price."
-2. Be specific but brief: material, color pairing, occasion, care if relevant.
-3. Use the color and fabric guides for accurate advice.
-4. For occasions, give one clear recommendation with product IDs.
-
-Keep each reply focused and short. No long paragraphs or repeated enthusiasm."""
+Keep each reply focused on the customer's actual question. No unsolicited recommendations or extra products."""
         
         # Build the full prompt with context
+        # Only include product list when the user actually asked for a product search (find/show/list).
+        # Otherwise the assistant might say "I found X products" for non-search queries.
         recent_products_text = ""
         has_strict_filters = detected_category or detected_clothing_type
-        # Use the strict_filter_no_results flag if set, otherwise check current state
         no_results_detected = strict_filter_no_results or (len(vector_products) == 0 and has_strict_filters)
         
-        if vector_products:
-            recent_products_text = f"\nIMPORTANT: I found {len(vector_products)} product(s) matching the customer's request:\n"
-            for p in vector_products[:10]:  # Show up to 10 products
+        if vector_products and explicit_find_show_intent:
+            actual_count = len(vector_products)
+            recent_products_text = f"\nThe customer asked to find/show/list products. There are exactly {actual_count} product(s) matching their query. If you mention a count, use this number: {actual_count}.\n"
+            for p in vector_products[:10]:
                 recent_products_text += f"Product #{p['id']}: {p['name']} - ${float(p['price']):.2f} ({p['category']}, {p.get('color', 'N/A')})\n"
-            recent_products_text += "\nThese products ARE available in our store. Please show them to the customer and include their product IDs."
+            recent_products_text += "\nFirst write 1–2 short sentences that acknowledge their request (e.g. what they asked for and that you found options). Then list the products with Product #ID: Name - $Price. Do not reply with only a bare list — always respond in natural language first, then list. Do not add recommendations or 'complete the look' unless they asked."
+        elif vector_products and not explicit_find_show_intent:
+            recent_products_text = "\nThe customer did not ask to find/show/list products. Do not list or count products. Answer only what they asked (e.g. policy, greeting, general question)."
         elif no_results_detected:
             # Build specific "no results" message for strict filters
             filter_parts = []
@@ -1459,9 +1635,29 @@ Keep each reply focused and short. No long paragraphs or repeated enthusiasm."""
             recent_products_text += "You MUST tell the customer politely that we don't have those specific items in stock right now. "
             recent_products_text += "Do NOT suggest other products unless the customer asks. Be honest and helpful."
         else:
-            recent_products_text = "\nNo products found matching the customer's specific criteria. You may suggest similar products or ask for clarification."
+            recent_products_text = "\nNo products found matching the customer's criteria. Answer only what they asked: say we don't have matches for that. Do not suggest other products unless they explicitly asked for suggestions. If they asked to find something, offer to refine the search (e.g. different size or color)."
         
-        full_prompt = f"""Customer asked: {message}
+        # Include recent conversation so the LLM has context and does not "forget" mid-talk
+        conversation_block = ""
+        if conversation_history:
+            # Use last 10 messages (5 exchanges) to stay within context limits
+            recent = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+            lines = []
+            for entry in recent:
+                role = (entry.get('role') or 'user').strip().lower()
+                content = (entry.get('content') or '').strip()
+                if not content:
+                    continue
+                label = "Customer" if role == "user" else "Assistant"
+                # Truncate very long messages so context stays manageable
+                if len(content) > 500:
+                    content = content[:497] + "..."
+                lines.append(f"{label}: {content}")
+            if lines:
+                conversation_block = "RECENT CONVERSATION:\n" + "\n\n".join(lines) + "\n\n"
+        
+        full_prompt = f"""{conversation_block}CURRENT MESSAGE:
+Customer asked: {message}
 
 CURRENT DATE CONTEXT:
 {seasonal_context}
@@ -1469,7 +1665,7 @@ CURRENT DATE CONTEXT:
 Total products in store: {len(all_products)}.
 {recent_products_text}
 
-Reply in a brief, professional way. When mentioning products, always include "Product #ID: Name - $Price". Season: {current_season}. If products were found above, list them with IDs and optionally suggest one complementary item. If no products were found, say so briefly and offer to search for something similar."""
+Reply in one brief, professional response. Always respond in natural language: do not reply with only a bare product list. When they asked to find/show/list products and products are listed above, first write 1–2 sentences that acknowledge what they asked (e.g. 'Here are some red shirts in medium:' or 'I found a few options.'), then list the products with Product #ID: Name - $Price. When they asked something else (policy, greeting, yes/no), answer in full sentences. If no products were found, say so in a sentence and offer to refine the search. Use RECENT CONVERSATION to stay consistent (e.g. 'medium' after you asked for size = size medium). No unsolicited recommendations."""
         
         # CRITICAL: Create a backup copy of products BEFORE LLM call
         vector_products_backup = list(vector_products) if vector_products else []
@@ -1525,31 +1721,20 @@ Reply in a brief, professional way. When mentioning products, always include "Pr
                                     if p and (p.get('id') if isinstance(p, dict) else getattr(p, 'id', None))]
             suggested_product_ids = [pid for pid in suggested_product_ids if pid is not None]
         
-        # Always set action to 'search_results' if we have products to ensure frontend shows them
-        # This ensures the grid updates when products are found
-        if len(vector_products) > 0 and action is None:
+        # Only set action to 'search_results' when user asked to find/show/list products (explicit_find_show_intent)
+        # So we never show "I found X products" / navigate for non-search queries
+        if len(vector_products) > 0 and explicit_find_show_intent and action is None:
             action = 'search_results'
         
-        # Update response to include navigation message when products are found
         final_response = response['content']
-        if action == 'search_results' and len(vector_products) > 0:
-            # Don't modify response if user explicitly asked to see in chat
-            # The frontend will handle that case
-            pass
-        
-        # Ensure action is always set when products are found
-        if len(vector_products) > 0 and not action:
-            action = 'search_results'
+        # Strip any default boilerplate so only the model's real response is shown
+        final_response = _strip_search_boilerplate(final_response)
         
         # Debug logging (only in development)
         if Config.DEBUG:
             print(f"AI Agent Response - vector_products: {len(vector_products)}, suggested_product_ids: {suggested_product_ids}, action: {action}")
             if suggested_product_ids:
                 print(f"Product IDs: {suggested_product_ids[:5]}")
-        
-        # CRITICAL: Always ensure action is set when products are found
-        if len(vector_products) > 0 and not action:
-            action = 'search_results'
         
         # CRITICAL: Always ensure product IDs are returned when products exist
         if len(vector_products) > 0 and not suggested_product_ids:
@@ -1562,9 +1747,9 @@ Reply in a brief, professional way. When mentioning products, always include "Pr
                 if pid is not None and pid not in suggested_product_ids:
                     suggested_product_ids.append(int(pid))
         
-        # Final check: ensure action is set when products are found
+        # Final action: only search_results when user asked for product search and we have products
         final_action = action
-        if len(vector_products) > 0 and not final_action:
+        if len(vector_products) > 0 and explicit_find_show_intent and not final_action:
             final_action = 'search_results'
         
         # CRITICAL: Always ensure we have product IDs if we have products
@@ -1611,7 +1796,7 @@ Reply in a brief, professional way. When mentioning products, always include "Pr
             # CRITICAL: Ensure we return products even if extraction failed
             products_to_return = vector_products[:10] if len(vector_products) > 0 else []
             ids_to_return = suggested_product_ids if len(suggested_product_ids) > 0 else (vector_product_ids_backup[:10] if len(vector_product_ids_backup) > 0 else [])
-            action_to_return = final_action if final_action else ('search_results' if len(vector_products) > 0 else None)
+            action_to_return = final_action if final_action else ('search_results' if (len(vector_products) > 0 and explicit_find_show_intent) else None)
         
         print(f"RETURNING - products: {len(products_to_return)}, ids: {len(ids_to_return)}, action: {action_to_return}")
         if len(products_to_return) > 0:
@@ -1621,10 +1806,13 @@ Reply in a brief, professional way. When mentioning products, always include "Pr
         if len(ids_to_return) > 0:
             print(f"RETURNING - First ID in array: {ids_to_return[0]}")
         
-        # Add fashion match suggestions if products were found
-        # This now uses both fashion match rules AND database product relations
+        # Add fashion match suggestions only when the user explicitly asked for recommendations/suggestions
+        recommendation_intent = any(k in message for k in [
+            'recommend', 'suggest', 'what goes with', 'complete the look', 'matching', 'pair with',
+            'go with', 'what else', 'similar items', 'goes with', 'what to wear with', 'outfit'
+        ])
         fashion_match_suggestions = None
-        if len(products_to_return) > 0:
+        if len(products_to_return) > 0 and recommendation_intent:
             primary_product = products_to_return[0]
             primary_name = primary_product.get('name', '')
             primary_id = primary_product.get('id', '')

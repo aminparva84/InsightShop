@@ -281,6 +281,28 @@
   color: var(--ai-chat-header-bg);
 }
 
+/* Clickable product links in chat - must be visible and clickable */
+.product-id-link {
+  display: inline;
+  text-decoration: none;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity 0.15s, background-color 0.15s;
+  color: inherit;
+}
+.product-id-link:hover {
+  opacity: 0.9;
+  text-decoration: underline;
+}
+.product-id-link:focus {
+  outline: 2px solid var(--ai-chat-accent, #667eea);
+  outline-offset: 2px;
+}
+.message-content a.product-id-link {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 /* Play button on assistant messages */
 .message-play-btn {
   opacity: 0.95;

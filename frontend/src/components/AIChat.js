@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from './ProductCard';
 import { useCart } from '../contexts/CartContext';
@@ -63,13 +63,12 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     loadSalesContext();
   }, []);
   
-  // Load chat history from localStorage
+  // Load chat history from sessionStorage so each new browser tab/session starts fresh
   const loadChatHistory = () => {
     try {
-      const saved = localStorage.getItem('aiChatHistory');
+      const saved = sessionStorage.getItem('aiChatHistory');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure we have at least the initial message
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
@@ -77,17 +76,16 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     } catch (error) {
       console.error('Error loading chat history:', error);
     }
-    // Return default initial message (will be updated by useEffect)
     return [{ role: 'assistant', content: initialMessage }];
   };
   
   const [messages, setMessages] = useState(loadChatHistory);
   
-  // Update messages when initial message changes
+  // Update messages when initial message changes (same session only)
   useEffect(() => {
     if (messages.length === 1 && messages[0].role === 'assistant') {
       setMessages([{ role: 'assistant', content: initialMessage }]);
-      localStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
+      sessionStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
     }
   }, [initialMessage]);
   const [input, setInput] = useState('');
@@ -147,10 +145,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     return () => clearTimeout(timer);
   }, [messages]);
 
-  // Save chat history to localStorage whenever messages change
+  // Save chat history to sessionStorage whenever messages change (cleared when tab closes)
   useEffect(() => {
     try {
-      localStorage.setItem('aiChatHistory', JSON.stringify(messages));
+      sessionStorage.setItem('aiChatHistory', JSON.stringify(messages));
     } catch (error) {
       console.error('Error saving chat history:', error);
     }
@@ -660,7 +658,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   // Clear chat history and reset voice settings to defaults
   const handleClearHistory = () => {
     setMessages([{ role: 'assistant', content: initialMessage }]);
-    localStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
+    sessionStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
     
     // Reset voice settings to defaults: Joanna, speed 1.1, volume 0.5 (middle)
     setVoiceId('Joanna');
@@ -1156,10 +1154,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               onProductsUpdate(productIds);
             }
             
-            // Update AI message
+            // Update AI message (use backend response as-is; do not append "I found X products")
             const updatedMessage = {
               role: 'assistant',
-              content: `${response.data.response}\n\nI found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! They're displayed below.`
+              content: response.data.response
             };
             setMessages(prev => {
               const newMessages = [...prev];
@@ -1192,10 +1190,10 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             console.log('AI Chat: After navigation, current URL:', window.location.href);
           }, 100);
           
-          // Update AI message to include navigation hint
+          // Update AI message (use backend response as-is; do not append default summary)
           const updatedMessage = {
             role: 'assistant',
-            content: `${response.data.response}\n\nI found ${productIds.length} product${productIds.length !== 1 ? 's' : ''} for you! Check the AI Dashboard tab to see them.`
+            content: response.data.response
           };
           setMessages(prev => {
             const newMessages = [...prev];
@@ -1617,26 +1615,38 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
               )}
               
               {msg.content.split('\n').map((line, lineIdx) => {
-                // Highlight product IDs in the format "Product #ID:"
-                const parts = line.split(/(Product\s*#\d+)/gi);
+                // Match "Product #ID" or "Product ID" so product mentions are clickable
+                const productPattern = /(Product\s*#?\s*\d+)/gi;
+                const parts = line.split(productPattern);
                 return (
                   <React.Fragment key={lineIdx}>
                     {parts.map((part, partIdx) => {
-                      const productIdMatch = part.match(/Product\s*#(\d+)/i);
+                      const productIdMatch = part.match(/Product\s*#?\s*(\d+)/i);
                       if (productIdMatch) {
                         const productId = productIdMatch[1];
                         return (
-                          <span key={partIdx} className="product-id-highlight">
+                          <Link
+                            key={`${lineIdx}-${partIdx}-${productId}`}
+                            to={`/products/${productId}`}
+                            className="product-id-highlight product-id-link"
+                            style={{ display: 'inline', pointerEvents: 'auto', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              navigate(`/products/${productId}`);
+                              if (onClose) onClose();
+                            }}
+                          >
                             {part}
-                          </span>
+                          </Link>
                         );
                       }
-                      return <span key={partIdx}>{part}</span>;
+                      return <span key={`${lineIdx}-${partIdx}`}>{part}</span>;
                     })}
                     {lineIdx < msg.content.split('\n').length - 1 && <br />}
                   </React.Fragment>
                 );
-                    })}
+              })}
               {msg.similarProducts && msg.similarProducts.length > 0 && (
                 <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                   <p style={{ marginBottom: '10px', fontWeight: 'bold' }}>Similar Products:</p>

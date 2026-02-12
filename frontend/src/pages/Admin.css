@@ -530,6 +530,7 @@
   font-weight: 500;
   transition: all 0.3s;
   margin-bottom: -2px;
+  flex-shrink: 0;
 }
 
 .kb-tabs button:hover {
@@ -542,23 +543,43 @@
   font-weight: 600;
 }
 
-/* Tables */
+/* Tables – scroll wrapper for mobile */
 .sales-table,
-.users-table {
+.users-table,
+.payment-logs-table {
   background: white;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.payment-logs-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.payment-logs-table table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: collapse;
+}
+
+.sales-table,
+.users-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .sales-table table,
 .users-table table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
 }
 
 .sales-table th,
-.users-table th {
+.users-table th,
+.payment-logs-table th {
   padding: 16px;
   text-align: left;
   background: #f9fafb;
@@ -568,22 +589,26 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 2px solid #e5e7eb;
+  white-space: nowrap;
 }
 
 .sales-table td,
-.users-table td {
+.users-table td,
+.payment-logs-table td {
   padding: 16px;
   border-bottom: 1px solid #e5e7eb;
   color: #1f2937;
 }
 
 .sales-table tr:hover,
-.users-table tr:hover {
+.users-table tr:hover,
+.payment-logs-table tr:hover {
   background: #f9fafb;
 }
 
 .sales-table tr:last-child td,
-.users-table tr:last-child td {
+.users-table tr:last-child td,
+.payment-logs-table tr:last-child td {
   border-bottom: none;
 }
 
@@ -619,10 +644,14 @@ select:focus {
     top: 0;
     transform: translateX(-100%);
     z-index: 1001;
+    transition: transform 0.25s ease-out;
+    width: 280px;
+    max-width: 85vw;
   }
 
   .admin-sidebar.open {
     transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
   }
 
   .admin-content-wrapper {
@@ -630,7 +659,12 @@ select:focus {
   }
 
   .mobile-menu-toggle {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 12px;
   }
 
   .dashboard-grid {
@@ -652,6 +686,35 @@ select:focus {
     max-width: 280px;
   }
 
+  .nav-item {
+    min-height: 48px;
+    padding: 14px 20px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sidebar-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px 14px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .kb-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    margin-bottom: 20px;
+    scrollbar-width: thin;
+  }
+
+  .kb-tabs button {
+    padding: 12px 18px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
   .admin-header {
     padding: 16px 20px;
   }
@@ -662,6 +725,11 @@ select:focus {
 
   .admin-section {
     padding: 20px;
+  }
+
+  .admin-message {
+    margin: 16px 20px;
+    padding: 12px 16px;
   }
 
   .stat-card {
@@ -688,32 +756,23 @@ select:focus {
   .sidebar-header h2 {
     font-size: 16px;
   }
-}
 
-@media (max-width: 768px) {
-  .admin-header {
-    padding: 16px 20px;
+  .sales-table th,
+  .users-table th,
+  .payment-logs-table th,
+  .sales-table td,
+  .users-table td,
+  .payment-logs-table td {
+    padding: 12px 10px;
+    font-size: 12px;
   }
 
-  .admin-section {
-    padding: 20px;
+  .payment-logs-table table {
+    min-width: 700px;
   }
 
-  .stat-card {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .quick-actions {
-    flex-direction: column;
-  }
-
-  .action-btn {
-    width: 100%;
+  .admin-section .sales-table table {
+    min-width: 500px;
   }
 }
 

@@ -292,39 +292,162 @@
   }
 }
 
-/* Pagination */
+/* Mobile filters: trigger + collapsible panel */
+.products-filters-wrapper {
+  margin-bottom: 20px;
+}
+
+.products-filters-mobile-trigger {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a2332;
+  background: #fdfbf8;
+  border: 2px solid #d4af37;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.products-filters-mobile-trigger:hover {
+  background: #faf0e6;
+  border-color: #c9a227;
+}
+
+.products-filters-mobile-trigger[aria-expanded="true"] {
+  background: #1a2332;
+  color: #faf0e6;
+  border-color: #1a2332;
+}
+
+.products-filters-mobile-trigger-icon {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.products-filters-mobile-badge {
+  margin-left: auto;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #d4af37;
+  color: #1a2332;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.products-filters-mobile-trigger[aria-expanded="true"] .products-filters-mobile-badge {
+  background: #faf0e6;
+  color: #1a2332;
+}
+
+.products-filters-panel {
+  display: block;
+}
+
+.products-filters-panel-inner {
+  position: relative;
+}
+
+.products-filters-mobile-done {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .products-filters-mobile-trigger {
+    display: flex;
+  }
+
+  .products-filters-panel {
+    display: none;
+    margin-top: 0;
+    padding: 16px 0 0;
+    border-top: none;
+  }
+
+  .products-filters-panel--open {
+    display: block;
+  }
+
+  .products-filters-panel-inner {
+    background: #fdfbf8;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0 0 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .products-filters-panel-inner .filter-bar {
+    margin-bottom: 0;
+    box-shadow: none;
+    border-bottom: none;
+  }
+
+  .products-filters-mobile-done {
+    display: block;
+    width: calc(100% - 32px);
+    margin: 16px 16px 0;
+    padding: 14px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a2332;
+    background: linear-gradient(135deg, #d4af37 0%, #c9a227 100%);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .products-filters-mobile-done:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+  }
+}
+
+/* Pagination – theme (#1a2332, #d4af37, #faf0e6) + mobile friendly */
 .pagination {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   margin-top: 32px;
-  padding: 20px 0;
-  border-top: 1px solid #e5e7eb;
+  padding: 24px 0;
+  border-top: 2px solid rgba(212, 175, 55, 0.25);
 }
 
 .pagination-btn {
   padding: 10px 18px;
   font-size: 14px;
   font-weight: 600;
-  color: #1f2937;
-  background: #fff;
-  border: 1px solid #d1d5db;
+  color: #1a2332;
+  background: #fdfbf8;
+  border: 2px solid rgba(26, 35, 50, 0.2);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .pagination-btn:hover:not(:disabled) {
-  background: #f9fafb;
+  background: #faf0e6;
   border-color: #d4af37;
   color: #1a2332;
 }
 
 .pagination-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+  color: #9ca3af;
 }
 
 .pagination-btn.active {
@@ -348,24 +471,51 @@
 }
 
 .pagination-num {
-  min-width: 40px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 10px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .pagination-ellipsis {
   padding: 0 4px;
-  color: #9ca3af;
+  color: #6b7280;
   font-size: 14px;
+  align-self: center;
 }
 
 @media (max-width: 600px) {
   .pagination {
-    flex-direction: column;
-    gap: 16px;
+    gap: 12px;
+    padding: 20px 12px;
+    margin-top: 24px;
+  }
+
+  .pagination-btn {
+    min-height: 48px;
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+
+  .pagination-prev,
+  .pagination-next {
+    flex: 1;
+    min-width: 0;
+    max-width: 50%;
   }
 
   .pagination-pages {
     order: -1;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .pagination-num {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

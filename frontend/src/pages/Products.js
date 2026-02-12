@@ -35,6 +35,7 @@ const Products = () => {
   const [clothingCategories, setClothingCategories] = useState([]);
   const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
   const [selectedForCompare, setSelectedForCompare] = useState([]);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
     color: searchParams.get('color') || '',
@@ -409,6 +410,18 @@ const Products = () => {
   // Derive total pages from API or from total count so pagination shows when there are multiple pages
   const effectiveTotalPages = totalPages > 1 ? totalPages : (totalProducts > PER_PAGE ? Math.ceil(totalProducts / PER_PAGE) : 1);
 
+  const activeFilterCount = [
+    filters.search,
+    filters.category,
+    filters.color,
+    filters.size,
+    filters.fabric,
+    filters.season,
+    filters.clothing_category,
+    filters.minPrice,
+    filters.maxPrice
+  ].filter(Boolean).length;
+
   const handlePageChange = (newPage) => {
     if (newPage < 1 || newPage > effectiveTotalPages) return;
     const next = new URLSearchParams(searchParams);
@@ -457,25 +470,57 @@ const Products = () => {
           </button>
         </div>
 
-        {/* Filter Bar - only show on normal tab */}
+        {/* Filter Bar - only show on normal tab; on mobile, behind expandable menu */}
         {activeTab === 'normal' && (
-          <FilterBar
-            categories={categories}
-            colors={colors}
-            sizes={sizes}
-            fabrics={fabrics}
-            seasons={seasons}
-            clothingCategories={clothingCategories}
-            priceRange={priceRange}
-            activeFilters={filters}
-            onFilterChange={(filterType, value) => {
-              if (filterType === 'clearAll') {
-                handleClearFilters();
-              } else {
-                handleFilterChange(filterType, value);
-              }
-            }}
-          />
+          <div className="products-filters-wrapper">
+            <button
+              type="button"
+              className="products-filters-mobile-trigger"
+              onClick={() => setMobileFiltersOpen((open) => !open)}
+              aria-expanded={mobileFiltersOpen}
+              aria-controls="products-filters-panel"
+              id="products-filters-trigger"
+            >
+              <span className="products-filters-mobile-trigger-icon" aria-hidden="true">{mobileFiltersOpen ? '▼' : '▶'}</span>
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="products-filters-mobile-badge">{activeFilterCount}</span>
+              )}
+            </button>
+            <div
+              id="products-filters-panel"
+              className={`products-filters-panel ${mobileFiltersOpen ? 'products-filters-panel--open' : ''}`}
+              aria-labelledby="products-filters-trigger"
+            >
+              <div className="products-filters-panel-inner">
+                <FilterBar
+                  categories={categories}
+                  colors={colors}
+                  sizes={sizes}
+                  fabrics={fabrics}
+                  seasons={seasons}
+                  clothingCategories={clothingCategories}
+                  priceRange={priceRange}
+                  activeFilters={filters}
+                  onFilterChange={(filterType, value) => {
+                    if (filterType === 'clearAll') {
+                      handleClearFilters();
+                    } else {
+                      handleFilterChange(filterType, value);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="products-filters-mobile-done"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  aria-label="Close filters"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="products-layout">

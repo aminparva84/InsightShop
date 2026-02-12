@@ -1897,7 +1897,6 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
                   if (isSpeaking) stopSpeaking();
                 }}
                 title="Select voice"
-                style={{ minWidth: '140px' }}
               >
                 <optgroup label="Women's Voices">
                   <option value="Joanna">Joanna (Neural) - Default</option>

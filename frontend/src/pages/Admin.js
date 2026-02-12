@@ -108,6 +108,19 @@ const Admin = () => {
   const productFormRef = useRef(null);
 
   useEffect(() => {
+    const isSmallViewport = () => typeof window !== 'undefined' && window.innerWidth < 1024;
+    if (isSmallViewport()) setSidebarOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) setSidebarOpen(true);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
     if (authLoading || !token || !user || !user.is_superadmin) return;
     loadFashionKB();
     loadUsers();

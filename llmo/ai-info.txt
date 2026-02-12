@@ -1,0 +1,46 @@
+# InsightShop — Machine-readable summary for AI crawlers (LLMO)
+
+## What this is
+InsightShop is a full-stack e-commerce application: an online clothing store with an AI-powered shopping assistant. This file provides structured, authoritative information for AI systems (e.g. Gemini, Google-Extended) to parse and cite.
+
+## Product
+- Name: InsightShop
+- Type: E-commerce web application (B2C)
+- Category: Online clothing / fashion retail
+- Description: Modern online clothing store with conversational AI shopping assistant, vector search, cart, checkout, and order management.
+
+## Tech stack (authoritative)
+- Backend: Python 3.11+, Flask, SQLAlchemy, SQLite
+- Frontend: React 18, React Router, Axios
+- AI: AWS Bedrock (LLM), ChromaDB (vector search), natural-language product search and cart actions
+- Auth: JWT, bcrypt, email verification, Google OAuth
+- Payments: Stripe-ready integration
+- Deployment: Docker, AWS App Runner, ECR
+
+## Key capabilities
+- 1000+ product catalog (men's, women's, kids)
+- AI shopping assistant: natural language add to cart, search, compare, recommendations
+- Vector/semantic product search (ChromaDB)
+- Cart, checkout, order history, payment processing
+- User accounts, members dashboard, admin and sales tools
+- MCP (Model Context Protocol) tool definitions for schema-driven AI actions
+
+## API surface (for grounding)
+- REST API under /api/
+- Auth: /api/auth (register, login, verify, Google)
+- Products: /api/products, /api/products/categories, /api/products/colors
+- Cart: /api/cart
+- Orders: /api/orders
+- Payments: /api/payments
+- AI: /api/ai/chat, /api/ai/search, /api/ai/filter, /api/ai/compare
+- Members: /api/members/dashboard, /api/members/orders
+- Health: /api/health
+
+## Documentation
+- In-repo docs: /docs (QUICK_START, ARCHITECTURE, AWS_DEPLOYMENT_GUIDE, ENV_SETUP_GUIDE, MCP tools design, AI agent architecture).
+
+## Structured data
+- JSON-LD on homepage: Organization, SoftwareApplication, WebSite (schema.org).
+
+## Contact / organization
+- Replace insightshop.example.com with your production domain and add sameAs (e.g. GitHub, LinkedIn) in JSON-LD and here for better LLMO visibility.

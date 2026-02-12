@@ -20,7 +20,16 @@ import {
 } from 'react-icons/gi';
 import ProductGrid from '../components/ProductGrid';
 import LogoLoop from '../components/LogoLoop';
+import FlowingMenu from '../components/FlowingMenu';
 import './Home.css';
+
+/* Seasonal menu: images from Unsplash (season-themed, free to use) */
+const SEASONAL_ITEMS = [
+  { link: '/products?season=spring', text: 'Spring', image: 'https://images.unsplash.com/photo-1522383225653-ed111181a951?w=600&q=80', logo: <FaSeedling />, logoColor: '#2d7d46' },
+  { link: '/products?season=summer', text: 'Summer', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80', logo: <FaSun />, logoColor: '#d4a017' },
+  { link: '/products?season=fall', text: 'Fall', image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&q=80', logo: <FaLeaf />, logoColor: '#c45c26' },
+  { link: '/products?season=winter', text: 'Winter', image: 'https://images.unsplash.com/photo-1706893684108-fa7ca5718c3a?w=600&q=80', logo: <FaSnowflake />, logoColor: '#4a7ba7' },
+];
 
 const CATEGORIES = [
   { type: 'gender', id: 'men', label: 'Men', Icon: FaUserTie, path: '/products?category=men' },
@@ -193,63 +202,21 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Seasonal Shopping */}
+      {/* Seasonal Shopping — FlowingMenu with logos */}
       <section className="seasonal-shopping">
         <div className="container">
           <h2 className="section-title">Seasonal Shopping</h2>
-          <div className="season-grid">
-            <div
-              className="season-card season-spring"
-              onClick={() => navigate('/products?season=spring')}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=spring')}
-              role="button"
-              tabIndex={0}
-              aria-label="Shop Spring"
-            >
-              <div className="season-icon">
-                <FaSeedling />
-              </div>
-              <h3>Spring</h3>
-            </div>
-            <div
-              className="season-card season-summer"
-              onClick={() => navigate('/products?season=summer')}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=summer')}
-              role="button"
-              tabIndex={0}
-              aria-label="Shop Summer"
-            >
-              <div className="season-icon">
-                <FaSun />
-              </div>
-              <h3>Summer</h3>
-            </div>
-            <div
-              className="season-card season-fall"
-              onClick={() => navigate('/products?season=fall')}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=fall')}
-              role="button"
-              tabIndex={0}
-              aria-label="Shop Fall"
-            >
-              <div className="season-icon">
-                <FaLeaf />
-              </div>
-              <h3>Fall</h3>
-            </div>
-            <div
-              className="season-card season-winter"
-              onClick={() => navigate('/products?season=winter')}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/products?season=winter')}
-              role="button"
-              tabIndex={0}
-              aria-label="Shop Winter"
-            >
-              <div className="season-icon">
-                <FaSnowflake />
-              </div>
-              <h3>Winter</h3>
-            </div>
+          <div className="seasonal-flowing-wrap">
+            <FlowingMenu
+              items={SEASONAL_ITEMS}
+              speed={15}
+              textColor="#ffffff"
+              bgColor="#060010"
+              marqueeBgColor="#ffffff"
+              marqueeTextColor="#060010"
+              borderColor="#ffffff"
+              linkComponent={Link}
+            />
           </div>
         </div>
       </section>

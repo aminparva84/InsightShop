@@ -222,11 +222,12 @@ Set all environment variables in the App Runner service configuration through th
 - `GET /api/members/orders` - Get orders
 - `GET /api/members/payments` - Get payments
 
-## SEO Features
+## SEO & LLMO (AI discoverability)
 
 - Meta tags for all pages
 - SEO-friendly URLs (slugs)
 - Structured product data
+- **LLMO**: JSON-LD (Organization, SoftwareApplication, WebSite), `/robots.txt` and `/ai-info.txt` for AI crawlers (e.g. Google-Extended). See [docs/LLMO_ACTION_PLAN.md](docs/LLMO_ACTION_PLAN.md).
 - Sitemap generation (can be added)
 
 ## Security Features

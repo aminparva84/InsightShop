@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PassRoleForAppRunner",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::255315172922:role/InsightShopAppRunnerECRAccess",
+        "arn:aws:iam::255315172922:role/InsightShopAppRunnerInstanceRole"
+      ]
+    }
+  ]
+}

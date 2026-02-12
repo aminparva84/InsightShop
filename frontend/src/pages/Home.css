@@ -570,6 +570,17 @@
   background: linear-gradient(180deg, #f0f4f0 0%, #e8efe8 50%, #f5f8f5 100%);
 }
 
+.seasonal-flowing-wrap {
+  width: 100%;
+  max-width: 58%;
+  margin: 0 auto;
+  height: 360px;
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
 .season-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -681,6 +692,11 @@
     padding: 50px 0;
   }
 
+  .seasonal-flowing-wrap {
+    max-width: 90%;
+    height: 300px;
+  }
+
   .season-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
@@ -705,6 +721,11 @@
 }
 
 @media (max-width: 480px) {
+  .seasonal-flowing-wrap {
+    max-width: 95%;
+    height: 260px;
+  }
+
   .season-grid {
     gap: 16px;
   }

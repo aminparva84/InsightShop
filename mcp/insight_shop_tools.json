@@ -179,7 +179,7 @@
     },
     {
       "name": "admin_product_create",
-      "description": "Create a new product (name, price, category, optional fields). Admin only.",
+      "description": "Create a new product (name, price, category, optional fields). Admin only. Prefer admin_product_prepare_create when collecting fields step-by-step from the admin.",
       "permission": "admin",
       "input_schema": {
         "type": "object",
@@ -195,6 +195,61 @@
           "size": { "type": "string", "maxLength": 20 },
           "available_colors": { "type": "array", "items": { "type": "string" } },
           "available_sizes": { "type": "array", "items": { "type": "string" } },
+          "image_url": { "type": "string", "maxLength": 500 },
+          "is_active": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "name": "admin_product_prepare_create",
+      "description": "After collecting product details from the admin step-by-step (name, price, category required; then optional description, stock, colors, sizes, etc.), call this to redirect them to the Add New Product form with fields pre-filled. Do NOT create the product in the database; this only returns redirect and prefill data. Use when the admin has finished providing all required info for a new product.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["name", "price", "category"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 10000 },
+          "price": { "type": "number", "minimum": 0 },
+          "category": { "type": "string", "enum": ["men", "women", "kids"] },
+          "stock_quantity": { "type": "integer", "minimum": 0 },
+          "color": { "type": "string", "maxLength": 50 },
+          "size": { "type": "string", "maxLength": 20 },
+          "available_colors": { "type": "array", "items": { "type": "string" } },
+          "available_sizes": { "type": "array", "items": { "type": "string" } },
+          "fabric": { "type": "string", "maxLength": 100 },
+          "clothing_type": { "type": "string", "maxLength": 100 },
+          "clothing_category": { "type": "string", "maxLength": 50 },
+          "season": { "type": "string", "maxLength": 20 },
+          "image_url": { "type": "string", "maxLength": 500 },
+          "is_active": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "name": "admin_product_prepare_edit",
+      "description": "After asking the admin which product to edit (product_id) and which field(s) to change and their new value(s), call this to redirect them to the product edit form with those fields pre-filled. Do NOT update the product in the database; this only returns redirect and prefill. Use when the admin has provided product_id and at least one field to update.",
+      "permission": "admin",
+      "input_schema": {
+        "type": "object",
+        "required": ["product_id"],
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 10000 },
+          "price": { "type": "number", "minimum": 0 },
+          "category": { "type": "string", "enum": ["men", "women", "kids"] },
+          "stock_quantity": { "type": "integer", "minimum": 0 },
+          "color": { "type": "string", "maxLength": 50 },
+          "size": { "type": "string", "maxLength": 20 },
+          "available_colors": { "type": "array", "items": { "type": "string" } },
+          "available_sizes": { "type": "array", "items": { "type": "string" } },
+          "fabric": { "type": "string", "maxLength": 100 },
+          "clothing_type": { "type": "string", "maxLength": 100 },
+          "clothing_category": { "type": "string", "maxLength": 50 },
+          "season": { "type": "string", "maxLength": 20 },
           "image_url": { "type": "string", "maxLength": 500 },
           "is_active": { "type": "boolean" }
         }

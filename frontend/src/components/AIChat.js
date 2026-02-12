@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from './ProductCard';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ScoopIcon, BowIcon, PaddingIcon, SlitIcon, getDressStyleIcon, MicrophoneIcon, SpeakerIcon, SpeakerOffIcon, StopIcon, PlayIcon } from './DressStyleIcons';
 import './AIChat.css';
 
@@ -10,6 +11,8 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   const navigate = useNavigate();
   const location = useLocation();
   const { fetchCart } = useCart();
+  const { user } = useAuth();
+  const isAdmin = !!(user?.is_admin || user?.is_superadmin);
   const [initialMessage, setInitialMessage] = useState("Hi! I'm your AI shopping assistant. How can I help you find the perfect clothes today? When I show you products, I'll include their ID numbers so you can ask me to compare them!");
   
   // Load current date and sales context for initial message
@@ -951,15 +954,18 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     );
 
     try {
-      const response = await axios.post('/api/ai/chat', {
+      // Use chat-with-tools for admins so the assistant can perform admin actions (create products, orders, sales, etc.)
+      const chatUrl = isAdmin ? '/api/ai/chat-with-tools' : '/api/ai/chat';
+      const payload = {
         message: input,
         history: messages,
         selected_product_ids: selectedProductIds
-      });
+      };
+      const response = await axios.post(chatUrl, payload);
 
       const aiMessage = {
         role: 'assistant',
-        content: response.data.response
+        content: response.data.response || response.data.message || 'No response.'
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -973,6 +979,22 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           if (onClose) onClose();
           return;
         }
+      }
+
+      // Admin: redirect to Admin page with product form prefill (create or edit from assistant)
+      if (response.data.redirect_prefill && isAdmin) {
+        const r = response.data.redirect_prefill;
+        navigate(r.path || '/admin', {
+          state: {
+            fromAssistant: true,
+            tab: r.tab || 'products',
+            openProductForm: r.openProductForm || false,
+            prefillProduct: r.prefill || null,
+            editProductId: r.editProductId || null,
+          },
+        });
+        if (onClose) onClose();
+        return;
       }
       
       // Scroll chat to show new AI message and keep input focused

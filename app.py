@@ -108,18 +108,38 @@ app.register_blueprint(reviews_bp, url_prefix='/api')
 app.register_blueprint(shipping_bp, url_prefix='/api/shipping')
 app.register_blueprint(returns_bp, url_prefix='/api/returns')
 
+# LLMO: serve robots.txt and ai-info.txt for AI crawlers (before SPA catch-all)
+_llmo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'llmo')
+
+@app.route('/robots.txt')
+def serve_robots():
+    """Serve robots.txt; allow Google-Extended and other crawlers."""
+    from flask import send_from_directory
+    if os.path.exists(_llmo_dir):
+        return send_from_directory(_llmo_dir, 'robots.txt', mimetype='text/plain')
+    from flask import Response
+    return Response('User-agent: *\nAllow: /\n', mimetype='text/plain')
+
+@app.route('/ai-info.txt')
+def serve_ai_info():
+    """Serve machine-readable summary for AI crawlers (LLMO)."""
+    from flask import send_from_directory
+    if os.path.exists(_llmo_dir):
+        return send_from_directory(_llmo_dir, 'ai-info.txt', mimetype='text/plain')
+    from flask import Response
+    return Response('# InsightShop\nSee JSON-LD on homepage.\n', mimetype='text/plain')
+
 # Serve React SPA: any non-API path returns index.html so client-side router can handle /products, /cart, etc. (fixes reload 404)
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):
+    from flask import send_from_directory, abort, jsonify
     # Don't serve index.html for API paths (let API routes or 404 handle them)
     if path.startswith('api/'):
-        from flask import abort
         abort(404)
     # Check if frontend build exists (index.html lives in build dir, assets in build/static)
     index_path = os.path.join(_build_dir, 'index.html')
     if not os.path.exists(_build_dir) or not os.path.exists(index_path):
-        from flask import jsonify
         return jsonify({
             'message': 'Frontend not built. Please run "npm run build" in the frontend directory, or start the React dev server with "npm start" on port 3000.',
             'api_endpoints': {
@@ -129,8 +149,19 @@ def serve_react(path):
             },
             'development_mode': 'For development, run the React dev server separately: cd frontend && npm start'
         }), 200
-    # SPA fallback: always serve index.html so React Router can handle the path
-    from flask import send_from_directory
+    # Serve root-level build files (e.g. logo.png, favicon.png from public/) so they load when backend serves the SPA
+    _public_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'public')
+    if path:
+        safe_path = os.path.normpath(path).replace('\\', '/').lstrip('/')
+        if safe_path and '..' not in safe_path:
+            file_path = os.path.join(_build_dir, *safe_path.split('/'))
+            if os.path.isfile(file_path):
+                return send_from_directory(_build_dir, safe_path)
+            # Fallback: serve from frontend/public (e.g. logo.png) when not yet in build
+            public_file = os.path.join(_public_dir, *safe_path.split('/'))
+            if os.path.isfile(public_file):
+                return send_from_directory(_public_dir, safe_path)
+    # SPA fallback: serve index.html so React Router can handle the path
     return send_from_directory(_build_dir, 'index.html')
 
 # Serve product images from static/images directory

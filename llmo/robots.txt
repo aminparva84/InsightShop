@@ -1,0 +1,14 @@
+# LLMO: Allow AI crawlers (e.g. Google-Extended for Gemini) to index site content.
+# See https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers
+
+User-agent: *
+Allow: /
+
+# Google's AI crawler (e.g. for Bard/Gemini training and grounding)
+User-agent: Google-Extended
+Allow: /
+
+# Optional: point to machine-readable info for AI
+# Disallow: (none; we allow full crawl)
+
+Sitemap: https://insightshop.example.com/sitemap.xml

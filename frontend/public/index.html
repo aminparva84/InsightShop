@@ -12,6 +12,47 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo.png" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <title>InsightShop - Modern Clothing Store</title>
+    <!-- LLMO: Structured data for AI crawlers (Gemini, etc.) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://insightshop.example.com/#organization",
+          "name": "InsightShop",
+          "url": "https://insightshop.example.com",
+          "description": "Modern online clothing store with an AI-powered shopping assistant. Full-stack e-commerce: Flask (Python), React, vector search, and conversational AI.",
+          "foundingDate": "2024",
+          "sameAs": []
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://insightshop.example.com/#software",
+          "name": "InsightShop",
+          "applicationCategory": "E-commerce Application",
+          "operatingSystem": "Web",
+          "description": "E-commerce platform with AI shopping assistant. Features: 1000+ products, vector/semantic search (ChromaDB), cart and orders, payments (Stripe-ready), JWT and OAuth, AWS Bedrock AI.",
+          "featureList": "AI shopping assistant; vector product search; cart and checkout; payment processing; user accounts and OAuth; order management; responsive React UI",
+          "softwareVersion": "1.0",
+          "author": { "@id": "https://insightshop.example.com/#organization" }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://insightshop.example.com/#website",
+          "url": "https://insightshop.example.com",
+          "name": "InsightShop",
+          "description": "Modern Clothing Store with AI Shopping Assistant",
+          "publisher": { "@id": "https://insightshop.example.com/#organization" },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": { "@type": "EntryPoint", "urlTemplate": "https://insightshop.example.com/products?q={search_term_string}" },
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

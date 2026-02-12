@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from '../components/Footer';
@@ -28,6 +29,8 @@ const DEFAULT_FASHION_KB = {
 
 const Admin = () => {
   const { user, token, loading: authLoading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [fashionKB, setFashionKB] = useState(null);
   const [fashionKBLoadError, setFashionKBLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -140,6 +143,65 @@ const Admin = () => {
       loadAiProviders();
     }
   }, [user, token, authLoading, activeTab]);
+
+  // Apply product form prefill when redirected from AI assistant (create or edit)
+  useEffect(() => {
+    const state = location.state;
+    if (!state?.fromAssistant || state.tab !== 'products') return;
+    const prefill = state.prefillProduct;
+    setActiveTab('products');
+    if (state.openProductForm && prefill) {
+      setEditingProduct(null);
+      setNewProduct({
+        name: prefill.name ?? '',
+        description: prefill.description ?? '',
+        price: prefill.price ?? '',
+        category: prefill.category ?? 'men',
+        color: prefill.color ?? '',
+        size: prefill.size ?? '',
+        available_colors: Array.isArray(prefill.available_colors) ? prefill.available_colors : [],
+        available_sizes: Array.isArray(prefill.available_sizes) ? prefill.available_sizes : [],
+        fabric: prefill.fabric ?? '',
+        clothing_type: prefill.clothing_type ?? '',
+        dress_style: prefill.dress_style ?? '',
+        occasion: prefill.occasion ?? '',
+        age_group: prefill.age_group ?? '',
+        season: prefill.season ?? 'all_season',
+        clothing_category: prefill.clothing_category ?? 'other',
+        image_url: prefill.image_url ?? '',
+        stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
+        is_active: prefill.is_active !== undefined ? prefill.is_active : true
+      });
+      setShowProductForm(true);
+      setProductValidationErrors([]);
+    } else if (state.editProductId != null && prefill) {
+      setEditingProduct({ id: state.editProductId });
+      setNewProduct({
+        name: prefill.name ?? '',
+        description: prefill.description ?? '',
+        price: prefill.price ?? '',
+        category: prefill.category ?? 'men',
+        color: prefill.color ?? '',
+        size: prefill.size ?? '',
+        available_colors: Array.isArray(prefill.available_colors) ? prefill.available_colors : [],
+        available_sizes: Array.isArray(prefill.available_sizes) ? prefill.available_sizes : [],
+        fabric: prefill.fabric ?? '',
+        clothing_type: prefill.clothing_type ?? '',
+        dress_style: prefill.dress_style ?? '',
+        occasion: prefill.occasion ?? '',
+        age_group: prefill.age_group ?? '',
+        season: prefill.season ?? 'all_season',
+        clothing_category: prefill.clothing_category ?? 'other',
+        image_url: prefill.image_url ?? '',
+        stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
+        is_active: prefill.is_active !== undefined ? prefill.is_active : true
+      });
+      setShowProductForm(true);
+      setProductValidationErrors([]);
+      loadProducts();
+    }
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
 
   // Fetch order detail when View is clicked in Orders tab
   useEffect(() => {

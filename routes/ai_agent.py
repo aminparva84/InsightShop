@@ -14,8 +14,14 @@ from utils.agent_executor import (
     can_execute_action,
     execute_action,
 )
-from routes.auth import require_auth
+from routes.auth import require_auth, get_current_user_optional
 from config import Config
+from mcp.tools_registry import (
+    validate_tool_call,
+    validate_and_sanitize_args,
+    get_tools_for_llm,
+)
+from utils.tool_executor import execute_tool
 import boto3
 import json
 import requests
@@ -421,6 +427,45 @@ def _call_openai(internal, prompt, system_prompt, timeout=60, temperature=0.3):
     data = resp.json()
     content = (data.get('choices') or [{}])[0].get('message', {}).get('content', '')
     return content or 'No response from AI'
+
+
+def _call_openai_with_tools(internal, messages, tools_openai, system_prompt, timeout=90, temperature=0.2):
+    """
+    Call OpenAI chat completions with tools. messages: list of {role, content} or {role, content, tool_calls} / {role, tool_call_id, content}.
+    tools_openai: list of {"type": "function", "function": {"name", "description", "parameters"}}.
+    Returns (content: str or None, tool_calls: list of {id, name, arguments_str} or empty).
+    """
+    api_key = internal.get('api_key')
+    model_id = internal.get('model_id') or 'gpt-4o-mini'
+    payload = {
+        'model': model_id,
+        'messages': [{'role': 'system', 'content': system_prompt or DEFAULT_SYSTEM_PROMPT}] + messages,
+        'max_tokens': 1024,
+        'temperature': temperature,
+    }
+    if tools_openai:
+        payload['tools'] = tools_openai
+        payload['tool_choice'] = 'auto'
+    resp = requests.post(
+        'https://api.openai.com/v1/chat/completions',
+        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+        json=payload,
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    msg = (data.get('choices') or [{}])[0].get('message', {})
+    content = msg.get('content') or ''
+    tool_calls = msg.get('tool_calls') or []
+    out_tool_calls = []
+    for tc in tool_calls:
+        tid = tc.get('id') or ''
+        fn = tc.get('function') or {}
+        name = (fn.get('name') or '').strip()
+        args_str = (fn.get('arguments') or '{}').strip()
+        if name:
+            out_tool_calls.append({'id': tid, 'name': name, 'arguments_str': args_str})
+    return (content.strip() or None, out_tool_calls)
 
 
 def _call_gemini(internal, prompt, system_prompt, timeout=60, temperature=0.3):
@@ -969,6 +1014,204 @@ def agent():
             'result': {'success': False, 'message': str(e)},
             'user_message': 'An error occurred. Please try again.',
         }), 500
+
+
+@ai_agent_bp.route('/tools/execute', methods=['POST'])
+def tools_execute():
+    """
+    Execute one AI assistant tool by name. Authorization is enforced by the backend:
+    - For admin tools: user must be authenticated and (is_admin or is_superadmin).
+    - For user tools: user must be authenticated except for auth_login.
+    The LLM does not decide permissions; validate_tool_call(tool_name, args, is_admin) is used.
+    """
+    try:
+        data = request.get_json() or {}
+        tool_name = (data.get('tool_name') or data.get('name') or '').strip()
+        arguments = data.get('arguments') or data.get('params') or {}
+        if not isinstance(arguments, dict):
+            arguments = {}
+
+        if not tool_name:
+            return jsonify({'success': False, 'error': 'tool_name is required'}), 400
+
+        # Only auth_login is allowed without authentication
+        user = get_current_user_optional()
+        if tool_name != 'auth_login' and not user:
+            return jsonify({'success': False, 'error': 'Authorization required'}), 401
+
+        is_admin = bool(user and (getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False)))
+        valid, err = validate_tool_call(tool_name, arguments, is_admin)
+        if not valid:
+            return jsonify({'success': False, 'error': err or 'Validation failed'}), 403
+
+        sanitized = validate_and_sanitize_args(tool_name, arguments)
+        result = execute_tool(tool_name, sanitized)
+        return jsonify(result), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ai_agent_bp.route('/tools/definitions', methods=['GET'])
+def tools_definitions():
+    """
+    Return tool definitions for the current user's role (user or admin).
+    Admin users get user + admin tools; regular users get only user tools.
+    Requires authentication.
+    """
+    try:
+        user = get_current_user_optional()
+        if not user:
+            return jsonify({'success': False, 'error': 'Authorization required'}), 401
+        is_admin = bool(getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False))
+        role = 'admin' if is_admin else 'user'
+        tools = get_tools_for_llm(role)
+        return jsonify({'success': True, 'role': role, 'tools': tools}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+TOOLS_SYSTEM_PROMPT = """You are a professional shopping assistant for InsightShop. You can help with search, cart, orders, and reviews. When the user asks you to perform an action, use the appropriate tool and then write a short, clear response for the user to read. Always respond in natural language after using a tool; do not return raw JSON. Be concise and polite.
+
+CRITICAL - MEMORY: Use the full conversation history. The user's previous messages in this chat tell you what they have ALREADY provided. Do NOT ask again for something they already said. For example, if the user already told you the product name, do not ask for the name again—ask for the NEXT piece of information (e.g. price or category). Track what you have collected and only ask for what is still missing.
+
+For ADMIN product flows, follow these rules:
+
+1) CREATE A NEW PRODUCT: Do not call admin_product_create with one message. Instead, ask the admin for the required information step by step, like a form. Use the conversation history to see what they have already given you.
+   - Required: product name, then price, then category (Men, Women, or Kids). Ask for ONLY the next missing required field—if they gave name already, ask for price; if they gave price already, ask for category.
+   - After you have name, price, and category, you may optionally ask for description, stock quantity, color, size, fabric, clothing type, or season. Again, only ask for fields not yet provided.
+   When the admin has given you at least name, price, and category, call admin_product_prepare_create with ALL the fields you collected from the ENTIRE conversation (re-read the history so you do not omit any). Then write a friendly response, e.g. "I've filled in the product form with the details you gave me. You're being taken to the Add Product page—review the form and click Create Product to save."
+
+2) EDIT A PRODUCT: First ask which product they want to edit (product ID or name). Then ask which field(s) they want to change and the new value(s). Use the history: if they already gave the product ID or the field to edit, do not ask again. When you have product_id and at least one field to update, call admin_product_prepare_edit. Then write a short response.
+
+3) DELETE A PRODUCT: Ask for the product ID (or name). Then ask for confirmation. Only when the user clearly confirms, call admin_product_delete. Then write a clear response. If they do not confirm, say you have cancelled the deletion.
+
+For all other admin tasks (orders, sales, carts, reviews), use the corresponding tools and then write a short response for the admin to see."""
+
+
+@ai_agent_bp.route('/chat-with-tools', methods=['POST'])
+def chat_with_tools():
+    """
+    Chat with the AI assistant with tool-calling support. When the user is an admin,
+    the assistant can use admin tools (create products, manage orders, sales, carts, reviews).
+    Authorization is enforced by the backend on every tool execution.
+    Uses OpenAI provider for tool calling; other providers fall back to regular chat.
+    """
+    try:
+        user = get_current_user_optional()
+        if not user:
+            return jsonify({'success': False, 'error': 'Authorization required'}), 401
+
+        data = request.get_json() or {}
+        message = (data.get('message') or '').strip()
+        if not message:
+            return jsonify({'success': False, 'error': 'Message is required'}), 400
+
+        is_admin = bool(getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False))
+        role = 'admin' if is_admin else 'user'
+        tools_specs = get_tools_for_llm(role)
+        tools_openai = [{'type': 'function', 'function': t} for t in tools_specs]
+
+        config = get_effective_provider_config()
+        if not config:
+            return jsonify({
+                'success': False,
+                'error': 'No AI provider available. Set an API key in Admin → AI Assistant.',
+            }), 503
+        internal = config if isinstance(config, dict) else getattr(config, 'to_internal_dict', lambda: config)()
+        provider = (internal.get('provider') or 'openai').strip().lower()
+
+        # Build messages from history + current (use more history so multi-turn flows like create-product don't forget)
+        history = data.get('history') or data.get('conversation_history') or []
+        max_history_messages = 50
+        messages = []
+        for h in history[-max_history_messages:]:
+            r = (h.get('role') or 'user').strip().lower()
+            c = (h.get('content') or '').strip()
+            if r in ('user', 'customer') and c:
+                messages.append({'role': 'user', 'content': c})
+            elif r == 'assistant' and c:
+                messages.append({'role': 'assistant', 'content': c})
+        messages.append({'role': 'user', 'content': message})
+
+        if provider != 'openai' or not tools_openai:
+            # Fallback: single LLM call without tools
+            prompt = message
+            if history:
+                prompt = '\n\n'.join(
+                    (m.get('content', '') for m in messages if m.get('role') == 'user')
+                ) + '\n\nLatest: ' + message
+            result = call_llm(prompt, system_prompt=TOOLS_SYSTEM_PROMPT, config=config, temperature=0.2)
+            content = (result.get('content') or '').strip()
+            return jsonify({
+                'success': True,
+                'response': content,
+                'tool_calls_used': False,
+                'selected_provider': provider,
+            }), 200
+
+        max_tool_rounds = 5
+        last_redirect_prefill = None
+        for _ in range(max_tool_rounds):
+            content, tool_calls = _call_openai_with_tools(
+                internal, messages, tools_openai, TOOLS_SYSTEM_PROMPT, timeout=90, temperature=0.2
+            )
+            if not tool_calls:
+                final = (content or '').strip() or "I couldn't complete that. Please try again or use the Admin panel."
+                out = {
+                    'success': True,
+                    'response': final,
+                    'tool_calls_used': _ > 0,
+                    'selected_provider': provider,
+                }
+                if last_redirect_prefill is not None:
+                    out['redirect_prefill'] = last_redirect_prefill
+                return jsonify(out), 200
+
+            # Append assistant message with tool_calls
+            openai_tool_calls = [
+                {'id': tc['id'], 'type': 'function', 'function': {'name': tc['name'], 'arguments': tc['arguments_str']}}
+                for tc in tool_calls
+            ]
+            messages.append({
+                'role': 'assistant',
+                'content': content or None,
+                'tool_calls': openai_tool_calls,
+            })
+            # Execute each tool and append tool results
+            for tc in tool_calls:
+                tid, name, args_str = tc['id'], tc['name'], tc['arguments_str']
+                try:
+                    arguments = json.loads(args_str) if args_str else {}
+                except json.JSONDecodeError:
+                    arguments = {}
+                valid, err = validate_tool_call(name, arguments, is_admin)
+                if not valid:
+                    messages.append({'role': 'tool', 'tool_call_id': tid, 'content': json.dumps({'success': False, 'error': err or 'Permission denied'})})
+                    continue
+                sanitized = validate_and_sanitize_args(name, arguments)
+                result = execute_tool(name, sanitized)
+                messages.append({'role': 'tool', 'tool_call_id': tid, 'content': json.dumps(result)})
+                if isinstance(result, dict) and result.get('action') == 'redirect_prefill':
+                    last_redirect_prefill = {k: result.get(k) for k in ('path', 'tab', 'openProductForm', 'prefill', 'editProductId') if k in result}
+            # Next iteration will call LLM again with tool results
+        # Max rounds reached
+        final = (content or '').strip() if content else "I hit a limit on steps. Please try a simpler request or use the Admin panel."
+        out = {
+            'success': True,
+            'response': final,
+            'tool_calls_used': True,
+            'selected_provider': provider,
+        }
+        if last_redirect_prefill is not None:
+            out['redirect_prefill'] = last_redirect_prefill
+        return jsonify(out), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @ai_agent_bp.route('/chat', methods=['POST'])

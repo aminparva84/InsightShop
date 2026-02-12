@@ -1,0 +1,33 @@
+{
+  "ServiceName": "insightshop",
+  "SourceConfiguration": {
+    "ImageRepository": {
+      "ImageIdentifier": "255315172922.dkr.ecr.us-east-1.amazonaws.com/insightshop:latest",
+      "ImageRepositoryType": "ECR",
+      "ImageConfiguration": {
+        "Port": "5000",
+        "RuntimeEnvironmentVariables": {
+          "FLASK_ENV": "production",
+          "PYTHONUNBUFFERED": "1",
+          "JWT_SECRET": "InsightShop-AppRunner-Default-ChangeInConsole32"
+        }
+      }
+    },
+    "AuthenticationConfiguration": {
+      "AccessRoleArn": "arn:aws:iam::255315172922:role/InsightShopAppRunnerECRAccess"
+    },
+    "AutoDeploymentsEnabled": false
+  },
+  "InstanceConfiguration": {
+    "Cpu": "1024",
+    "Memory": "2048"
+  },
+  "HealthCheckConfiguration": {
+    "Protocol": "HTTP",
+    "Path": "/api/health",
+    "Interval": 10,
+    "Timeout": 5,
+    "HealthyThreshold": 1,
+    "UnhealthyThreshold": 5
+  }
+}

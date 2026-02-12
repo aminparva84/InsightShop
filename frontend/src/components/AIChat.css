@@ -410,33 +410,33 @@
 }
 
 /* --------------------------------------------------------------------------
-   Input area – single line: small type box + all buttons
+   Input area – type box + buttons that flex to fit
    -------------------------------------------------------------------------- */
 .ai-chat-input {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 8px 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.28);
   backdrop-filter: blur(20px) saturate(1.1);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
   flex-shrink: 0;
   box-shadow: 0 -4px 24px rgba(26, 35, 50, 0.08);
+  min-width: 0;
+  overflow-x: hidden;
 }
 
-/* Type box – smaller so all controls fit in one line */
+/* Type box – flexes to fill space, can shrink */
 .ai-chat-input input {
   order: 1;
-  flex: 0 1 auto;
-  width: 140px;
-  min-width: 80px;
-  max-width: 200px;
+  flex: 1 1 0;
+  min-width: 0;
   max-height: 34px;
-  padding: 6px 12px;
+  padding: 6px 10px;
   border: 1px solid rgba(212, 175, 55, 0.22);
-  border-radius: 18px;
+  border-radius: 16px;
   font-size: 0.8125rem;
   font-family: inherit;
   background: rgba(255, 255, 255, 0.8);
@@ -461,17 +461,18 @@
   background: rgba(255, 255, 255, 0.95);
 }
 
-/* Send – compact pill */
+/* Send – compact pill, can grow slightly */
 .ai-chat-input button[type="submit"] {
   order: 2;
-  flex-shrink: 0;
-  padding: 6px 12px;
-  min-height: 34px;
+  flex: 0 1 auto;
+  min-width: 52px;
+  padding: 6px 10px;
+  min-height: 32px;
   background: rgba(26, 35, 50, 0.88);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: #faf0e6;
-  border-radius: 18px;
+  border-radius: 16px;
   font-weight: 600;
   font-size: 0.75rem;
   transition: all var(--ai-chat-transition);
@@ -497,35 +498,38 @@
   transform: none;
 }
 
-/* Mic – same line */
+/* Mic – same line, don't shrink */
 .ai-chat-input > button.voice-btn {
   order: 3;
+  flex-shrink: 0;
 }
 
-/* Voice controls – same line, no wrap */
+/* Voice controls – same line, flex to fit */
 .ai-chat-input .voice-controls {
   order: 4;
-  flex-basis: auto;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
   padding: 0;
   margin: 0;
   border: none;
 }
 
-/* Voice buttons – compact circles */
+/* Voice buttons – compact circles, can shrink slightly */
 .voice-btn {
   padding: 4px;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(212, 175, 55, 0.22);
-  min-width: 28px;
-  max-width: 28px;
-  height: 28px;
+  min-width: 26px;
+  width: 26px;
+  max-width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -549,18 +553,19 @@
 }
 
 .voice-gender-select {
-  padding: 4px 8px;
+  padding: 4px 6px;
   font-size: 0.625rem;
   background: rgba(255, 255, 255, 0.65);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--ai-chat-assistant-text);
   border: 1px solid rgba(212, 175, 55, 0.22);
-  border-radius: 14px;
+  border-radius: 12px;
   cursor: pointer;
-  height: 28px;
+  height: 26px;
   min-width: 0;
-  max-width: 100px;
+  max-width: 72px;
+  flex: 0 1 auto;
   transition: all var(--ai-chat-transition);
   font-family: inherit;
 }
@@ -584,7 +589,8 @@
 }
 
 .voice-speed-control input[type="range"] {
-  width: 36px;
+  width: 32px;
+  min-width: 28px;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
@@ -793,20 +799,20 @@
 }
 
 /* --------------------------------------------------------------------------
-   Responsive
+   Responsive – mobile: wrap input row, larger touch targets
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
   .ai-chat {
-    --ai-chat-spacing-xl: 16px;
-    --ai-chat-spacing-2xl: 20px;
+    --ai-chat-spacing-xl: 14px;
+    --ai-chat-spacing-2xl: 18px;
   }
 
   .ai-chat-header {
-    padding: var(--ai-chat-spacing-md) var(--ai-chat-spacing-lg);
+    padding: 10px 12px;
   }
 
   .ai-chat-header h3 {
-    font-size: 1rem;
+    font-size: 0.9375rem;
   }
 
   .ai-chat-header-buttons {
@@ -815,88 +821,93 @@
 
   .close-btn,
   .minimize-btn {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     font-size: 1rem;
+    min-width: 40px;
+    min-height: 40px;
   }
 
   .clear-btn {
     font-size: 0.6875rem;
-    padding: 6px 10px;
+    padding: 8px 10px;
+    min-height: 40px;
   }
 
   .ai-chat-messages {
-    padding: var(--ai-chat-spacing-lg) var(--ai-chat-spacing-md);
+    padding: 12px 10px;
   }
 
   .message-content {
-    max-width: 88%;
-    padding: 10px 14px;
-    font-size: 0.9375rem;
-    padding-right: 72px;
+    max-width: 90%;
+    padding: 10px 12px;
+    font-size: 0.875rem;
+    padding-right: 56px;
   }
 
+  /* Input area: wrap so row 1 = input (full width), row 2 = buttons */
   .ai-chat-input {
+    flex-wrap: wrap;
     padding: 10px 12px;
-    gap: 8px;
+    gap: 10px;
   }
 
   .ai-chat-input input {
-    padding: 8px 12px;
+    order: 1;
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    padding: 12px 14px;
     font-size: 0.875rem;
-    max-height: 42px;
-    min-height: 42px;
+    max-height: none;
+    min-height: 48px;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .ai-chat-input button[type="submit"] {
-    padding: 8px 14px;
-    font-size: 0.8125rem;
-    min-height: 42px;
+    order: 2;
+    flex: 1 1 auto;
+    min-width: 80px;
+    padding: 12px 16px;
+    min-height: 48px;
+    font-size: 0.875rem;
   }
 
   .ai-chat-input > button.voice-btn {
-    min-width: 42px;
-    max-width: 42px;
-    height: 42px;
+    order: 3;
+    min-width: 48px;
+    width: 48px;
+    max-width: 48px;
+    height: 48px;
+  }
+
+  .ai-chat-input .voice-controls {
+    order: 4;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
   }
 
   .voice-btn {
+    min-width: 44px;
+    width: 44px;
+    max-width: 44px;
+    height: 44px;
+  }
+
+  .voice-gender-select {
+    height: 44px;
+    max-width: 120px;
+    flex: 1 1 auto;
+    min-width: 80px;
+  }
+
+  .voice-speed-control input[type="range"] {
+    width: 48px;
     min-width: 40px;
-    max-width: 40px;
-    height: 40px;
-  }
-
-  .voice-gender-select {
-    height: 40px;
-  }
-
-  .voice-controls {
-    flex-wrap: wrap;
-    gap: 6px;
-    width: 100%;
-    margin-top: 6px;
-  }
-
-  .voice-gender-select {
-    font-size: 0.8125rem;
-    padding: 10px 12px;
-    height: 48px;
-    min-width: 120px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .voice-speed-control,
-  .voice-speed-control + div {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.6875rem;
-  }
-
-  .voice-speed-control input[type="range"],
-  .voice-speed-control + div input[type="range"] {
-    width: 52px;
-    min-width: 52px;
   }
 
   .suggested-products-grid {
@@ -912,56 +923,79 @@
 
 @media (max-width: 480px) {
   .ai-chat-header {
-    padding: 10px 12px;
+    padding: 12px 14px;
   }
 
   .ai-chat-header h3 {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
   }
 
   .ai-chat-messages {
-    padding: 12px 10px;
+    padding: 10px 8px;
   }
 
   .message-content {
     max-width: 92%;
     padding: 10px 12px;
-    font-size: 0.875rem;
-    padding-right: 64px;
+    font-size: 0.8125rem;
+    padding-right: 52px;
   }
 
   .message-content table {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
   }
 
   .message-content th,
   .message-content td {
-    padding: 6px 10px;
+    padding: 6px 8px;
   }
 
   .ai-chat-input {
-    padding: 8px 10px;
+    padding: 12px 10px;
+    gap: 12px;
+  }
+
+  .ai-chat-input input {
+    min-height: 48px;
+    padding: 12px 14px;
+  }
+
+  .ai-chat-input button[type="submit"] {
+    min-height: 48px;
+    flex: 1 1 100%;
+  }
+
+  .ai-chat-input > button.voice-btn {
+    flex: 1 1 auto;
+    min-width: 48px;
   }
 
   .voice-controls {
-    flex-direction: column;
-    align-items: stretch;
+    gap: 10px;
+  }
+
+  .voice-btn {
+    min-width: 48px;
+    width: 48px;
+    height: 48px;
   }
 
   .voice-gender-select {
-    width: 100%;
-    margin-bottom: 4px;
+    flex: 1 1 100%;
+    max-width: none;
+    height: 48px;
   }
 
   .voice-speed-control,
   .voice-speed-control + div {
-    width: 100%;
-    justify-content: space-between;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .voice-speed-control input[type="range"],
   .voice-speed-control + div input[type="range"] {
     flex: 1;
-    max-width: none;
+    min-width: 40px;
+    max-width: 80px;
   }
 }

@@ -22,9 +22,11 @@ PyJWT==2.8.0
 cryptography>=41.0.7
 bcrypt==4.1.2
 
-# Database
+# Database (SQLite by default; set DATABASE_URL for PostgreSQL)
 sqlalchemy>=2.0.23
 sqlite-utils==3.35.2
+psycopg2-binary>=2.9.9
+Flask-Migrate>=4.0.5
 
 # Vector DB: chromadb 0.4.x uses np.float_ removed in NumPy 2.0 — pin exact 1.x
 numpy==1.26.4

@@ -14,7 +14,8 @@ class Config:
     ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
     VERTEX_API_KEY = os.getenv('VERTEX_API_KEY', '')  # Path to service account JSON or JSON string
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')  # Vertex AI API key (per Google Cloud quickstart)
-    # SQLite Database
+    # Database: use DATABASE_URL for PostgreSQL (or any other backend); otherwise SQLite via DB_PATH
+    DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
     DB_PATH = os.getenv('DB_PATH', 'insightshop.db')
     
     # JWT Configuration

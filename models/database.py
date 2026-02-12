@@ -4,6 +4,27 @@ import os
 
 db = SQLAlchemy()
 
+
+def _table_has_column(connection, table_name, column_name, dialect_name):
+    """Return True if the table has the column. Works with SQLite and PostgreSQL."""
+    from sqlalchemy import text
+    if dialect_name == 'sqlite':
+        # PRAGMA in SQLite does not support bound params; table_name is from our code only
+        cursor = connection.execute(text(f"PRAGMA table_info({table_name!r})"))
+        columns = [row[1] for row in cursor.fetchall()]
+        return column_name in columns
+    if dialect_name == 'postgresql':
+        cursor = connection.execute(
+            text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name = :t AND column_name = :c LIMIT 1"
+            ),
+            {"t": table_name, "c": column_name}
+        )
+        return cursor.fetchone() is not None
+    return False
+
+
 def init_db(app):
     """Initialize the database and create tables."""
     db.init_app(app)
@@ -59,8 +80,11 @@ def init_db(app):
         
         # Create all tables with new schema
         db.create_all()
-        _log_path = uri.replace('sqlite:///', '').replace('/', os.sep) if uri.startswith('sqlite:///') else Config.DB_PATH
-        print(f"Database tables created at: {_log_path}")
+        if uri.startswith('sqlite:///'):
+            _log_path = uri.replace('sqlite:///', '').replace('/', os.sep)
+        else:
+            _log_path = uri.split('@')[-1] if '@' in uri else uri  # e.g. host/db for postgres
+        print(f"Database tables created: {_log_path}")
         # Verify connection so "severed" state is detected at startup
         try:
             from sqlalchemy import text
@@ -73,61 +97,54 @@ def init_db(app):
         # Add Order.currency column if missing (existing databases)
         try:
             from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
             with db.engine.connect() as conn:
-                if db.engine.dialect.name == 'sqlite':
-                    cursor = conn.execute(text("PRAGMA table_info(orders)"))
-                    columns = [row[1] for row in cursor.fetchall()]
-                    if 'currency' not in columns:
-                        conn.execute(text("ALTER TABLE orders ADD COLUMN currency VARCHAR(10) DEFAULT 'USD'"))
-                        conn.commit()
-                        print("[OK] Added column orders.currency for existing database")
+                if not _table_has_column(conn, 'orders', 'currency', dialect_name):
+                    conn.execute(text("ALTER TABLE orders ADD COLUMN currency VARCHAR(10) DEFAULT 'USD'"))
+                    conn.commit()
+                    print("[OK] Added column orders.currency for existing database")
         except Exception as e:
             print(f"[WARNING] Could not add orders.currency column: {e}")
 
         # Add Product.season column if missing (existing databases); backfill NULLs to all_season
         try:
             from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
             with db.engine.connect() as conn:
-                if db.engine.dialect.name == 'sqlite':
-                    cursor = conn.execute(text("PRAGMA table_info(products)"))
-                    columns = [row[1] for row in cursor.fetchall()]
-                    if 'season' not in columns:
-                        conn.execute(text("ALTER TABLE products ADD COLUMN season VARCHAR(20) DEFAULT 'all_season'"))
-                        conn.commit()
-                        print("[OK] Added column products.season for existing database")
-                    # Ensure every product has a season (backfill NULLs)
-                    conn.execute(text("UPDATE products SET season = 'all_season' WHERE season IS NULL OR season = ''"))
+                if not _table_has_column(conn, 'products', 'season', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN season VARCHAR(20) DEFAULT 'all_season'"))
                     conn.commit()
+                    print("[OK] Added column products.season for existing database")
+                conn.execute(text("UPDATE products SET season = 'all_season' WHERE season IS NULL OR season = ''"))
+                conn.commit()
         except Exception as e:
             print(f"[WARNING] Could not add/backfill products.season column: {e}")
 
         # Add Product.clothing_category column if missing (existing databases); backfill to 'other'
         try:
             from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
             with db.engine.connect() as conn:
-                if db.engine.dialect.name == 'sqlite':
-                    cursor = conn.execute(text("PRAGMA table_info(products)"))
-                    columns = [row[1] for row in cursor.fetchall()]
-                    if 'clothing_category' not in columns:
-                        conn.execute(text("ALTER TABLE products ADD COLUMN clothing_category VARCHAR(50) DEFAULT 'other'"))
-                        conn.commit()
-                        print("[OK] Added column products.clothing_category for existing database")
-                    conn.execute(text("UPDATE products SET clothing_category = 'other' WHERE clothing_category IS NULL OR clothing_category = ''"))
+                if not _table_has_column(conn, 'products', 'clothing_category', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN clothing_category VARCHAR(50) DEFAULT 'other'"))
                     conn.commit()
+                    print("[OK] Added column products.clothing_category for existing database")
+                conn.execute(text("UPDATE products SET clothing_category = 'other' WHERE clothing_category IS NULL OR clothing_category = ''"))
+                conn.commit()
         except Exception as e:
             print(f"[WARNING] Could not add/backfill products.clothing_category column: {e}")
 
         # Add User.is_superadmin column if missing (existing databases)
         try:
             from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
             with db.engine.connect() as conn:
-                if db.engine.dialect.name == 'sqlite':
-                    cursor = conn.execute(text("PRAGMA table_info(users)"))
-                    columns = [row[1] for row in cursor.fetchall()]
-                    if 'is_superadmin' not in columns:
-                        conn.execute(text("ALTER TABLE users ADD COLUMN is_superadmin BOOLEAN DEFAULT 0"))
-                        conn.commit()
-                        print("[OK] Added column users.is_superadmin for existing database")
+                if not _table_has_column(conn, 'users', 'is_superadmin', dialect_name):
+                    # PostgreSQL uses FALSE not 0 for BOOLEAN default
+                    default_val = "0" if dialect_name == 'sqlite' else "FALSE"
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN is_superadmin BOOLEAN DEFAULT {default_val}"))
+                    conn.commit()
+                    print("[OK] Added column users.is_superadmin for existing database")
         except Exception as e:
             print(f"[WARNING] Could not add users.is_superadmin column: {e}")
 

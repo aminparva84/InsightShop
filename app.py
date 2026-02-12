@@ -20,6 +20,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import Config
 from models.database import db, init_db
+from flask_migrate import Migrate
 
 # SPA build: index.html at frontend/build, assets at frontend/build/static (CRA)
 # Use static_url_path='/static' so Flask's static route only matches /static/*, not /* (avoids 404 on reload for /products, /cart, etc.)
@@ -28,18 +29,26 @@ app = Flask(__name__, static_folder=os.path.join(_build_dir, 'static'), static_u
 # Allow API routes to match with or without trailing slash (avoids 404 when request has trailing slash)
 app.url_map.strict_slashes = False
 app.config.from_object(Config)
-# Use instance folder for database
-db_path = os.path.join(app.instance_path, Config.DB_PATH) if not os.path.isabs(Config.DB_PATH) else Config.DB_PATH
-# Ensure instance (and any parent) directory exists so SQLite can create the DB file
-_db_dir = os.path.dirname(db_path)
-if _db_dir and not os.path.exists(_db_dir):
-    os.makedirs(_db_dir, exist_ok=True)
-# Use forward slashes in URI so SQLite works on Windows (backslashes can break the URI)
-_db_uri_path = db_path.replace('\\', '/')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_uri_path}'
+# Database: use DATABASE_URL (e.g. PostgreSQL) if set; otherwise SQLite under instance/
+if Config.DATABASE_URL:
+    app.config['SQLALCHEMY_DATABASE_URI'] = Config.DATABASE_URL
+    # PostgreSQL: pool_pre_ping avoids stale connections; optionally tune pool size
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_size': 5,
+        'max_overflow': 10,
+    }
+    print(f"[DB] Using DATABASE_URL (e.g. PostgreSQL)")
+else:
+    db_path = os.path.join(app.instance_path, Config.DB_PATH) if not os.path.isabs(Config.DB_PATH) else Config.DB_PATH
+    _db_dir = os.path.dirname(db_path)
+    if _db_dir and not os.path.exists(_db_dir):
+        os.makedirs(_db_dir, exist_ok=True)
+    _db_uri_path = db_path.replace('\\', '/')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_uri_path}'
+    print(f"[DB] Path: {os.path.abspath(db_path)} (from DB_PATH={Config.DB_PATH!r})")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Log resolved DB path so you can verify if connection is severed
-print(f"[DB] Path: {os.path.abspath(db_path)} (from DB_PATH={Config.DB_PATH!r})")
+migrate = Migrate(app, db)
 app.config['SECRET_KEY'] = Config.SECRET_KEY  # Required for session
 app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = Config.JWT_EXPIRATION

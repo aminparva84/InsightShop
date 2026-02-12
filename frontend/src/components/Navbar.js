@@ -110,6 +110,17 @@ const Navbar = () => {
         onClick={closeMenu}
       />
       <div className={`navbar-mobile ${menuOpen ? 'navbar-mobile--open' : ''}`} id="navbar-mobile">
+        <div className="navbar-mobile-header">
+          <button
+            type="button"
+            className="navbar-mobile-back"
+            aria-label="Close menu"
+            onClick={closeMenu}
+          >
+            <span className="navbar-mobile-back-icon" aria-hidden="true">←</span>
+            <span className="navbar-mobile-back-text">Back</span>
+          </button>
+        </div>
         <div className="navbar-mobile-links">
           {navLinks}
         </div>

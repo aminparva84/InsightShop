@@ -339,12 +339,6 @@
   color: #faf0e6;
 }
 
-.pagination-info {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0 8px;
-}
-
 .pagination-pages {
   display: flex;
   align-items: center;

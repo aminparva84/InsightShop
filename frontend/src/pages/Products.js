@@ -561,9 +561,6 @@ const Products = () => {
                     >
                       Previous
                     </button>
-                    <span className="pagination-info">
-                      Page {currentPage} of {effectiveTotalPages}
-                    </span>
                     <div className="pagination-pages">
                       {Array.from({ length: effectiveTotalPages }, (_, i) => i + 1)
                         .filter(p => p === 1 || p === effectiveTotalPages || (p >= currentPage - 2 && p <= currentPage + 2))

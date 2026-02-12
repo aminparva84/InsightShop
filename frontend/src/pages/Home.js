@@ -179,15 +179,31 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Shop by Category (LogoLoop: horizontal scrolling categories) */}
+      {/* Shop by Category (LogoLoop: two rows, opposite directions) */}
       <section className="shop-by-category">
         <div className="container">
           <h2 className="section-title">Shop by Category</h2>
-          <div className="shop-by-category-loop-wrapper">
+          <div className="shop-by-category-loop-wrapper" aria-label="Shop by category">
             <LogoLoop
               logos={categoryLogos}
               speed={40}
               direction="right"
+              logoHeight={56}
+              gap={24}
+              hoverSpeed={60}
+              scaleOnHover
+              fadeOut
+              fadeOutColor="#ffffff"
+              renderItem={renderCategoryItem}
+              ariaLabel="Shop by category"
+              className="shop-by-category-logoloop"
+            />
+          </div>
+          <div className="shop-by-category-loop-wrapper shop-by-category-loop-row-2" aria-label="Shop by category">
+            <LogoLoop
+              logos={categoryLogos}
+              speed={40}
+              direction="left"
               logoHeight={56}
               gap={24}
               hoverSpeed={60}

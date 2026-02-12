@@ -177,10 +177,12 @@ def init_db(app):
                 print(f"Warning: Could not seed users (superadmin): {e}")
 
         # Defer vector DB sync to a background thread so the app can bind and pass health check (e.g. App Runner).
-        # Sync runs after startup; ONNX/Chroma can be slow or fail in minimal containers.
+        # Sync runs after a short delay to avoid OOM: worker stays under memory limit until health check passes.
         if not app.config.get('TESTING'):
             import threading
+            import time
             def _deferred_sync():
+                time.sleep(8)  # Let gunicorn bind and first health check succeed before heavy vector sync
                 try:
                     from utils.vector_db import sync_all_products_from_sql
                     sync_all_products_from_sql(app)

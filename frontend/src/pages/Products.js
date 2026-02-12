@@ -5,12 +5,16 @@ import ProductGrid from '../components/ProductGrid';
 import FilterBar from '../components/FilterBar';
 import './Products.css';
 
+const PER_PAGE = 12;
+
 const openAIChatPopup = () => {
   window.dispatchEvent(new CustomEvent('openAIChat'));
 };
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [activeTab, setActiveTab] = useState(() => {
     // Check URL for tab parameter or ai_results
     const tabParam = searchParams.get('tab');
@@ -54,34 +58,6 @@ const Products = () => {
     fetchPriceRange();
   }, []);
   
-  // Fetch products on initial load (only when no URL filter params — otherwise the filter effect will fetch with params)
-  useEffect(() => {
-    const hasAiResults = searchParams.get('ai_results');
-    const hasFilterParams = searchParams.get('category') || searchParams.get('clothing_category') || searchParams.get('season') || searchParams.get('color') || searchParams.get('size') || searchParams.get('fabric') || searchParams.get('search') || searchParams.get('minPrice') || searchParams.get('maxPrice');
-    if (hasAiResults || hasFilterParams) {
-      // Let the "fetch when filters change" effect handle the request with URL params
-      return;
-    }
-    const fetchInitialProducts = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get('/api/products');
-        if (response.data && response.data.products) {
-          setProducts(response.data.products);
-          setAllProducts(response.data.products);
-          console.log('Products Page: Initial load - fetched', response.data.products.length, 'products');
-        }
-      } catch (error) {
-        console.error('Error fetching initial products:', error);
-        setProducts([]);
-        setAllProducts([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInitialProducts();
-  }, []); // Only run once on mount
-
   // Sync filters with URL searchParams when URL changes (e.g., AI navigation)
   useEffect(() => {
     const aiResultsFromUrl = searchParams.get('ai_results') || '';
@@ -339,7 +315,7 @@ const Products = () => {
         setAiProducts([]);
       }
       
-      // Regular filtering
+      // Regular filtering with pagination
       const params = new URLSearchParams();
       if (filters.category) params.append('category', filters.category);
       if (filters.color) params.append('color', filters.color);
@@ -350,16 +326,22 @@ const Products = () => {
       if (filters.minPrice) params.append('min_price', filters.minPrice);
       if (filters.maxPrice) params.append('max_price', filters.maxPrice);
       if (filters.search) params.append('search', filters.search);
+      const page = parseInt(searchParams.get('page') || '1', 10) || 1;
+      params.append('page', String(page));
+      params.append('per_page', String(PER_PAGE));
 
       const response = await axios.get(`/api/products?${params.toString()}`);
       setProducts(response.data.products);
       setAllProducts(response.data.products);
+      setTotalProducts(response.data.total ?? 0);
+      setTotalPages(Math.max(1, response.data.pages ?? 1));
     } catch (error) {
       console.error('Error fetching products:', error);
       console.error('Error details:', error.response?.data || error.message);
-      // Set empty arrays on error to prevent showing stale data
       setProducts([]);
       setAllProducts([]);
+      setTotalProducts(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -377,7 +359,7 @@ const Products = () => {
       newFilters.ai_results = '';
     }
     setFilters(newFilters);
-    const params = { ...newFilters };
+    const params = { ...newFilters, page: 1 }; // Reset to page 1 when filters change
     if (!params.ai_results) delete params.ai_results;
     // Remove empty filter values
     Object.keys(params).forEach(k => {
@@ -385,6 +367,7 @@ const Products = () => {
         delete params[k];
       }
     });
+    if (params.page === 1) delete params.page; // Omit page=1 to keep URL clean
     setSearchParams(params);
   };
   
@@ -422,6 +405,20 @@ const Products = () => {
   // Get products to display based on active tab
   const displayProducts = activeTab === 'ai' ? aiProducts : products;
   const displayAllProducts = activeTab === 'ai' ? aiProducts : allProducts;
+  const currentPage = parseInt(searchParams.get('page') || '1', 10) || 1;
+  // Derive total pages from API or from total count so pagination shows when there are multiple pages
+  const effectiveTotalPages = totalPages > 1 ? totalPages : (totalProducts > PER_PAGE ? Math.ceil(totalProducts / PER_PAGE) : 1);
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > effectiveTotalPages) return;
+    const next = new URLSearchParams(searchParams);
+    if (newPage === 1) {
+      next.delete('page');
+    } else {
+      next.set('page', String(newPage));
+    }
+    setSearchParams(next);
+  };
   
   // Debug logging - track state changes
   useEffect(() => {
@@ -496,7 +493,11 @@ const Products = () => {
                           : 'AI Dashboard: No products yet. Ask the AI assistant to find products!'}
                       </span>
                     ) : (
-                      <span>{products.length} product{products.length !== 1 ? 's' : ''} found</span>
+                      <span>
+                        {effectiveTotalPages > 1
+                          ? `Showing ${(currentPage - 1) * PER_PAGE + 1}–${Math.min(currentPage * PER_PAGE, totalProducts)} of ${totalProducts} products`
+                          : `${totalProducts} product${totalProducts !== 1 ? 's' : ''} found`}
+                      </span>
                     )}
                   </div>
                   {selectedForCompare.length > 0 && (
@@ -548,6 +549,50 @@ const Products = () => {
                   selectedForCompare={selectedForCompare}
                   showCompareCheckbox={true}
                 />
+
+                {activeTab === 'normal' && effectiveTotalPages > 1 && (
+                  <nav className="pagination" aria-label="Products pagination">
+                    <button
+                      type="button"
+                      className="pagination-btn pagination-prev"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                      aria-label="Previous page"
+                    >
+                      Previous
+                    </button>
+                    <span className="pagination-info">
+                      Page {currentPage} of {effectiveTotalPages}
+                    </span>
+                    <div className="pagination-pages">
+                      {Array.from({ length: effectiveTotalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === effectiveTotalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                        .map((p, i, arr) => (
+                          <React.Fragment key={p}>
+                            {i > 0 && arr[i - 1] !== p - 1 && <span className="pagination-ellipsis">…</span>}
+                            <button
+                              type="button"
+                              className={`pagination-btn pagination-num ${p === currentPage ? 'active' : ''}`}
+                              onClick={() => handlePageChange(p)}
+                              aria-label={`Page ${p}`}
+                              aria-current={p === currentPage ? 'page' : undefined}
+                            >
+                              {p}
+                            </button>
+                          </React.Fragment>
+                        ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="pagination-btn pagination-next"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage >= effectiveTotalPages}
+                      aria-label="Next page"
+                    >
+                      Next
+                    </button>
+                  </nav>
+                )}
               </>
             )}
           </main>

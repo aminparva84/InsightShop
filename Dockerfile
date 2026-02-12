@@ -51,6 +51,7 @@ EXPOSE 5000
 # Set environment variables (App Runner can override at runtime)
 ENV FLASK_APP=app.py
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
 # Required in production by config.py; 32+ chars so app starts in container
 ENV FLASK_ENV=production
 ENV JWT_SECRET=InsightShop-AppRunner-Default-ChangeInConsole32

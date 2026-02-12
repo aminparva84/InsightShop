@@ -6,12 +6,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import app
 from models.database import db
 from models.product import Product
-try:
-    from utils.vector_db import add_product_to_vector_db
-    VECTOR_DB_AVAILABLE = True
-except ImportError:
-    VECTOR_DB_AVAILABLE = False
-    print("Warning: Vector DB not available, skipping vector indexing")
 import random
 import string
 
@@ -225,22 +219,9 @@ def seed_products():
         # Final commit
         db.session.commit()
         print(f"Successfully created {products_created} products!")
-        
-        # Add products to vector database
-        if VECTOR_DB_AVAILABLE:
-            print("Adding products to vector database...")
-            products = Product.query.all()
-            for i, product in enumerate(products):
-                try:
-                    add_product_to_vector_db(product.id, product.to_dict())
-                    if (i + 1) % 100 == 0:
-                        print(f"Added {i + 1} products to vector database...")
-                except Exception as e:
-                    print(f"Error adding product {product.id} to vector DB: {e}")
-        else:
-            print("Skipping vector database (not available)")
-        
-        print("Product seeding completed!")
+        # Vector DB is populated by deferred background sync in models.database.init_db()
+        # so we avoid OOM in the worker during startup (no 4050+ embeddings in one process).
+        print("Product seeding completed! (Vector DB will sync in background.)")
 
 if __name__ == '__main__':
     seed_products()

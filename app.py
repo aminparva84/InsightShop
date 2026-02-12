@@ -1,5 +1,15 @@
 # Load .env first so AWS_SECRETS_INSIGHTSHOP is set, then fetch secrets from AWS
 import os
+import sys
+
+# Force UTF-8 for stdout/stderr so logs and print() work with non-ASCII (e.g. CloudWatch, containers)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from dotenv import load_dotenv
 load_dotenv()
 from utils.secrets_loader import load_into_env

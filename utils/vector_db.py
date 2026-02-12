@@ -54,19 +54,32 @@ def init_vector_db():
         print(f"Error initializing vector database: {e}")
         return False
 
+def _safe_utf8(s):
+    """Coerce value to a UTF-8-safe string for Chroma and logging (avoids charmap errors)."""
+    if s is None:
+        return ""
+    raw = str(s)
+    try:
+        return raw.encode("utf-8", errors="replace").decode("utf-8")
+    except Exception:
+        return raw.encode("ascii", errors="replace").decode("ascii")
+
+
 def _product_to_document_and_metadata(product_id, product_data):
     """Build document text and metadata dict for one product (for add/upsert)."""
-    text = (
-        f"{product_data.get('name', '')} {product_data.get('description', '')} "
-        f"Category: {product_data.get('category', '')} Color: {product_data.get('color', '')} "
-        f"Size: {product_data.get('size', '')} Price: ${product_data.get('price', 0)}"
-    )
+    name = _safe_utf8(product_data.get("name", ""))
+    desc = _safe_utf8(product_data.get("description", ""))
+    category = _safe_utf8(product_data.get("category", ""))
+    color = _safe_utf8(product_data.get("color", ""))
+    size = _safe_utf8(product_data.get("size", ""))
+    price = product_data.get("price", 0)
+    text = f"{name} {desc} Category: {category} Color: {color} Size: {size} Price: ${price}"
     meta = {
-        'product_id': product_id,
-        'name': str(product_data.get('name', ''))[:255],
-        'category': str(product_data.get('category', ''))[:50],
-        'color': str(product_data.get('color', '') or '')[:50],
-        'price': str(product_data.get('price', 0))
+        "product_id": product_id,
+        "name": name[:255],
+        "category": category[:50],
+        "color": (color or "")[:50],
+        "price": str(price),
     }
     return text, meta
 

@@ -7,6 +7,54 @@ import { useAuth } from '../contexts/AuthContext';
 import { ScoopIcon, BowIcon, PaddingIcon, SlitIcon, getDressStyleIcon, MicrophoneIcon, SpeakerIcon, SpeakerOffIcon, StopIcon, PlayIcon } from './DressStyleIcons';
 import './AIChat.css';
 
+// Kendo-style toolbar icons (Copy, Retry, Download, More, Sparkles, Attachment)
+const CopyIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+  </svg>
+);
+const RetryIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 4v6h6"/>
+    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+  </svg>
+);
+const DownloadIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+const MoreVerticalIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="1"/>
+    <circle cx="12" cy="5" r="1"/>
+    <circle cx="12" cy="19" r="1"/>
+  </svg>
+);
+const SparklesIcon = ({ size = 64 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+    <path d="M5 19l1.5-2L9 17.5 7.5 19 6 20.5l1.5-2L9 17.5"/>
+    <path d="M19 5l-1.5 2L16 6.5 17.5 5 19 3.5l-1.5 2L16 6.5"/>
+  </svg>
+);
+const AttachmentIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+  </svg>
+);
+const TrashIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    <line x1="10" y1="11" x2="10" y2="17"/>
+    <line x1="14" y1="11" x2="14" y2="17"/>
+  </svg>
+);
+
 const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -121,6 +169,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
   });
   const [pollyAvailable, setPollyAvailable] = useState(true); // Assume available by default
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageMetadata, setImageMetadata] = useState(null);
@@ -686,6 +735,55 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     setShowClearConfirm(false);
   };
 
+  // Kendo-style suggestions (clickable prompts)
+  const SUGGESTIONS = [
+    { id: 'show_blue', text: 'Show me blue shirts' },
+    { id: 'compare', text: 'Compare products by ID' },
+    { id: 'on_sale', text: "What's on sale?" },
+    { id: 'style_advice', text: 'Style advice for an interview' }
+  ];
+
+  const handleSuggestionClick = (suggestion) => {
+    if (loading) return;
+    performSend(suggestion.text, messages);
+  };
+
+  // Toolbar actions for AI messages (Copy, Retry, Download)
+  const handleToolbarAction = (actionId, msg, msgIndex) => {
+    switch (actionId) {
+      case 'copy':
+        if (msg.content) {
+          navigator.clipboard.writeText(msg.content).catch(() => {});
+        }
+        break;
+      case 'retry':
+        if (msgIndex > 0) {
+          const prevMsg = messages[msgIndex - 1];
+          if (prevMsg.role === 'user' && prevMsg.content) {
+            const historyForRequest = messages.slice(0, msgIndex - 1);
+            performSend(prevMsg.content, historyForRequest);
+          }
+        }
+        break;
+      case 'download':
+        if (msg.content) {
+          const blob = new Blob([msg.content], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `message_${msgIndex}.txt`;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
   // Initialize speech recognition
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -912,53 +1010,34 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     }
   };
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
-    
-    // NOTE: Don't navigate here - let the response handler navigate with ai_results
-    // Only switch tab if we're already on products page and no ai_results exists
-    // This prevents overwriting the ai_results parameter that will be set by the response handler
+  // Core send: set messages (history + user message), call API, then handle response. Used by handleSend and Retry.
+  const performSend = async (userText, historyForRequest) => {
+    const userInputLower = userText.toLowerCase();
+    setMessages([...historyForRequest, { role: 'user', content: userText }]);
+    setLoading(true);
+
     if (location.pathname === '/products') {
       const currentParams = new URLSearchParams(window.location.search);
       const hasAiResults = currentParams.get('ai_results');
-      // Only switch tab if no ai_results exists (to avoid interfering with product navigation)
       if (currentParams.get('tab') !== 'ai' && !hasAiResults) {
         currentParams.set('tab', 'ai');
         navigate(`/products?${currentParams.toString()}`);
       }
     }
 
-    const userMessage = { role: 'user', content: input };
-    const userInputLower = input.toLowerCase();
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
-    
-    // Scroll chat messages to bottom and keep input focused
     setTimeout(() => {
-      // Scroll chat messages container to show new message
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-      // Keep input focused
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
+      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (inputRef.current) inputRef.current.focus();
     }, 50);
 
-    // Check if user wants to see products in chat (explicit request) - check BEFORE API call
     const showInChatKeywords = ['show it here', 'show here', 'display here', 'list here', 'show me here', 'tell me here', 'show them here'];
-    const wantsToSeeInChat = showInChatKeywords.some(keyword => 
-      userInputLower.includes(keyword)
-    );
+    const wantsToSeeInChat = showInChatKeywords.some(keyword => userInputLower.includes(keyword));
 
     try {
-      // Use chat-with-tools for admins so the assistant can perform admin actions (create products, orders, sales, etc.)
       const chatUrl = isAdmin ? '/api/ai/chat-with-tools' : '/api/ai/chat';
       const payload = {
-        message: input,
-        history: messages,
+        message: userText,
+        history: historyForRequest,
         selected_product_ids: selectedProductIds
       };
       const response = await axios.post(chatUrl, payload);
@@ -1263,102 +1342,123 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
     }
   };
 
+  const handleSend = (e) => {
+    e.preventDefault();
+    if (!input.trim() || loading) return;
+    performSend(input, messages);
+    setInput('');
+  };
+
+  const showEmptyState = messages.length <= 1 && messages[0]?.role === 'assistant';
+  const handleDownloadConversation = () => {
+    setHeaderMenuOpen(false);
+    const text = messages.map(m => `${m.role === 'user' ? 'You' : 'AI'}: ${m.content || ''}`).join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'conversation.txt';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div
-      className={`ai-chat ${isInline ? 'ai-chat-inline' : ''}`}
+      className={`ai-chat ai-chat-kendo ${isInline ? 'ai-chat-inline' : ''}`}
       role="region"
       aria-label="AI Shopping Assistant chat"
     >
-      <div className="ai-chat-header">
-        <h3>AI Shopping Assistant</h3>
-        <div className="ai-chat-header-buttons">
-          <button 
-            onClick={() => setShowClearConfirm(true)} 
-            className="clear-btn" 
-            title="Clear chat history"
-          >
-            Clear
-          </button>
+      <div className="ai-chat-header kendo-header">
+        <div className="kendo-header-avatar">
+          <div className="kendo-avatar" aria-hidden="true" />
+        </div>
+        <div className="kendo-header-title">AI Shopping Assistant</div>
+        <div className="kendo-header-spacer" />
+        <div className="kendo-header-actions">
+          <div className="kendo-dropdown-wrap">
+            <button
+              type="button"
+              className="kendo-header-menu-btn"
+              onClick={() => setHeaderMenuOpen(prev => !prev)}
+              aria-haspopup="true"
+              aria-expanded={headerMenuOpen}
+              title="Menu"
+            >
+              <MoreVerticalIcon size={20} />
+            </button>
+            {headerMenuOpen && (
+              <>
+                <div className="kendo-dropdown-backdrop" onClick={() => setHeaderMenuOpen(false)} aria-hidden="true" />
+                <div className="kendo-dropdown-menu">
+                  <button type="button" className="kendo-dropdown-item" onClick={handleDownloadConversation}>
+                    <DownloadIcon size={16} /> Download conversation
+                  </button>
+                  <button type="button" className="kendo-dropdown-item" onClick={() => { setShowClearConfirm(true); setHeaderMenuOpen(false); }}>
+                    <TrashIcon size={16} /> Clear conversation
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           {!isInline && (
             <>
-              <button onClick={onMinimize || onClose} className="minimize-btn" title="Minimize">
-                −
-              </button>
-              <button onClick={onClose} className="close-btn" title="Close">×</button>
+              <button type="button" onClick={onMinimize || onClose} className="kendo-header-icon-btn" title="Minimize">−</button>
+              <button type="button" onClick={onClose} className="kendo-header-icon-btn" title="Close">×</button>
             </>
           )}
         </div>
       </div>
 
       <div className="ai-chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
-        {messages.map((msg, idx) => {
+        {showEmptyState ? (
+          <div className="kendo-empty-state">
+            <div className="kendo-empty-icon">
+              <SparklesIcon size={64} />
+            </div>
+            <p className="kendo-empty-title">Ask AI</p>
+            <p className="kendo-empty-subtitle">Start conversation by typing a message or selecting a prompt.</p>
+            <div className="kendo-suggestions-chips">
+              {SUGGESTIONS.map(s => (
+                <button key={s.id} type="button" className="kendo-suggestion-chip" onClick={() => handleSuggestionClick(s)}>
+                  {s.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {!showEmptyState && messages.map((msg, idx) => {
           const messageId = `msg-${idx}`;
           const isCurrentlyPlaying = currentlyPlayingMessageId === messageId;
-          
-          // Debug log for assistant messages
-          if (msg.role === 'assistant' && idx === messages.length - 1) {
-            console.log('[FRONTEND] 🎨 Rendering assistant message:', {
-              messageId,
-              idx,
-              contentLength: msg.content?.length,
-              isCurrentlyPlaying,
-              totalMessages: messages.length
-            });
-          }
           
           return (
           <div key={idx} className={`message ${msg.role}`} role="article" aria-label={msg.role === 'user' ? 'Your message' : 'Assistant message'}>
             <div className="message-content">
-              {/* Play button for assistant messages - always show, handle errors gracefully */}
+              {/* Kendo-style toolbar for assistant messages: Copy, Retry, Download + Play */}
               {msg.role === 'assistant' && (
-                <button
-                  onClick={() => {
-                    if (isCurrentlyPlaying) {
-                      console.log('[FRONTEND] 🛑 Stop button clicked for message:', messageId);
-                      stopSpeaking();
-                    } else {
-                      console.log('[FRONTEND] 🎵 Play button clicked for message:', messageId);
-                      playMessage(msg.content, messageId);
-                    }
-                  }}
-                  className="message-play-btn"
-                  title={isCurrentlyPlaying ? "Click to stop playback" : "Play voice"}
-                  disabled={loading}
-                  style={{
-                    position: 'absolute',
-                    top: '8px',
-                    right: '8px',
-                    background: isCurrentlyPlaying ? '#ef4444' : 'rgba(212, 175, 55, 0.15)',
-                    border: isCurrentlyPlaying ? '1px solid #dc2626' : '1px solid #d4af37',
-                    borderRadius: '4px',
-                    padding: '4px 8px',
-                    cursor: loading ? 'default' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '12px',
-                    color: isCurrentlyPlaying ? '#ffffff' : '#1a2332',
-                    transition: 'all 0.2s',
-                    zIndex: 100,
-                    visibility: 'visible',
-                    opacity: 0.9,
-                    minWidth: '60px',
-                    fontWeight: '500',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-                  }}
-                >
-                  {isCurrentlyPlaying ? (
-                    <>
-                      <StopIcon size={14} />
-                      <span>Stop</span>
-                    </>
-                  ) : (
-                    <>
-                      <PlayIcon size={14} />
-                      <span>Play</span>
-                    </>
-                  )}
-                </button>
+                <div className="kendo-message-toolbar">
+                  <button type="button" className="kendo-toolbar-btn" title="Copy" onClick={() => handleToolbarAction('copy', msg, idx)}>
+                    <CopyIcon size={14} /> Copy
+                  </button>
+                  <button type="button" className="kendo-toolbar-btn" title="Retry" onClick={() => handleToolbarAction('retry', msg, idx)} disabled={loading || idx === 0}>
+                    <RetryIcon size={14} /> Retry
+                  </button>
+                  <button type="button" className="kendo-toolbar-btn" title="Download" onClick={() => handleToolbarAction('download', msg, idx)}>
+                    <DownloadIcon size={14} /> Download
+                  </button>
+                  <button
+                    type="button"
+                    className="kendo-toolbar-btn kendo-toolbar-play"
+                    title={isCurrentlyPlaying ? 'Stop' : 'Play voice'}
+                    disabled={loading}
+                    onClick={() => isCurrentlyPlaying ? stopSpeaking() : playMessage(msg.content, messageId)}
+                  >
+                    {isCurrentlyPlaying ? <StopIcon size={14} /> : <PlayIcon size={14} />}
+                    {isCurrentlyPlaying ? ' Stop' : ' Play'}
+                  </button>
+                </div>
               )}
               {msg.image && (
                 <div style={{ marginBottom: '10px' }}>
@@ -1811,7 +1911,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       </div>
 
 
-      <form onSubmit={handleSend} className="ai-chat-input">
+      <form onSubmit={handleSend} className="ai-chat-input kendo-type-box">
         <input
           type="file"
           ref={fileInputRef}
@@ -1820,181 +1920,82 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           style={{ display: 'none' }}
           disabled={loading || uploadingImage}
         />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="voice-btn"
-          title="Upload image"
-          disabled={loading || uploadingImage}
-          style={{ 
-            background: uploadingImage ? '#6b7280' : 'rgba(255, 255, 255, 0.1)',
-            cursor: uploadingImage ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {uploadingImage ? '⏳' : '📷'}
-        </button>
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            // Keep focus on input when typing
-            if (inputRef.current && document.activeElement !== inputRef.current) {
-              inputRef.current.focus();
-            }
-          }}
-          onFocus={() => {
-            // Prevent scrolling when input is focused
-            if (messagesEndRef.current) {
-              messagesEndRef.current.scrollIntoView = () => {}; // Disable auto-scroll
-            }
-          }}
-          onBlur={() => {
-            // Re-enable scrolling when input loses focus
-            if (messagesEndRef.current) {
-              messagesEndRef.current.scrollIntoView = function(options) {
-                Element.prototype.scrollIntoView.call(this, options);
-              };
-            }
-          }}
-          placeholder="Ask about products, compare items, or describe what you're looking for..."
-          disabled={loading || isListening}
-          aria-label="Message to AI assistant"
-        />
-        <button
-          type="button"
-          onClick={toggleVoiceInput}
-          className={`voice-btn ${isListening ? 'listening' : ''}`}
-          title={isListening ? 'Stop listening' : 'Start voice input'}
-          disabled={loading}
-        >
-          <MicrophoneIcon size={18} />
-        </button>
-        <div className="voice-controls">
+        <div className="kendo-type-box-inner">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="kendo-type-box-icon kendo-attach-btn"
+            title="Attach image"
+            disabled={loading || uploadingImage}
+          >
+            <AttachmentIcon size={20} />
+          </button>
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onFocus={() => {
+              if (messagesEndRef.current) messagesEndRef.current.scrollIntoView = () => {};
+            }}
+            onBlur={() => {
+              if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView = function(options) {
+                  Element.prototype.scrollIntoView.call(this, options);
+                };
+              }
+            }}
+            placeholder="Type a message..."
+            disabled={loading || isListening}
+            aria-label="Message to AI assistant"
+            className="kendo-type-box-input"
+          />
+          <button
+            type="button"
+            onClick={toggleVoiceInput}
+            className={`kendo-type-box-icon kendo-mic-btn ${isListening ? 'listening' : ''}`}
+            title={isListening ? 'Stop listening' : 'Microphone'}
+            disabled={loading}
+          >
+            <MicrophoneIcon size={20} />
+          </button>
           <button
             type="button"
             onClick={toggleVoice}
-            className={`voice-btn ${voiceEnabled ? 'speaking-enabled' : ''} ${isSpeaking ? 'speaking' : ''} ${!pollyAvailable ? 'polly-unavailable' : ''}`}
-            title={
-              !pollyAvailable 
-                ? 'AWS Polly not configured - Set AWS credentials in .env to enable voice' 
-                : voiceEnabled 
-                  ? (isSpeaking ? 'AI is speaking - Click to stop' : 'Voice enabled - Click to disable') 
-                  : 'Enable AI voice responses'
-            }
+            className={`kendo-type-box-icon kendo-speaker-btn ${voiceEnabled ? 'on' : ''} ${!pollyAvailable ? 'unavailable' : ''}`}
+            title={voiceEnabled ? 'Voice on' : 'Voice off'}
             disabled={loading || !pollyAvailable}
           >
-            {isSpeaking ? <SpeakerIcon size={18} /> : voiceEnabled ? <SpeakerIcon size={18} /> : <SpeakerOffIcon size={18} />}
+            {voiceEnabled ? <SpeakerIcon size={20} /> : <SpeakerOffIcon size={20} />}
           </button>
-          {voiceEnabled && (
-            <>
-              <select
-                className="voice-gender-select"
-                value={voiceId}
-                onChange={(e) => {
-                  setVoiceId(e.target.value);
-                  if (isSpeaking) stopSpeaking();
-                }}
-                title="Select voice"
-              >
-                <optgroup label="Women's Voices">
-                  <option value="Joanna">Joanna (Neural) - Default</option>
-                  <option value="Kendra">Kendra (Warm)</option>
-                  <option value="Amy">Amy (Expressive)</option>
-                  <option value="Kimberly">Kimberly (Smooth)</option>
-                  <option value="Salli">Salli (Clear)</option>
-                  <option value="Ivy">Ivy (Young)</option>
-                </optgroup>
-                <optgroup label="Men's Voices">
-                  <option value="Joey">Joey (Energetic)</option>
-                  <option value="Justin">Justin (Expressive)</option>
-                  <option value="Matthew">Matthew (Calm)</option>
-                  <option value="Kevin">Kevin (Neural)</option>
-                  <option value="Brian">Brian (British)</option>
-                  <option value="Russell">Russell (Australian)</option>
-                </optgroup>
-              </select>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 4px' }}>
-                <label style={{ fontSize: '11px', color: '#1a2332', whiteSpace: 'nowrap' }}>Speed:</label>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="2.0"
-                  step="0.1"
-                  value={speechSpeed}
-                  onChange={(e) => {
-                    setSpeechSpeed(parseFloat(e.target.value));
-                    if (isSpeaking) stopSpeaking();
-                  }}
-                  title={`Speech speed: ${speechSpeed}x`}
-                  style={{ width: '60px', cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '11px', color: '#1a2332', minWidth: '30px' }}>{speechSpeed.toFixed(1)}x</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 4px' }}>
-                <label style={{ fontSize: '11px', color: '#1a2332', whiteSpace: 'nowrap' }}>Volume:</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={voiceVolume}
-                  onChange={(e) => {
-                    setVoiceVolume(parseFloat(e.target.value));
-                    if (isSpeaking) stopSpeaking();
-                  }}
-                  title={`Volume: ${Math.round(voiceVolume * 100)}%`}
-                  style={{ width: '60px', cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '11px', color: '#1a2332', minWidth: '35px' }}>{Math.round(voiceVolume * 100)}%</span>
-              </div>
-            </>
-          )}
           {isSpeaking && (
-            <button
-              type="button"
-              onClick={stopSpeaking}
-              className="voice-btn"
-              title="Stop speaking"
-              style={{ background: '#ef4444', borderColor: '#dc2626' }}
-            >
-              <StopIcon size={18} />
+            <button type="button" onClick={stopSpeaking} className="kendo-type-box-icon kendo-stop-btn" title="Stop speaking">
+              <StopIcon size={20} />
             </button>
           )}
+          <button
+            type="submit"
+            className="kendo-send-btn"
+            disabled={loading || !input.trim() || isListening}
+            title="Send"
+          >
+            Send
+          </button>
         </div>
-        <button type="submit" disabled={loading || !input.trim() || isListening}>
-          Send
-        </button>
       </form>
       
-      {/* Clear History Confirmation Modal */}
+      {/* Kendo-style clear conversation dialog */}
       {showClearConfirm && (
-        <div
-          className="ai-chat-modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="ai-chat-clear-title"
-          aria-describedby="ai-chat-clear-desc"
-          onClick={(e) => e.target === e.currentTarget && setShowClearConfirm(false)}
-        >
-          <div className="ai-chat-modal">
-            <h3 id="ai-chat-clear-title" style={{ marginTop: 0 }}>Clear Chat History?</h3>
-            <p id="ai-chat-clear-desc">Are you sure you want to clear all chat messages? This action cannot be undone.</p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
-              <button
-                type="button"
-                onClick={() => setShowClearConfirm(false)}
-                className="ai-chat-modal-cancel"
-              >
-                Cancel
+        <div className="ai-chat-modal-overlay kendo-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="ai-chat-clear-title" onClick={(e) => e.target === e.currentTarget && setShowClearConfirm(false)}>
+          <div className="ai-chat-modal kendo-dialog">
+            <h3 id="ai-chat-clear-title" className="kendo-dialog-title">Delete conversation</h3>
+            <p className="kendo-dialog-body">Are you sure you want to delete the <b>&#39;AI Shopping Assistant&#39;</b> conversation?</p>
+            <div className="kendo-dialog-actions">
+              <button type="button" onClick={handleClearHistory} className="kendo-dialog-primary">
+                Delete
               </button>
-              <button
-                type="button"
-                onClick={handleClearHistory}
-                className="ai-chat-modal-confirm"
-              >
-                Clear
+              <button type="button" onClick={() => setShowClearConfirm(false)} className="kendo-dialog-cancel">
+                Cancel
               </button>
             </div>
           </div>

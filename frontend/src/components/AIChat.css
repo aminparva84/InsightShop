@@ -999,3 +999,403 @@
     max-width: 80px;
   }
 }
+
+/* ==========================================================================
+   Kendo-style conversational UI (look only; logic unchanged)
+   ========================================================================== */
+
+.ai-chat-kendo .kendo-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--ai-chat-spacing-md) var(--ai-chat-spacing-lg);
+}
+
+.kendo-header-avatar {
+  flex-shrink: 0;
+}
+
+.kendo-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ai-chat-accent) 0%, var(--ai-chat-accent-hover) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.kendo-header-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ai-chat-header-text);
+  flex-shrink: 0;
+}
+
+.kendo-header-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.kendo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kendo-header-menu-btn,
+.kendo-header-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--ai-chat-radius-sm);
+  color: var(--ai-chat-header-text);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.kendo-header-menu-btn:hover,
+.kendo-header-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.kendo-dropdown-wrap {
+  position: relative;
+}
+
+.kendo-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.kendo-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 200px;
+  padding: 4px 0;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: var(--ai-chat-radius-sm);
+  box-shadow: var(--ai-chat-shadow-lg);
+  border: 1px solid var(--ai-chat-border);
+  z-index: 2;
+}
+
+.kendo-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  font-size: 0.875rem;
+  color: var(--ai-chat-assistant-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.kendo-dropdown-item:hover {
+  background: var(--ai-chat-surface);
+}
+
+/* Empty state – Ask AI */
+.kendo-empty-state {
+  width: 100%;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 24px;
+  padding: 24px 20px;
+}
+
+.kendo-empty-icon {
+  color: var(--ai-chat-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kendo-empty-title {
+  margin: 0;
+  font-size: var(--kendo-font-size-lg, 1.125rem);
+  font-weight: 600;
+  color: var(--ai-chat-assistant-text);
+}
+
+.kendo-empty-subtitle {
+  margin: 0;
+  font-size: var(--kendo-font-size-md, 0.9375rem);
+  color: var(--ai-chat-muted);
+  max-width: 280px;
+}
+
+.kendo-suggestions-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.kendo-suggestion-chip {
+  padding: 10px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--ai-chat-border);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ai-chat-assistant-text);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.kendo-suggestion-chip:hover {
+  background: var(--ai-chat-accent-muted);
+  border-color: var(--ai-chat-accent);
+  transform: translateY(-1px);
+}
+
+/* AI message toolbar – Copy, Retry, Download, Play */
+.kendo-message-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.kendo-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ai-chat-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.kendo-toolbar-btn:hover:not(:disabled) {
+  background: var(--ai-chat-surface);
+  color: var(--ai-chat-assistant-text);
+}
+
+.kendo-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kendo-toolbar-play {
+  margin-left: auto;
+}
+
+/* Kendo: assistant message transparent background */
+.ai-chat-kendo .message.assistant .message-content {
+  background: transparent;
+  padding-right: var(--ai-chat-spacing-md);
+  padding-top: 4px;
+}
+
+/* Kendo-style type box: single bar with attachment | input | mic | send (like template) */
+.ai-chat-kendo .kendo-type-box {
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+
+.kendo-type-box-inner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 48px;
+  padding: 0 4px 0 2px;
+  background: #fff;
+  border: 1px solid var(--ai-chat-border);
+  border-radius: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.kendo-type-box-inner:focus-within {
+  border-color: var(--ai-chat-accent);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+/* Icon buttons inside the type box (attachment, mic, speaker, stop) – Kendo fillMode="flat" style */
+.kendo-type-box-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ai-chat-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.kendo-type-box-icon:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ai-chat-assistant-text);
+}
+
+.kendo-type-box-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kendo-attach-btn:hover:not(:disabled),
+.kendo-mic-btn:hover:not(:disabled),
+.kendo-speaker-btn:hover:not(:disabled) {
+  color: var(--ai-chat-header-bg);
+}
+
+.kendo-mic-btn.listening {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.kendo-speaker-btn.on {
+  color: #059669;
+}
+
+.kendo-stop-btn {
+  color: #dc2626;
+}
+
+.kendo-speaker-btn.unavailable {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Input inside the type box – no border, seamless (like Kendo) */
+.kendo-type-box-input {
+  flex: 1 1 0;
+  min-width: 80px;
+  height: 44px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  color: var(--ai-chat-assistant-text);
+}
+
+.kendo-type-box-input::placeholder {
+  color: var(--ai-chat-muted);
+}
+
+.kendo-type-box-input:focus {
+  outline: none;
+}
+
+/* Send button – primary, right side of the bar */
+.kendo-type-box-inner .kendo-send-btn {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  height: 40px;
+  margin-left: 4px;
+  border-radius: 20px;
+  border: none;
+  background: var(--ai-chat-header-bg);
+  color: var(--ai-chat-header-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.kendo-type-box-inner .kendo-send-btn:hover:not(:disabled) {
+  background: #0f1729;
+  transform: translateY(-1px);
+}
+
+.kendo-type-box-inner .kendo-send-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dialog – Delete conversation */
+.kendo-dialog-overlay {
+  align-items: center;
+  justify-content: center;
+}
+
+.kendo-dialog {
+  max-width: 400px;
+  padding: 0 0 24px;
+}
+
+.kendo-dialog-title {
+  margin: 0;
+  padding: 20px 24px 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--ai-chat-assistant-text);
+}
+
+.kendo-dialog-body {
+  margin: 16px 25px 24px;
+  text-align: center;
+  font-size: 0.9375rem;
+  color: var(--ai-chat-muted);
+  line-height: 1.5;
+}
+
+.kendo-dialog-body b {
+  color: var(--ai-chat-assistant-text);
+}
+
+.kendo-dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  padding: 0 24px;
+}
+
+.kendo-dialog-primary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--ai-chat-radius-sm);
+  background: var(--ai-chat-header-bg);
+  color: var(--ai-chat-header-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.kendo-dialog-primary:hover {
+  background: #0f1729;
+}
+
+.kendo-dialog-cancel {
+  padding: 10px 20px;
+  border: 1px solid var(--ai-chat-border);
+  border-radius: var(--ai-chat-radius-sm);
+  background: transparent;
+  color: var(--ai-chat-assistant-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.kendo-dialog-cancel:hover {
+  background: var(--ai-chat-surface);
+}

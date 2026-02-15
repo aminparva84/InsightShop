@@ -54,6 +54,12 @@ const TrashIcon = ({ size = 16 }) => (
     <line x1="14" y1="11" x2="14" y2="17"/>
   </svg>
 );
+const SendIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
 
 const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null }) => {
   const navigate = useNavigate();
@@ -1975,11 +1981,11 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
           )}
           <button
             type="submit"
-            className="kendo-send-btn"
+            className="kendo-send-btn kendo-send-icon-btn"
             disabled={loading || !input.trim() || isListening}
             title="Send"
           >
-            Send
+            <SendIcon size={20} />
           </button>
         </div>
       </form>

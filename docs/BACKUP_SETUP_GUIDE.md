@@ -74,20 +74,26 @@ python scripts/backup_to_s3.py
 
 ## 🔄 Restore from Backup
 
-### List Available Backups
-```bash
-python scripts/restore_from_s3.py list
-```
+### PostgreSQL (when `DATABASE_URL` is set)
 
-### Restore Latest Backup
-```bash
-python scripts/restore_from_s3.py latest
-```
+- **From a local dump file** (e.g. a `.sql` you have from a previous `pg_dump` or from S3 download):
+  ```bash
+  cd C:\code\InsightShop
+  set PYTHONPATH=%CD%
+  python scripts/restore_from_s3.py path\to\backup.sql
+  ```
+- **From S3** (after you have run `backup_to_s3.py` at least once):
+  ```bash
+  set PYTHONPATH=%CD%
+  python scripts/restore_from_s3.py list
+  python scripts/restore_from_s3.py latest --yes
+  ```
 
-### Restore Specific Backup
-```bash
-python scripts/restore_from_s3.py 20241201_020000
-```
+### SQLite (when `DATABASE_URL` is not set)
+
+- **List backups:** `python scripts/restore_from_s3.py list`
+- **Restore latest:** `python scripts/restore_from_s3.py latest` (add `--yes` to skip prompt)
+- **Restore by timestamp:** `python scripts/restore_from_s3.py 20241201_020000`
 
 ## 💰 S3 Backup Costs
 

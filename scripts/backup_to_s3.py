@@ -1,11 +1,12 @@
 """
 Automated backup script for InsightShop databases to S3.
-Backs up both SQLite database and ChromaDB vector database.
+Backs up PostgreSQL (when DATABASE_URL is set) or SQLite, and ChromaDB vector database.
 """
 import boto3
 from datetime import datetime
 from config import Config
 import os
+import subprocess
 import tarfile
 import shutil
 import logging
@@ -31,6 +32,67 @@ def get_s3_client():
     except Exception as e:
         logger.error(f"Failed to initialize S3 client: {e}")
         return None
+
+def backup_postgres_database(s3_client, bucket_name, instance_id=None):
+    """Backup PostgreSQL database to S3 using pg_dump."""
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        temp_dir = os.environ.get('TEMP', os.environ.get('TMP', '/tmp'))
+        if not os.path.exists(temp_dir):
+            temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        dump_path = os.path.join(temp_dir, f'insightshop_pg_{timestamp}.sql')
+
+        logger.info("Running pg_dump...")
+        result = subprocess.run(
+            ['pg_dump', '--no-password', '--clean', '--if-exists', '--file', dump_path, Config.DATABASE_URL],
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            logger.error(f"pg_dump failed: {result.stderr}")
+            return False
+        if not os.path.exists(dump_path):
+            logger.error("pg_dump did not create output file")
+            return False
+
+        if instance_id:
+            backup_key = f"backups/{instance_id}/database/insightshop_{timestamp}.sql"
+        else:
+            backup_key = f"backups/database/insightshop_{timestamp}.sql"
+
+        logger.info(f"Backing up database to s3://{bucket_name}/{backup_key}")
+        s3_client.upload_file(
+            dump_path,
+            bucket_name,
+            backup_key,
+            ExtraArgs={'ServerSideEncryption': 'AES256', 'StorageClass': 'STANDARD_IA'}
+        )
+        logger.info(f"✅ Database backup successful: {backup_key}")
+
+        latest_key = backup_key.replace(f"_{timestamp}", "_latest")
+        s3_client.copy_object(
+            Bucket=bucket_name,
+            CopySource={'Bucket': bucket_name, 'Key': backup_key},
+            Key=latest_key,
+            ServerSideEncryption='AES256',
+            StorageClass='STANDARD_IA'
+        )
+        logger.info(f"✅ Latest backup created: {latest_key}")
+
+        try:
+            os.remove(dump_path)
+        except Exception:
+            pass
+        return True
+    except FileNotFoundError:
+        logger.error("pg_dump not found. Install PostgreSQL client tools.")
+        return False
+    except Exception as e:
+        logger.error(f"❌ PostgreSQL backup failed: {e}")
+        return False
+
 
 def backup_sqlite_database(s3_client, bucket_name, instance_id=None):
     """Backup SQLite database to S3."""
@@ -222,8 +284,11 @@ def main():
             logger.error(f"❌ Error accessing bucket: {e}")
             return False
     
-    # Perform backups
-    db_success = backup_sqlite_database(s3_client, bucket_name, instance_id)
+    # Perform backups: PostgreSQL if DATABASE_URL set, else SQLite
+    if Config.DATABASE_URL:
+        db_success = backup_postgres_database(s3_client, bucket_name, instance_id)
+    else:
+        db_success = backup_sqlite_database(s3_client, bucket_name, instance_id)
     vector_success = backup_chromadb(s3_client, bucket_name, instance_id)
     
     # Cleanup old backups (keep last 30 days)

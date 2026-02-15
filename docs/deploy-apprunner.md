@@ -37,6 +37,7 @@ In your GitHub repo: **Settings → Secrets and variables → Actions**, add:
 | `APP_RUNNER_ACCESS_ROLE_ARN` | Yes | **Must be an IAM role with App Runner permissions.** Used by App Runner to pull the image from ECR. The script creates `InsightShopAppRunnerECRAccess` for this. |
 | `APP_RUNNER_INSTANCE_ROLE_ARN` | No | **Must be an IAM role for your App Runner instance** (optional). Used by the running app (e.g. to read Secrets Manager). The script creates `InsightShopAppRunnerInstanceRole` for this. |
 | `JWT_SECRET` | No | **Recommended for production.** At least 32 characters; used by the app when `FLASK_ENV=production`. If unset, the workflow uses a default so the service can start—set a strong value in App Runner or as this secret. |
+| `DATABASE_URL` | No | **Optional.** PostgreSQL connection URL (e.g. `postgresql://user:pass@host:5432/dbname`). If set, the workflow injects it when **creating** the App Runner service (first deploy). For existing services, set it in **App Runner → Configuration → Environment variables**. To use PostgreSQL with App Runner, see [APP_RUNNER_POSTGRES.md](APP_RUNNER_POSTGRES.md). |
 
 You do **not** need `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY`; the workflow uses OIDC with `role-to-assume`.
 
@@ -54,7 +55,7 @@ Workflow file: [.github/workflows/deploy-apprunner.yml](../.github/workflows/dep
 - **Region**: us-east-1
 - **Service name**: `insightshop`
 
-To add environment variables (e.g. `AWS_SECRETS_INSIGHTSHOP`, `JWT_SECRET`), use the AWS Console: **App Runner → insightshop → Configuration → Edit → Environment variables**, or extend the workflow’s `ImageConfiguration.RuntimeEnvironmentVariables` and/or use **RuntimeEnvironmentSecrets** for values from Secrets Manager.
+To add environment variables (e.g. `AWS_SECRETS_INSIGHTSHOP`, `JWT_SECRET`, `DATABASE_URL`), use the AWS Console: **App Runner → insightshop → Configuration → Edit → Environment variables**, or add the workflow’s **GitHub secret `DATABASE_URL` so the workflow injects it when creating the service. To use **PostgreSQL** with App Runner (RDS + VPC connector), see **[APP_RUNNER_POSTGRES.md](APP_RUNNER_POSTGRES.md)**.
 
 ## 5. Get the live URL
 

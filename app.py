@@ -19,7 +19,7 @@ from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import Config
-from models.database import db, init_db
+from models.database import db, init_db, ensure_postgres_database
 from flask_migrate import Migrate
 
 # SPA build: index.html at frontend/build, assets at frontend/build/static (CRA)
@@ -31,6 +31,7 @@ app.url_map.strict_slashes = False
 app.config.from_object(Config)
 # Database: use DATABASE_URL (e.g. PostgreSQL) if set; otherwise SQLite under instance/
 if Config.DATABASE_URL:
+    ensure_postgres_database(Config.DATABASE_URL)
     app.config['SQLALCHEMY_DATABASE_URI'] = Config.DATABASE_URL
     # PostgreSQL: pool_pre_ping avoids stale connections; optionally tune pool size
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {

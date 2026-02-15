@@ -5,6 +5,44 @@ import os
 db = SQLAlchemy()
 
 
+def ensure_postgres_database(uri):
+    """
+    If URI is PostgreSQL, ensure the target database exists by connecting to
+    the 'postgres' database and creating it if missing. No-op for non-PostgreSQL URIs.
+    """
+    if not uri or not uri.strip().lower().startswith("postgresql"):
+        return
+    from urllib.parse import urlparse, urlunparse
+    from sqlalchemy import create_engine, text
+
+    parsed = urlparse(uri)
+    path = (parsed.path or "/").lstrip("/")
+    # path may be "dbname" or "dbname?sslmode=require"
+    dbname = path.split("?")[0].strip() or "postgres"
+    if dbname == "postgres":
+        return
+    if not all(c.isalnum() or c == "_" for c in dbname):
+        return
+    # Build URI pointing to 'postgres' database so we can run CREATE DATABASE
+    netloc = parsed.netloc or ""
+    query = "?" + parsed.query if parsed.query else ""
+    admin_path = "/postgres" + query
+    admin_uri = urlunparse((parsed.scheme, netloc, admin_path, parsed.params, "", ""))
+    engine = None
+    try:
+        engine = create_engine(admin_uri, isolation_level="AUTOCOMMIT")
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": dbname}).fetchone()
+            if row is None:
+                conn.execute(text('CREATE DATABASE "' + dbname.replace('"', '""') + '"'))
+                print(f"[DB] Created PostgreSQL database: {dbname}")
+    except Exception as e:
+        print(f"[DB] Could not ensure database {dbname!r}: {e}")
+    finally:
+        if engine is not None:
+            engine.dispose()
+
+
 def _table_has_column(connection, table_name, column_name, dialect_name):
     """Return True if the table has the column. Works with SQLite and PostgreSQL."""
     from sqlalchemy import text

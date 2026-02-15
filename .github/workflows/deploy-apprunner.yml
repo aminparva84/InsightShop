@@ -55,6 +55,7 @@ jobs:
           ACCESS_ROLE_ARN: ${{ secrets.APP_RUNNER_ACCESS_ROLE_ARN }}
           INSTANCE_ROLE_ARN: ${{ secrets.APP_RUNNER_INSTANCE_ROLE_ARN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           set -e
           SERVICE_ARN=$(aws apprunner list-services --region $AWS_REGION --query "ServiceSummaryList[?ServiceName=='$APP_RUNNER_SERVICE_NAME'].ServiceArn" --output text)
@@ -67,7 +68,15 @@ jobs:
           access_arn = os.environ["ACCESS_ROLE_ARN"]
           instance_arn = os.environ.get("INSTANCE_ROLE_ARN", "").strip()
           jwt = os.environ.get("JWT_SECRET", "InsightShop-AppRunner-Default-ChangeInConsole32")
+          database_url = os.environ.get("DATABASE_URL", "").strip()
           service_name = os.environ["APP_RUNNER_SERVICE_NAME"]
+          runtime_vars = {
+            "FLASK_ENV": "production",
+            "PYTHONUNBUFFERED": "1",
+            "JWT_SECRET": jwt
+          }
+          if database_url:
+            runtime_vars["DATABASE_URL"] = database_url
           cfg = {
             "ServiceName": service_name,
             "SourceConfiguration": {
@@ -76,11 +85,7 @@ jobs:
                 "ImageRepositoryType": "ECR",
                 "ImageConfiguration": {
                   "Port": "5000",
-                  "RuntimeEnvironmentVariables": {
-                    "FLASK_ENV": "production",
-                    "PYTHONUNBUFFERED": "1",
-                    "JWT_SECRET": jwt
-                  }
+                  "RuntimeEnvironmentVariables": runtime_vars
                 }
               },
               "AuthenticationConfiguration": {"AccessRoleArn": access_arn},

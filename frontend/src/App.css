@@ -1,7 +1,13 @@
+/* Global background: muted brown/taupe (Layer 1 of banner) */
+body {
+  background: #A18A72;
+}
+
 .App {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #A18A72;
 }
 
 .main-content {

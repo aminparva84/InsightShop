@@ -129,21 +129,32 @@ const Home = () => {
     }
   };
 
+  const heroModelSrc = `${process.env.PUBLIC_URL || ''}/images/hero-model.png`;
+
   return (
     <div className="home">
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="hero-content">
-          <h1 className="hero-title">Welcome to InsightShop - Get AI Help</h1>
-          <p className="hero-subtitle">Discover Fashion That Fits Your Style</p>
-          <button
-            type="button"
-            className="hero-ai-button"
-            onClick={openAIChatPopup}
-          >
-            Chat with AI Assistant
-          </button>
+      {/* Top Banner: 4 layers with IDs for reference
+          Asset 1 = background, Asset 2 = rounded rect, Asset 3 = image, Asset 4 = text */}
+      <section className="hero banner-four-layers">
+        {/* Asset 1: Background */}
+        <div id="banner-asset-1" className="hero-layer hero-layer-bg" data-asset-name="background" aria-hidden="true" />
+        {/* Asset 2: One-corner rounded rectangle (CSS shape) */}
+        <div id="banner-asset-2" className="hero-layer hero-layer-rounded-rect" data-asset-name="rounded-rectangle" aria-hidden="true" />
+        {/* Asset 3: Image (model/woman with sunglasses) */}
+        <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
+          <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
         </div>
+        {/* Asset 4: Text (INSIGHT SHOP + insight shop) */}
+        <div id="banner-asset-4" className="hero-layer hero-layer-text" data-asset-name="text">
+          <h1 className="hero-title-line">
+            <span className="hero-title">INSIGHT SHOP</span>
+            <span className="hero-subtitle-script">insight shop</span>
+          </h1>
+        </div>
+        <button type="button" className="hero-cta" onClick={openAIChatPopup}>
+          Chat with Ai assistant
+        </button>
+        <span className="hero-help-info">HELP INFO</span>
       </section>
 
       {/* Featured Products */}

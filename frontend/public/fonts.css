@@ -1,0 +1,16 @@
+/* Optional: add TheBoldFont.woff2 and SaintTimothy.woff2 to public/fonts/ to use these */
+@font-face {
+  font-family: 'The Bold Font';
+  src: local('The Bold Font'), url('/fonts/TheBoldFont.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Saint Timothy';
+  src: local('Saint Timothy'), url('/fonts/SaintTimothy.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

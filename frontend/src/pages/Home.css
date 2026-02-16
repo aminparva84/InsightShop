@@ -1,132 +1,143 @@
+/*
+ * For The Bold Font / Saint Timothy: add .woff2 files to src/assets/fonts/ and uncomment
+ * the @font-face in index.html or a global CSS file, then use those font-family names first.
+ * Until then, Bebas Neue and Dancing Script are used as the design fallbacks.
+ */
+
 .home {
   flex: 1;
 }
 
-.hero {
-  background: linear-gradient(135deg, #1a2332 0%, #2d3748 50%, #1a2332 100%);
-  background-image: url('https://images.unsplash.com/photo-1445205170230-053b83016050?w=1920&h=800&fit=crop&q=80&auto=format');
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  color: #faf0e6;
-  padding: 0;
-  text-align: center;
+/* Top Banner: 4 layers only – background, one-corner rounded rect, image, text */
+.hero.banner-four-layers {
   position: relative;
   overflow: hidden;
-  min-height: 400px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 85vh;
+  padding: 0 48px 100px 48px;
+  box-sizing: border-box;
 }
 
-.hero::before {
-  content: '';
+.hero-layer {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url('https://images.unsplash.com/photo-1445205170230-053b83016050?w=1920&h=800&fit=crop&q=80&auto=format');
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  opacity: 0.4;
+  pointer-events: none;
+}
+
+.hero-layer-image {
+  pointer-events: none;
+}
+
+/* Layer 1: Background – solid muted medium brown/taupe */
+.hero-layer-bg {
+  inset: 0;
   z-index: 0;
+  background: #A18A72;
 }
 
-.hero::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+/* Layer 2: One-corner rounded rectangle – bottom-right, lighter beige (#C3B0A1), 20px from right */
+.hero-layer-rounded-rect {
+  right: 20px;
   bottom: 0;
-  background: linear-gradient(to bottom, rgba(26, 35, 50, 0.2), rgba(26, 35, 50, 0.4));
+  width: 50%;
+  height: 70%;
+  max-height: 76vh;
+  background: #C3B0A1;
+  border-top-left-radius: min(260px, 24vw);
   z-index: 1;
 }
 
-.hero-content {
-  position: relative;
+/* Layer 3: Image – woman (Asset 4), central-right, in front of rounded rect */
+.hero-layer-image {
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-15%);
+  width: 42%;
+  max-width: 480px;
+  height: 85%;
+  max-height: 80vh;
   z-index: 2;
-  padding: 60px 20px;
-  max-width: 900px;
-  margin: 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.hero-layer-image-img {
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+/* Layer 4: Text – top-left quadrant, above woman */
+.hero-layer-text {
+  left: 168px;
+  top: 22%;
+  z-index: 3;
+  max-width: 55%;
+  pointer-events: none;
+}
+
+.hero-title-line {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 0;
+  margin: 0;
+  line-height: 1.1;
 }
 
 .hero-title {
-  font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
-  font-size: 72px;
-  font-weight: 700;
-  margin-bottom: 24px;
-  animation: fadeInUp 0.8s ease;
-  letter-spacing: 2px;
-  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
-  line-height: 1.2;
+  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
+  font-size: clamp(44px, 6.2vw, 92px);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #4F5747;
+  margin: 0;
 }
 
-.hero-subtitle {
-  font-family: 'Lora', 'Georgia', serif;
-  font-size: 28px;
+.hero-subtitle-script {
+  font-family: 'Saint Timothy', 'Dancing Script', cursive;
+  font-size: clamp(26px, 3.5vw, 40px);
   font-weight: 400;
-  font-style: italic;
-  margin-bottom: 24px;
-  opacity: 0.98;
-  animation: fadeInUp 1s ease;
-  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.4);
-  letter-spacing: 1px;
+  color: #ffffff;
+  margin: 0.12em 0 0 1em;
+  white-space: nowrap;
 }
 
-.hero-ai-button {
-  padding: 14px 28px;
+.hero-cta {
+  position: absolute;
+  bottom: 48px;
+  right: 48px;
+  z-index: 4;
+  padding: 16px 32px;
   font-size: 16px;
   font-weight: 600;
-  color: #1a2332;
-  background: #d4af37;
-  border: 2px solid #d4af37;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  background: #4A5844;
+  border: none;
   border-radius: 50px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  animation: fadeInUp 1.1s ease;
-  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 20px rgba(74, 88, 68, 0.4);
 }
 
-.hero-ai-button:hover {
-  background: #e5c04a;
-  border-color: #e5c04a;
+.hero-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(212, 175, 55, 0.4);
+  box-shadow: 0 6px 24px rgba(74, 88, 68, 0.5);
 }
 
-.hero-buttons {
-  display: flex;
-  gap: 20px;
-  justify-content: center;
-  animation: fadeInUp 1.2s ease;
-  flex-wrap: wrap;
-}
-
-.hero-buttons .btn {
-  min-width: 180px;
-  padding: 16px 32px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.hero-help-info {
+  position: absolute;
+  bottom: 24px;
+  left: 48px;
+  z-index: 4;
+  font-family: 'DM Sans', 'Raleway', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: #ffffff;
 }
 
 .featured-products {
@@ -815,36 +826,78 @@
   box-shadow: 0 6px 20px rgba(26, 35, 50, 0.6);
 }
 
-@media (max-width: 768px) {
-  .hero {
-    min-height: 300px;
+@media (max-width: 968px) {
+  .hero.banner-four-layers {
+    min-height: 80vh;
+    padding: 0 32px 80px;
   }
 
-  .hero-content {
-    padding: 40px 20px;
+  .hero-layer-rounded-rect {
+    width: 54%;
+    height: 68%;
+    right: 20px;
+  }
+
+  .hero-layer-image {
+    width: 46%;
+    transform: translateX(-12%);
+  }
+
+  .hero-layer-text {
+    left: 102px;
+    top: 20%;
+    max-width: 58%;
+  }
+
+  .hero-cta {
+    bottom: 40px;
+    right: 32px;
+  }
+
+  .hero-help-info {
+    left: 24px;
+    bottom: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero.banner-four-layers {
+    min-height: 75vh;
+    padding: 0 24px 72px;
+  }
+
+  .hero-layer-rounded-rect {
+    width: 60%;
+    height: 65%;
+    right: 20px;
+    border-top-left-radius: min(200px, 30vw);
+  }
+
+  .hero-layer-image {
+    width: 52%;
+    transform: translateX(-8%);
+  }
+
+  .hero-layer-text {
+    left: 94px;
+    top: 18%;
+    max-width: 62%;
   }
 
   .hero-title {
-    font-size: 42px;
-    letter-spacing: 1px;
-    margin-bottom: 16px;
+    font-size: clamp(40px, 10vw, 62px);
+    letter-spacing: 0.1em;
   }
 
-  .hero-subtitle {
-    font-size: 20px;
-    margin-bottom: 24px;
+  .hero-subtitle-script {
+    font-size: clamp(26px, 6vw, 36px);
   }
 
-  .hero-buttons {
-    flex-direction: column;
-    width: 100%;
-    gap: 12px;
-  }
-
-  .hero-buttons .btn {
-    width: 100%;
-    max-width: 100%;
-    min-width: auto;
+  .hero-cta {
+    bottom: 32px;
+    right: 24px;
+    padding: 14px 28px;
+    font-size: 15px;
   }
 
   .section-title {
@@ -874,28 +927,49 @@
 }
 
 @media (max-width: 480px) {
-  .hero {
-    min-height: 250px;
+  .hero.banner-four-layers {
+    min-height: 70vh;
+    padding: 0 16px 56px;
   }
 
-  .hero-content {
-    padding: 30px 16px;
+  .hero-layer-rounded-rect {
+    width: 68%;
+    height: 60%;
+    right: 20px;
+    border-top-left-radius: min(160px, 35vw);
+  }
+
+  .hero-layer-image {
+    width: 58%;
+    transform: translateX(-5%);
+  }
+
+  .hero-layer-text {
+    left: 86px;
+    top: 14%;
+    max-width: 70%;
   }
 
   .hero-title {
-    font-size: 32px;
-    letter-spacing: 0.5px;
-    margin-bottom: 12px;
+    font-size: clamp(32px, 8vw, 46px);
+    letter-spacing: 0.06em;
   }
 
-  .hero-subtitle {
-    font-size: 16px;
-    margin-bottom: 20px;
+  .hero-subtitle-script {
+    font-size: clamp(22px, 5vw, 30px);
   }
 
-  .hero-buttons .btn {
-    padding: 14px 24px;
-    font-size: 16px;
+  .hero-cta {
+    bottom: 24px;
+    right: 16px;
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+
+  .hero-help-info {
+    left: 16px;
+    bottom: 16px;
+    font-size: 11px;
   }
 
   .section-title {

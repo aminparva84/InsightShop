@@ -46,7 +46,7 @@ You do **not** need `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY`; the workflow
 - **First push to main**: The workflow builds the Docker image (frontend + backend), pushes it to ECR, **creates** the App Runner service via AWS CLI (if it does not exist), and waits for the first deployment.
 - **Later pushes to main**: The workflow builds, pushes the new image, triggers a new App Runner deployment with `aws apprunner start-deployment`, and waits for it to finish.
 
-Workflow file: [.github/workflows/deploy-apprunner.yml](../.github/workflows/deploy-apprunner.yml). The service is created using `aws apprunner create-service` when it does not exist.
+Workflow file: [.github/workflows/deploy-apprunner.yml](../.github/workflows/deploy-apprunner.yml). The service is created using `aws apprunner create-service` when it does not exist. The workflow allows deployment **only from the repo** set in `ALLOWED_REPOSITORY` (e.g. `aminparva84/InsightShop`); runs from any other repository fail at "Verify deployment repository", so another project cannot overwrite this app on App Runner.
 
 ## 4. App Runner configuration
 

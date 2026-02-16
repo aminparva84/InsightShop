@@ -1,6 +1,9 @@
 # Deploy InsightShop (frontend + backend) to AWS App Runner on push to main
 # Uses Docker: build image, push to ECR, create or update App Runner service via AWS CLI.
 # Prerequisites: Run scripts/setup-apprunner.ps1 once and add GitHub secrets (see script output).
+#
+# ALLOWED_REPOSITORY: Only this repo can deploy. Prevents another repo (e.g. InsightTools)
+# from using the same AWS secrets and overwriting this app on App Runner.
 
 name: Deploy to AWS App Runner
 
@@ -12,6 +15,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPO_NAME: insightshop
   APP_RUNNER_SERVICE_NAME: insightshop
+  ALLOWED_REPOSITORY: "aminparva84/InsightShop"
 
 jobs:
   deploy:
@@ -22,6 +26,15 @@ jobs:
       id-token: write
 
     steps:
+      - name: Verify deployment repository
+        run: |
+          if [ -n "${{ env.ALLOWED_REPOSITORY }}" ] && [ "${{ github.repository }}" != "${{ env.ALLOWED_REPOSITORY }}" ]; then
+            echo "::error::Deployment is only allowed from ${{ env.ALLOWED_REPOSITORY }}. This run is from ${{ github.repository }}."
+            echo "To fix: push to the correct repo, or set env ALLOWED_REPOSITORY to this repo in .github/workflows/deploy-apprunner.yml"
+            exit 1
+          fi
+          echo "Repository check passed: ${{ github.repository }}"
+
       - name: Checkout
         uses: actions/checkout@v4
 

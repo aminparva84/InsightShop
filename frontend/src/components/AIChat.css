@@ -3,27 +3,32 @@
    ========================================================================== */
 
 .ai-chat {
-  /* Site theme: #1a2332, #d4af37, #faf0e6 – classy glassy chat */
-  --ai-chat-bg: rgba(255, 255, 255, 0.5);
+  /* Asset-40 background (container), asset-37 bubbles & heading */
+  --ai-chat-bg: rgba(56, 66, 52, 0.5);
   --ai-chat-surface: rgba(248, 250, 252, 0.7);
-  --ai-chat-surface-gradient: linear-gradient(180deg, rgba(253, 251, 248, 0.6) 0%, rgba(241, 245, 249, 0.5) 50%, rgba(226, 232, 240, 0.4) 100%);
-  --ai-chat-pattern: radial-gradient(circle at 20% 80%, rgba(212, 175, 55, 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(26, 35, 50, 0.04) 0%, transparent 45%);
-  --ai-chat-header-bg: rgba(26, 35, 50, 0.88);
-  --ai-chat-header-text: #faf0e6;
-  --ai-chat-accent: #d4af37;
-  --ai-chat-accent-hover: #c9a227;
-  --ai-chat-accent-muted: rgba(212, 175, 55, 0.18);
-  --ai-chat-user-bubble: rgba(26, 35, 50, 0.92);
-  --ai-chat-user-text: #faf0e6;
-  --ai-chat-assistant-bubble: rgba(255, 255, 255, 0.85);
-  --ai-chat-assistant-text: #1a2332;
-  --ai-chat-border: rgba(226, 232, 240, 0.9);
-  --ai-chat-border-strong: rgba(203, 213, 225, 0.9);
-  --ai-chat-muted: #64748b;
+  --ai-chat-surface-gradient: linear-gradient(180deg, rgba(56, 66, 52, 0.12) 0%, rgba(56, 66, 52, 0.08) 50%, rgba(56, 66, 52, 0.04) 100%);
+  --ai-chat-pattern: radial-gradient(circle at 20% 80%, rgba(139, 118, 98, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(56, 66, 52, 0.04) 0%, transparent 45%);
+  --ai-chat-header-bg: rgba(56, 66, 52, 0.88);
+  --ai-chat-header-text: #e8e4dc;
+  --ai-chat-heading: #c4b5a0;
+  --ai-chat-accent: #8b7662;
+  --ai-chat-accent-hover: #7a6755;
+  --ai-chat-accent-muted: rgba(139, 118, 98, 0.25);
+  --ai-chat-user-bubble: #a8927a;
+  --ai-chat-user-text: #1a1612;
+  --ai-chat-assistant-bubble: rgba(139, 118, 98, 0.78);
+  --ai-chat-assistant-bubble-solid: #8b7662;
+  --ai-chat-assistant-text: #f5f0e8;
+  --ai-chat-border: rgba(226, 232, 240, 0.5);
+  --ai-chat-border-strong: rgba(203, 213, 225, 0.6);
+  --ai-chat-muted: #9c8f7a;
   --ai-chat-input-bg: rgba(255, 255, 255, 0.9);
-  --ai-chat-input-border: rgba(212, 175, 55, 0.25);
-  --ai-chat-input-focus: #1a2332;
+  --ai-chat-input-border: rgba(139, 118, 98, 0.35);
+  --ai-chat-input-focus: #5c4f3d;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   --ai-chat-radius-sm: 8px;
   --ai-chat-radius-md: 10px;
   --ai-chat-radius-lg: 12px;
@@ -59,7 +64,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--ai-chat-spacing-md) var(--ai-chat-spacing-lg);
-  border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+  border-bottom: 1px solid rgba(139, 118, 98, 0.35);
   background: var(--ai-chat-header-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -68,7 +73,7 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(26, 35, 50, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .ai-chat-header h3 {
@@ -161,8 +166,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--ai-chat-spacing-xl);
-  background: linear-gradient(180deg, rgba(253, 251, 248, 0.35) 0%, rgba(241, 245, 249, 0.3) 50%, rgba(226, 232, 240, 0.25) 100%);
-  background-image: var(--ai-chat-pattern), linear-gradient(180deg, rgba(253, 251, 248, 0.35) 0%, rgba(241, 245, 249, 0.3) 100%);
+  background: linear-gradient(180deg, rgba(56, 66, 52, 0.18) 0%, rgba(56, 66, 52, 0.1) 50%, rgba(56, 66, 52, 0.06) 100%);
+  background-image: var(--ai-chat-pattern), linear-gradient(180deg, rgba(56, 66, 52, 0.12) 0%, rgba(56, 66, 52, 0.08) 100%);
   min-height: 0;
   scroll-behavior: smooth;
   backdrop-filter: blur(12px) saturate(1.08);
@@ -224,12 +229,12 @@
 }
 
 .message.user .message-content {
-  background: rgba(26, 35, 50, 0.85);
+  background: var(--ai-chat-user-bubble);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: var(--ai-chat-user-text);
-  box-shadow: 0 4px 16px rgba(26, 35, 50, 0.15);
-  border: 1px solid rgba(212, 175, 55, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(139, 118, 98, 0.3);
   border-bottom-right-radius: 6px;
   border-top-right-radius: 20px;
   border-top-left-radius: 20px;
@@ -237,12 +242,14 @@
 }
 
 .message.assistant .message-content {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--ai-chat-assistant-bubble);
+  backdrop-filter: blur(12px) saturate(1.05);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
   color: var(--ai-chat-assistant-text);
-  box-shadow: 0 2px 12px rgba(26, 35, 50, 0.06);
-  border: 1px solid rgba(212, 175, 55, 0.15);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  border: 1px solid rgba(139, 118, 98, 0.35);
   border-bottom-left-radius: 6px;
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
@@ -296,7 +303,7 @@
 }
 
 .message.assistant .product-id-highlight {
-  color: var(--ai-chat-header-bg);
+  color: #e8e0d0;
 }
 
 /* Clickable product links in chat - must be visible and clickable */
@@ -422,16 +429,18 @@
 .ai-chat-input {
   display: flex;
   flex-wrap: nowrap;
-  align-items: center;
-  gap: 6px;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 8px 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.28);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(20px) saturate(1.1);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
   flex-shrink: 0;
-  box-shadow: 0 -4px 24px rgba(26, 35, 50, 0.08);
-  min-width: 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.06);
   overflow-x: hidden;
 }
 
@@ -1033,7 +1042,7 @@
 .kendo-header-title {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--ai-chat-header-text);
+  color: var(--ai-chat-heading);
   flex-shrink: 0;
 }
 
@@ -1209,34 +1218,46 @@
   margin-left: auto;
 }
 
-/* Kendo: assistant message transparent background */
+/* Kendo: assistant message – keep glassy asset-37 bubble, adjust padding */
 .ai-chat-kendo .message.assistant .message-content {
-  background: transparent;
+  background: var(--ai-chat-assistant-bubble);
+  backdrop-filter: blur(12px) saturate(1.05);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
   padding-right: var(--ai-chat-spacing-md);
   padding-top: 4px;
 }
 
-/* Kendo-style type box: single bar with attachment | input | mic | send (like template) */
+/* Kendo-style type box: single bar with attachment | input | mic | send (like template) – fills width, responsive */
 .ai-chat-kendo .kendo-type-box {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 10px 12px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-top: 1px solid rgba(255, 255, 255, 0.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .kendo-type-box-inner {
   display: flex;
   align-items: center;
   gap: 0;
-  min-height: 48px;
+  min-height: 44px;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
   padding: 0 4px 0 2px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(139, 118, 98, 0.25);
   border-radius: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
 }
 
 .kendo-type-box-inner:focus-within {
@@ -1295,17 +1316,19 @@
   cursor: not-allowed;
 }
 
-/* Input inside the type box – no border, seamless (like Kendo) */
+/* Input inside the type box – no border, seamless (like Kendo), flexes with container */
 .kendo-type-box-input {
   flex: 1 1 0;
-  min-width: 80px;
+  min-width: 0;
+  width: 100%;
   height: 44px;
   padding: 0 12px;
   border: none;
   background: transparent;
-  font-size: 0.9375rem;
+  font-size: clamp(0.8125rem, 2.2vw, 0.9375rem);
   font-family: inherit;
-  color: var(--ai-chat-assistant-text);
+  color: var(--ai-chat-input-focus);
+  box-sizing: border-box;
 }
 
 .kendo-type-box-input::placeholder {

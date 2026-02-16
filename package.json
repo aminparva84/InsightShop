@@ -1,0 +1,13 @@
+{
+  "name": "insightshop",
+  "private": true,
+  "description": "Run backend + frontend dev server for instant frontend updates (no rebuild).",
+  "scripts": {
+    "dev": "concurrently -n proxy,api,web -c magenta,blue,green \"node dev-proxy.js\" \"cross-env PORT=5001 python app.py\" \"cd frontend && npm start\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "http-proxy": "^1.18.1"
+  }
+}

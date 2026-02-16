@@ -33,9 +33,9 @@
   background: #A18A72;
 }
 
-/* Layer 2: One-corner rounded rectangle – bottom-right, lighter beige (#C3B0A1), 20px from right */
+/* Layer 2: One-corner rounded rectangle – bottom-right, lighter beige (#C3B0A1) */
 .hero-layer-rounded-rect {
-  right: 20px;
+  right: -75px;
   bottom: 0;
   width: 50%;
   height: 70%;
@@ -49,12 +49,12 @@
 .hero-layer-image {
   left: 50%;
   bottom: 0;
-  transform: translateX(-15%);
+  transform: translateX(calc(-15% + 95px));
   width: 42%;
   max-width: 480px;
   height: 85%;
   max-height: 80vh;
-  z-index: 2;
+  z-index: 4;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -72,7 +72,7 @@
 .hero-layer-text {
   left: 168px;
   top: 22%;
-  z-index: 3;
+  z-index: 2;
   max-width: 55%;
   pointer-events: none;
 }
@@ -83,14 +83,14 @@
   align-items: flex-start;
   gap: 0;
   margin: 0;
-  line-height: 1.1;
+  line-height: 0.85;
 }
 
 .hero-title {
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: clamp(44px, 6.2vw, 92px);
+  font-size: clamp(72px, 12vw, 180px);
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #4F5747;
   margin: 0;
@@ -98,11 +98,13 @@
 
 .hero-subtitle-script {
   font-family: 'Saint Timothy', 'Dancing Script', cursive;
-  font-size: clamp(26px, 3.5vw, 40px);
+  font-size: clamp(28px, 4vw, 52px);
   font-weight: 400;
   color: #ffffff;
-  margin: 0.12em 0 0 1em;
+  margin: -0.35em 0 0 0.15em;
   white-space: nowrap;
+  position: relative;
+  z-index: 1;
 }
 
 .hero-cta {
@@ -835,12 +837,12 @@
   .hero-layer-rounded-rect {
     width: 54%;
     height: 68%;
-    right: 20px;
+    right: -75px;
   }
 
   .hero-layer-image {
     width: 46%;
-    transform: translateX(-12%);
+    transform: translateX(calc(-12% + 95px));
   }
 
   .hero-layer-text {
@@ -885,12 +887,13 @@
   }
 
   .hero-title {
-    font-size: clamp(40px, 10vw, 62px);
-    letter-spacing: 0.1em;
+    font-size: clamp(56px, 14vw, 100px);
+    letter-spacing: 0.08em;
   }
 
   .hero-subtitle-script {
-    font-size: clamp(26px, 6vw, 36px);
+    font-size: clamp(24px, 5vw, 40px);
+    margin: -0.32em 0 0 0.12em;
   }
 
   .hero-cta {
@@ -951,12 +954,13 @@
   }
 
   .hero-title {
-    font-size: clamp(32px, 8vw, 46px);
+    font-size: clamp(44px, 12vw, 72px);
     letter-spacing: 0.06em;
   }
 
   .hero-subtitle-script {
-    font-size: clamp(22px, 5vw, 30px);
+    font-size: clamp(20px, 4.5vw, 28px);
+    margin: -0.3em 0 0 0.1em;
   }
 
   .hero-cta {

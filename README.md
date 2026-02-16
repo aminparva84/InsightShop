@@ -78,14 +78,18 @@ python -c "from app import app; from models.database import init_db; init_db(app
 ```bash
 cd frontend
 npm install
-npm start
 ```
 
-4. **Run Backend**
+4. **Run with instant frontend updates (no rebuild)**
 ```bash
-# From project root
-python app.py
+# From project root (install root deps once: npm install)
+npm install
+npm run dev
 ```
+This starts a **proxy on http://localhost:5000** (API on 5001, React dev server on 3000).  
+**Open http://localhost:5000** in your browser. Any change you make to frontend code (components, CSS, etc.) will appear immediately thanks to Fast Refresh — no `npm run build` needed.
+
+To run backend and frontend separately: run `python app.py` in the root, then `cd frontend && npm start`, and use http://localhost:3000 for the app.
 
 ### Environment Variables
 

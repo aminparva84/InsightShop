@@ -21,6 +21,7 @@ import {
 import ProductGrid from '../components/ProductGrid';
 import LogoLoop from '../components/LogoLoop';
 import FlowingMenu from '../components/FlowingMenu';
+import SplitText from '../components/SplitText';
 import './Home.css';
 
 /* Seasonal menu: images from Unsplash (season-themed, free to use) */
@@ -144,11 +145,39 @@ const Home = () => {
         <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
           <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
         </div>
-        {/* Asset 4: Text (INSIGHT SHOP + insight shop) */}
+        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – SplitText animation */}
         <div id="banner-asset-4" className="hero-layer hero-layer-text" data-asset-name="text">
           <h1 className="hero-title-line">
-            <span className="hero-title">INSIGHT SHOP</span>
-            <span className="hero-subtitle-script">insight shop</span>
+            <SplitText
+              text="INSIGHT SHOP"
+              className="hero-title"
+              tag="span"
+              delay={50}
+              duration={1.25}
+              ease="elastic.out(1, 0.3)"
+              splitType="chars"
+              from={{ opacity: 0, y: 40 }}
+              to={{ opacity: 1, y: 0 }}
+              threshold={0.1}
+              rootMargin="-100px"
+              textAlign="left"
+              showCallback={false}
+            />
+            <SplitText
+              text="insight shop"
+              className="hero-subtitle-script"
+              tag="span"
+              delay={50}
+              duration={1.25}
+              ease="elastic.out(1, 0.3)"
+              splitType="chars"
+              from={{ opacity: 0, y: 40 }}
+              to={{ opacity: 1, y: 0 }}
+              threshold={0.1}
+              rootMargin="-100px"
+              textAlign="left"
+              showCallback={false}
+            />
           </h1>
         </div>
         <button type="button" className="hero-cta" onClick={openAIChatPopup}>

@@ -2,7 +2,7 @@
 .navbar-wrapper {
   padding: 16px 24px 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -11,12 +11,18 @@
 .navbar.navbar-pill {
   background: #4A5844;
   border-radius: 48px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
   min-height: 80px;
   height: 80px;
   max-width: 1200px;
   width: 100%;
+  box-sizing: border-box;
+  /* Extend pill to the left; extra padding keeps inner content in place */
+  margin-left: -100px;
+  padding-left: 120px; /* 20px original + 100px extension */
+  padding-right: 28px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
-  padding: 0 28px 0 20px;
   display: flex;
   align-items: center;
 }
@@ -367,8 +373,12 @@
   .navbar.navbar-pill {
     min-height: 72px;
     height: 72px;
-    padding: 0 16px 0 12px;
+    margin-left: -48px;
+    padding-left: 60px; /* 12px original + 48px extension */
+    padding-right: 16px;
     border-radius: 40px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
   }
 
   .navbar-container {

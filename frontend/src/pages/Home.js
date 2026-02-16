@@ -21,7 +21,7 @@ import {
 import ProductGrid from '../components/ProductGrid';
 import LogoLoop from '../components/LogoLoop';
 import FlowingMenu from '../components/FlowingMenu';
-import SplitText from '../components/SplitText';
+import TextType from '../components/TextType';
 import './Home.css';
 
 /* Seasonal menu: images from Unsplash (season-themed, free to use) */
@@ -145,38 +145,31 @@ const Home = () => {
         <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
           <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
         </div>
-        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – SplitText animation */}
+        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – TextType typing animation */}
         <div id="banner-asset-4" className="hero-layer hero-layer-text" data-asset-name="text">
           <h1 className="hero-title-line">
-            <SplitText
-              text="INSIGHT SHOP"
+            <TextType
+              text={['INSIGHT SHOP']}
+              as="span"
               className="hero-title"
-              tag="span"
-              delay={50}
-              duration={1.25}
-              ease="elastic.out(1, 0.3)"
-              splitType="chars"
-              from={{ opacity: 0, y: 40 }}
-              to={{ opacity: 1, y: 0 }}
-              threshold={0.1}
-              rootMargin="-100px"
-              textAlign="left"
-              showCallback={false}
+              typingSpeed={135}
+              pauseDuration={5000}
+              loop={false}
+              holdLast
+              showCursor={false}
+              startOnVisible
             />
-            <SplitText
-              text="insight shop"
+            <TextType
+              text={['insight shop']}
+              as="span"
               className="hero-subtitle-script"
-              tag="span"
-              delay={50}
-              duration={1.25}
-              ease="elastic.out(1, 0.3)"
-              splitType="chars"
-              from={{ opacity: 0, y: 40 }}
-              to={{ opacity: 1, y: 0 }}
-              threshold={0.1}
-              rootMargin="-100px"
-              textAlign="left"
-              showCallback={false}
+              typingSpeed={135}
+              pauseDuration={5000}
+              loop={false}
+              holdLast
+              showCursor={false}
+              initialDelay={1800}
+              startOnVisible
             />
           </h1>
         </div>
@@ -184,6 +177,23 @@ const Home = () => {
           Chat with Ai assistant
         </button>
         <span className="hero-help-info">HELP INFO</span>
+      </section>
+
+      {/* Hard to find – asset-20 container, Asset 19 text + image overlapping */}
+      <section className="home-hard-to-find" aria-labelledby="hard-to-find-heading">
+        <div className="home-hard-to-find-container">
+          <div className="home-hard-to-find-content">
+            <p id="hard-to-find-heading" className="home-hard-to-find-text">
+              HARD TO FIND<br />WHAT YOU NEED?
+            </p>
+            <img
+              src={`${process.env.PUBLIC_URL || ''}/images/asset-19.png`}
+              alt=""
+              className="home-hard-to-find-image"
+              aria-hidden="true"
+            />
+          </div>
+        </div>
       </section>
 
       {/* Featured Products */}

@@ -7,6 +7,34 @@ import './Navbar.css';
 
 const NAV_MOBILE_BREAKPOINT = 768;
 
+/* Genders and clothing categories for slider filter (matches products API) */
+const GENDERS = [
+  { id: 'men', label: 'Men' },
+  { id: 'women', label: 'Women' },
+  { id: 'kids', label: 'Kids' },
+];
+
+const CLOTHING_CATEGORIES = [
+  { id: 'shirts', label: 'Shirts' },
+  { id: 't_shirts', label: 'T-Shirts' },
+  { id: 'pants', label: 'Pants' },
+  { id: 'jackets', label: 'Jackets' },
+  { id: 'coats', label: 'Coats' },
+  { id: 'dresses', label: 'Dresses' },
+  { id: 'skirts', label: 'Skirts' },
+  { id: 'shorts', label: 'Shorts' },
+  { id: 'sweaters', label: 'Sweaters' },
+  { id: 'hoodies', label: 'Hoodies' },
+  { id: 'socks', label: 'Socks' },
+  { id: 'shoes', label: 'Shoes' },
+  { id: 'sandals', label: 'Sandals' },
+  { id: 'sneakers', label: 'Sneakers' },
+  { id: 'pajamas', label: 'Pajamas' },
+  { id: 'blouses', label: 'Blouses' },
+  { id: 'underwear', label: 'Underwear' },
+  { id: 'suits', label: 'Suits' },
+];
+
 const SearchIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -26,6 +54,7 @@ const Navbar = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sliderGender, setSliderGender] = useState(null); // 'men' | 'women' | 'kids' | null
 
   useEffect(() => {
     const handleResize = () => {
@@ -54,7 +83,10 @@ const Navbar = () => {
     navigate('/');
   };
 
-  const closeMenu = () => setMenuOpen(false);
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setSliderGender(null);
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -93,6 +125,33 @@ const Navbar = () => {
         </>
       )}
     </>
+  );
+
+  /* Slider top: Cart, Account, Login/Logout only */
+  const sliderTopLinks = (
+    <div className="navbar-slider-top">
+      <Link to="/cart" className="navbar-slider-link nav-cart-link" title="Shopping Cart" onClick={closeMenu}>
+        <span className="nav-cart-icon"><CartIcon /></span>
+        <span className="navbar-slider-link-text">Cart</span>
+        {cartCount > 0 && <span className="cart-badge" aria-label={`${cartCount} items in cart`}>{cartCount}</span>}
+      </Link>
+      {isAuthenticated ? (
+        <>
+          <Link to="/members" className="navbar-slider-link" onClick={closeMenu}>Account</Link>
+          {user?.is_superadmin && (
+            <Link to="/admin" className="navbar-slider-link" onClick={closeMenu}>Admin</Link>
+          )}
+          <button type="button" onClick={() => { handleLogout(); closeMenu(); }} className="navbar-slider-link navbar-slider-btn">
+            Logout
+          </button>
+        </>
+      ) : (
+        <>
+          <Link to="/login" className="navbar-slider-link" onClick={closeMenu}>Log In</Link>
+          <Link to="/register" className="navbar-slider-link navbar-slider-register" onClick={closeMenu}>Sign Up</Link>
+        </>
+      )}
+    </div>
   );
 
   return (
@@ -138,20 +197,53 @@ const Navbar = () => {
         aria-hidden="true"
         onClick={closeMenu}
       />
-      <div className={`navbar-mobile ${menuOpen ? 'navbar-mobile--open' : ''}`} id="navbar-mobile">
-        <div className="navbar-mobile-header">
-          <button
-            type="button"
-            className="navbar-mobile-back"
-            aria-label="Close menu"
-            onClick={closeMenu}
-          >
-            <span className="navbar-mobile-back-icon" aria-hidden="true">←</span>
-            <span className="navbar-mobile-back-text">Back</span>
-          </button>
-        </div>
-        <div className="navbar-mobile-links">
-          {navLinks}
+      <div className={`navbar-slider ${menuOpen ? 'navbar-slider--open' : ''}`} id="navbar-mobile" role="dialog" aria-label="Menu">
+        <div className="navbar-slider-inner">
+          <div className="navbar-slider-header">
+            <button
+              type="button"
+              className="navbar-slider-close"
+              aria-label="Close menu"
+              onClick={closeMenu}
+            >
+              <span className="navbar-slider-close-icon" aria-hidden="true">×</span>
+            </button>
+          </div>
+          {sliderTopLinks}
+          <div className="navbar-slider-filters">
+            <span className="navbar-slider-filters-label">Shop by</span>
+            <div className="navbar-slider-genders">
+              {GENDERS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  className={`navbar-slider-gender-btn ${sliderGender === g.id ? 'navbar-slider-gender-btn--active' : ''}`}
+                  onClick={() => setSliderGender(sliderGender === g.id ? null : g.id)}
+                  aria-expanded={sliderGender === g.id}
+                  aria-controls={`slider-categories-${g.id}`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            {sliderGender && (
+              <div id={`slider-categories-${sliderGender}`} className="navbar-slider-categories" role="region" aria-label={`${GENDERS.find((g) => g.id === sliderGender)?.label} categories`}>
+                {CLOTHING_CATEGORIES.map((cat) => (
+                  <Link
+                    key={cat.id}
+                    to={`/products?category=${sliderGender}&clothing_category=${cat.id}`}
+                    className="navbar-slider-category-row"
+                    onClick={closeMenu}
+                  >
+                    <span className="navbar-slider-category-name">{cat.label}</span>
+                    <span className="navbar-slider-category-image" aria-hidden="true">
+                      <span className="navbar-slider-category-arrow">→</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

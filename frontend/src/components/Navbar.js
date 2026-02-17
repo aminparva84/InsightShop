@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { FaUserTie, FaCloudRain, FaSocks, FaShoePrints } from 'react-icons/fa';
+import {
+  GiTrousers,
+  GiShirt,
+  GiTShirt,
+  GiMonclerJacket,
+  GiDress,
+  GiAmpleDress,
+  GiSkirt,
+  GiShorts,
+  GiWool,
+  GiHoodie,
+  GiSandal,
+  GiRunningShoe,
+  GiNightSleep,
+  GiUnderwear,
+} from 'react-icons/gi';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import './Navbar.css';
@@ -14,25 +31,26 @@ const GENDERS = [
   { id: 'kids', label: 'Kids' },
 ];
 
+/* Same categorical icons as Home logo loop */
 const CLOTHING_CATEGORIES = [
-  { id: 'shirts', label: 'Shirts' },
-  { id: 't_shirts', label: 'T-Shirts' },
-  { id: 'pants', label: 'Pants' },
-  { id: 'jackets', label: 'Jackets' },
-  { id: 'coats', label: 'Coats' },
-  { id: 'dresses', label: 'Dresses' },
-  { id: 'skirts', label: 'Skirts' },
-  { id: 'shorts', label: 'Shorts' },
-  { id: 'sweaters', label: 'Sweaters' },
-  { id: 'hoodies', label: 'Hoodies' },
-  { id: 'socks', label: 'Socks' },
-  { id: 'shoes', label: 'Shoes' },
-  { id: 'sandals', label: 'Sandals' },
-  { id: 'sneakers', label: 'Sneakers' },
-  { id: 'pajamas', label: 'Pajamas' },
-  { id: 'blouses', label: 'Blouses' },
-  { id: 'underwear', label: 'Underwear' },
-  { id: 'suits', label: 'Suits' },
+  { id: 'shirts', label: 'Shirts', Icon: GiShirt },
+  { id: 't_shirts', label: 'T-Shirts', Icon: GiTShirt },
+  { id: 'pants', label: 'Pants', Icon: GiTrousers },
+  { id: 'jackets', label: 'Jackets', Icon: GiMonclerJacket },
+  { id: 'coats', label: 'Coats', Icon: FaCloudRain },
+  { id: 'dresses', label: 'Dresses', Icon: GiDress },
+  { id: 'skirts', label: 'Skirts', Icon: GiSkirt },
+  { id: 'shorts', label: 'Shorts', Icon: GiShorts },
+  { id: 'sweaters', label: 'Sweaters', Icon: GiWool },
+  { id: 'hoodies', label: 'Hoodies', Icon: GiHoodie },
+  { id: 'socks', label: 'Socks', Icon: FaSocks },
+  { id: 'shoes', label: 'Shoes', Icon: FaShoePrints },
+  { id: 'sandals', label: 'Sandals', Icon: GiSandal },
+  { id: 'sneakers', label: 'Sneakers', Icon: GiRunningShoe },
+  { id: 'pajamas', label: 'Pajamas', Icon: GiNightSleep },
+  { id: 'blouses', label: 'Blouses', Icon: GiAmpleDress },
+  { id: 'underwear', label: 'Underwear', Icon: GiUnderwear },
+  { id: 'suits', label: 'Suits', Icon: FaUserTie },
 ];
 
 const SearchIcon = () => (
@@ -54,7 +72,7 @@ const Navbar = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sliderGender, setSliderGender] = useState(null); // 'men' | 'women' | 'kids' | null
+  const [sliderGender, setSliderGender] = useState('men'); // 'men' | 'women' | 'kids' – Men selected by default, one always active
 
   useEffect(() => {
     const handleResize = () => {
@@ -85,7 +103,7 @@ const Navbar = () => {
 
   const closeMenu = () => {
     setMenuOpen(false);
-    setSliderGender(null);
+    setSliderGender('men'); // reset so Men is selected when menu opens again
   };
 
   const handleSearchSubmit = (e) => {
@@ -189,7 +207,7 @@ const Navbar = () => {
                     key={g.id}
                     type="button"
                     className={`navbar-slider-gender-btn ${sliderGender === g.id ? 'navbar-slider-gender-btn--active' : ''}`}
-                    onClick={() => setSliderGender(sliderGender === g.id ? null : g.id)}
+                    onClick={() => setSliderGender(g.id)}
                     aria-expanded={sliderGender === g.id}
                     aria-controls={`slider-categories-${g.id}`}
                   >
@@ -199,19 +217,22 @@ const Navbar = () => {
               </div>
               {sliderGender && (
                 <div id={`slider-categories-${sliderGender}`} className="navbar-slider-categories" role="region" aria-label={`${GENDERS.find((g) => g.id === sliderGender)?.label} categories`}>
-                  {CLOTHING_CATEGORIES.map((cat) => (
-                    <Link
-                      key={cat.id}
-                      to={`/products?category=${sliderGender}&clothing_category=${cat.id}`}
-                      className="navbar-slider-category-row"
-                      onClick={closeMenu}
-                    >
-                      <span className="navbar-slider-category-name">{cat.label}</span>
-                      <span className="navbar-slider-category-image" aria-hidden="true">
-                        <span className="navbar-slider-category-arrow">→</span>
-                      </span>
-                    </Link>
-                  ))}
+                  {CLOTHING_CATEGORIES.map((cat) => {
+                    const CategoryIcon = cat.Icon;
+                    return (
+                      <Link
+                        key={cat.id}
+                        to={`/products?category=${sliderGender}&clothing_category=${cat.id}`}
+                        className="navbar-slider-category-row"
+                        onClick={closeMenu}
+                      >
+                        <span className="navbar-slider-category-name">{cat.label}</span>
+                        <span className="navbar-slider-category-icon" aria-hidden="true">
+                          <CategoryIcon />
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>

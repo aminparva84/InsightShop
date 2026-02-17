@@ -166,43 +166,10 @@
   }
 }
 
+/* Hide the chat preview on mobile; CTA is still available via the main "Chat with Ai assistant" button */
 @media (max-width: 768px) {
   .hero-chat-preview {
-    left: 98px;
-    top: calc(52% - 25px);
-    width: min(300px, 42vw);
-    max-height: 46vh;
-  }
-
-  .hero-chat-preview__panel {
-    padding: 12px 10px 10px;
-    border-radius: 16px;
-  }
-
-  .hero-chat-preview__ai {
-    font-size: 1.35rem;
-  }
-
-  .hero-chat-preview__wavy {
-    height: 20px;
-  }
-
-  .hero-chat-preview__bubble {
-    font-size: 0.75rem;
-    padding: 8px 10px;
-  }
-
-  .hero-chat-preview__input-placeholder {
-    font-size: 0.7rem;
-  }
-
-  .hero-chat-preview__typing {
-    padding: 8px 10px;
-  }
-
-  .hero-chat-preview__typing-dot {
-    width: 4px;
-    height: 4px;
+    display: none !important;
   }
 }
 

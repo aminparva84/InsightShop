@@ -1,5 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'motion/react';
 import axios from 'axios';
 import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain, FaSearch } from 'react-icons/fa';
 import {
@@ -62,11 +63,18 @@ const openAIChatPopup = () => {
 };
 
 /* Stable arrays for TextType so animation effect deps don’t churn on re-render */
+const BANNER_TEXT_FADEOUT_MS = 5000;
+const BANNER_TEXT_FADEOUT_DURATION_S = 0.8;
+
 const Home = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [bannerPhase, setBannerPhase] = useState('idle'); // 'idle' | 'fadingOut' | 'fadedOut'
+  const [bannerTextKey, setBannerTextKey] = useState(0);
+  const bannerCompleteCountRef = useRef(0);
+  const bannerTimeoutRef = useRef(null);
 
   const categoryLogos = useMemo(() => CATEGORIES, []);
 
@@ -100,6 +108,29 @@ const Home = () => {
   useEffect(() => {
     fetchFeaturedProducts();
   }, []);
+
+  const handleBannerTextAnimationComplete = () => {
+    bannerCompleteCountRef.current += 1;
+    if (bannerCompleteCountRef.current === 2) {
+      bannerCompleteCountRef.current = 0;
+      bannerTimeoutRef.current = setTimeout(
+        () => setBannerPhase('fadingOut'),
+        BANNER_TEXT_FADEOUT_MS
+      );
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimeoutRef.current) clearTimeout(bannerTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (bannerPhase !== 'fadedOut') return;
+    setBannerTextKey((k) => k + 1);
+    setBannerPhase('idle');
+  }, [bannerPhase]);
 
   const fetchFeaturedProducts = async () => {
     try {
@@ -148,10 +179,27 @@ const Home = () => {
             <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
           </div>
         </div>
-        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – BlurText animation */}
-        <div id="banner-asset-4" className="hero-layer hero-layer-text" data-asset-name="text">
+        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – BlurText animation; after done → 5s → fade out → fade back in */}
+        <motion.div
+          id="banner-asset-4"
+          className="hero-layer hero-layer-text"
+          data-asset-name="text"
+          initial={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+          animate={
+            bannerPhase === 'fadingOut'
+              ? { opacity: 0, filter: 'blur(10px)', y: -50 }
+              : { opacity: 1, filter: 'blur(0px)', y: 0 }
+          }
+          transition={{
+            duration: bannerPhase === 'fadingOut' ? BANNER_TEXT_FADEOUT_DURATION_S : 0,
+          }}
+          onAnimationComplete={() => {
+            if (bannerPhase === 'fadingOut') setBannerPhase('fadedOut');
+          }}
+        >
           <h1 className="hero-title-line">
             <BlurText
+              key={`subtitle-${bannerTextKey}`}
               id="banner-asset-4-subtitle"
               text="insight shop"
               as="span"
@@ -159,8 +207,10 @@ const Home = () => {
               animateBy="words"
               direction="top"
               className="hero-subtitle-script"
+              onAnimationComplete={handleBannerTextAnimationComplete}
             />
             <BlurText
+              key={`title-${bannerTextKey}`}
               id="banner-asset-4-title"
               text="INSIGHT SHOP"
               as="span"
@@ -168,14 +218,14 @@ const Home = () => {
               animateBy="words"
               direction="top"
               className="hero-title"
+              onAnimationComplete={handleBannerTextAnimationComplete}
             />
           </h1>
-        </div>
+        </motion.div>
         <HeroChatPreview onOpenChat={openAIChatPopup} />
         <button type="button" className="hero-cta" onClick={openAIChatPopup}>
           Chat with Ai assistant
         </button>
-        <span className="hero-help-info">HELP INFO</span>
       </section>
 
       {/* Hard to find – asset-20 container, Asset 19 text + image overlapping */}

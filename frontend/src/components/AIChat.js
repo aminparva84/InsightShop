@@ -1378,10 +1378,15 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
       aria-label="AI Shopping Assistant chat"
     >
       <div className="ai-chat-header kendo-header">
-        <div className="kendo-header-avatar">
-          <div className="kendo-avatar" aria-hidden="true" />
+        <div className="ai-chat-header-brand">
+          <span className="ai-chat-header-ai">Ai</span>
+          <img
+            src={`${process.env.PUBLIC_URL || ''}/images/asset-34.png`}
+            alt=""
+            className="ai-chat-header-wavy"
+            aria-hidden="true"
+          />
         </div>
-        <div className="kendo-header-title">AI Shopping Assistant</div>
         <div className="kendo-header-spacer" />
         <div className="kendo-header-actions">
           <div className="kendo-dropdown-wrap">

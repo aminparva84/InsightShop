@@ -1027,6 +1027,32 @@
   padding: var(--ai-chat-spacing-md) var(--ai-chat-spacing-lg);
 }
 
+/* Header brand: same as template chat – "Ai" + wavy line */
+.ai-chat-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ai-chat-header-ai {
+  font-family: 'Saint Timothy', 'Dancing Script', cursive;
+  font-size: 1.85rem;
+  font-weight: 700;
+  color: #B09B8B;
+  flex-shrink: 0;
+}
+
+.ai-chat-header-wavy {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  object-fit: fill;
+  object-position: center center;
+  display: block;
+}
+
 .kendo-header-avatar {
   flex-shrink: 0;
 }
@@ -1047,7 +1073,7 @@
 }
 
 .kendo-header-spacer {
-  flex: 1;
+  flex: 0;
   min-width: 8px;
 }
 

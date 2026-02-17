@@ -163,18 +163,6 @@
   box-shadow: 0 6px 24px rgba(74, 88, 68, 0.5);
 }
 
-.hero-help-info {
-  position: absolute;
-  bottom: 24px;
-  left: 48px;
-  z-index: 4;
-  font-family: 'DM Sans', 'Raleway', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  color: #ffffff;
-}
-
 /* Hard to find segment: same bg as site, asset-20–style container, Asset 19 text + image overlapping */
 .home-hard-to-find {
   padding: 48px 24px 56px;
@@ -971,10 +959,6 @@
     right: 32px;
   }
 
-  .hero-help-info {
-    left: 24px;
-    bottom: 20px;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1095,12 +1079,6 @@
     right: 16px;
     padding: 12px 24px;
     font-size: 14px;
-  }
-
-  .hero-help-info {
-    left: 16px;
-    bottom: 16px;
-    font-size: 11px;
   }
 
   .section-title {

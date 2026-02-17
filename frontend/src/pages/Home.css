@@ -47,7 +47,7 @@
 
 /* Layer 2: One-corner rounded rectangle – bottom-right, muted medium brown/taupe (swapped with bg) */
 .hero-layer-rounded-rect {
-  right: -75px;
+  right: -120px;
   bottom: 0;
   width: 50%;
   height: 70%;
@@ -67,7 +67,7 @@
 .hero-layer-image {
   left: 50%;
   bottom: 0;
-  transform: translateX(calc(-15% + 95px));
+  transform: translateX(calc(-15% + 145px));
   width: 42%;
   max-width: 480px;
   height: 85%;
@@ -96,8 +96,8 @@
 
 /* Layer 4: Text – top-left quadrant, under image (z-index below asset-3) */
 .hero-layer-text {
-  left: 48px;
-  top: 22%;
+  left: 118px;
+  top: 16%;
   z-index: 1;
   max-width: 55%;
   pointer-events: none;
@@ -952,17 +952,17 @@
   .hero-layer-rounded-rect {
     width: 54%;
     height: 68%;
-    right: -75px;
+    right: -100px;
   }
 
   .hero-layer-image {
     width: 46%;
-    transform: translateX(calc(-12% + 95px));
+    transform: translateX(calc(-12% + 130px));
   }
 
   .hero-layer-text {
-    left: 32px;
-    top: 20%;
+    left: 82px;
+    top: 15%;
     max-width: 58%;
   }
 
@@ -986,18 +986,18 @@
   .hero-layer-rounded-rect {
     width: 60%;
     height: 65%;
-    right: 20px;
+    right: -20px;
     border-top-left-radius: min(200px, 30vw);
   }
 
   .hero-layer-image {
     width: 52%;
-    transform: translateX(-8%);
+    transform: translateX(calc(-8% + 50px));
   }
 
   .hero-layer-text {
-    left: 20px;
-    top: 18%;
+    left: 70px;
+    top: 14%;
     max-width: 62%;
   }
 
@@ -1059,18 +1059,18 @@
   .hero-layer-rounded-rect {
     width: 68%;
     height: 60%;
-    right: 20px;
+    right: -10px;
     border-top-left-radius: min(160px, 35vw);
   }
 
   .hero-layer-image {
     width: 58%;
-    transform: translateX(-5%);
+    transform: translateX(calc(-5% + 30px));
   }
 
   .hero-layer-text {
-    left: 12px;
-    top: 14%;
+    left: 62px;
+    top: 11%;
     max-width: 70%;
   }
 

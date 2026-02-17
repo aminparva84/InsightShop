@@ -22,6 +22,7 @@ import ProductGrid from '../components/ProductGrid';
 import LogoLoop from '../components/LogoLoop';
 import FlowingMenu from '../components/FlowingMenu';
 import BlurText from '../components/BlurText';
+import HeroChatPreview from '../components/HeroChatPreview';
 import './Home.css';
 
 /* Seasonal menu: images from Unsplash (season-themed, free to use) */
@@ -170,6 +171,7 @@ const Home = () => {
             />
           </h1>
         </div>
+        <HeroChatPreview onOpenChat={openAIChatPopup} />
         <button type="button" className="hero-cta" onClick={openAIChatPopup}>
           Chat with Ai assistant
         </button>

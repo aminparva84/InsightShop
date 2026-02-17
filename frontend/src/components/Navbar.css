@@ -9,13 +9,13 @@
   overflow: visible;
 }
 
-/* Pill is absolute so when it expands it overlays the page instead of pushing it */
+/* Pill is absolute so when it expands it overlays the page instead of pushing it; width shrinks to content */
 .navbar.navbar-pill {
   position: absolute;
   top: 16px;
   left: -100px;
-  width: calc(100% + 52px);
-  max-width: 1252px;
+  width: max-content;
+  max-width: min(calc(100% + 52px), 1252px);
   min-height: 80px;
   z-index: 1001;
   background: #4A5844;
@@ -85,7 +85,7 @@
 .navbar-search-form {
   flex: 1;
   min-width: 0;
-  max-width: 420px;
+  max-width: 520px; /* longer search bar / navbar */
 }
 
 .navbar-search-bar {
@@ -285,7 +285,7 @@
   display: flex;
   flex-direction: column;
   padding: 20px 16px 24px 20px;
-  padding-left: 15px; /* left padding for menu content */
+  padding-left: 50px; /* left padding for menu content */
   min-height: 0;
 }
 
@@ -372,30 +372,36 @@
 .navbar-slider-genders {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 16px;
+  width: 100%;
 }
 
 .navbar-slider-gender-btn {
-  padding: 10px 18px;
-  border-radius: 24px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 14px 20px;
+  border-radius: 6px;
   border: 1px solid rgba(232, 228, 220, 0.35);
-  background: transparent;
+  background: #3d4a38; /* darker shade of navbar green (#4A5844) */
   color: #E8E4DC;
-  font-size: 14px;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 16px;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .navbar-slider-gender-btn:hover {
-  background: rgba(232, 228, 220, 0.1);
-  border-color: rgba(232, 228, 220, 0.5);
+  background: #75685c; /* darker shade of Asset 25 (#8B7D6F) */
+  border-color: rgba(117, 104, 92, 0.8);
 }
 
 .navbar-slider-gender-btn--active {
-  background: rgba(232, 228, 220, 0.15);
-  border-color: rgba(232, 228, 220, 0.5);
+  background: #8B7D6F; /* Asset 25 – selected state stays while active */
+  border-color: rgba(139, 125, 111, 0.8);
 }
 
 .navbar-slider-categories {
@@ -404,19 +410,22 @@
   gap: 8px;
 }
 
-/* Asset 25 style: rounded pill, name left, transparent image/icon right (#8A7363) */
+/* Category rows: same radius as gender buttons, Times New Roman, all caps */
 .navbar-slider-category-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 48px;
-  padding: 10px 14px 10px 18px;
+  min-height: 72px;
+  padding: 18px 18px 18px 20px;
   background: #8A7363;
-  border-radius: 999px;
+  border-radius: 6px;
   text-decoration: none;
   color: #FFFEF5;
-  font-size: 15px;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 35px;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   transition: background 0.2s ease, transform 0.15s ease;
   box-sizing: border-box;
 }
@@ -456,11 +465,12 @@
     height: 84px; /* 12px + 72px bar */
   }
 
+  /* Shrink pill to content (hamburger + search) on mobile too */
   .navbar.navbar-pill {
     top: 12px;
     left: -48px;
-    width: calc(100% + 48px);
-    max-width: none;
+    width: max-content;
+    max-width: min(calc(100% + 48px), 100vw);
     min-height: 72px;
     padding-left: 60px;
     padding-right: 16px;
@@ -474,7 +484,7 @@
   }
 
   .navbar-search-form {
-    max-width: none;
+    max-width: 420px; /* wider search bar on tablet/mobile */
   }
 
   .navbar-search-bar {
@@ -494,9 +504,39 @@
     width: 40px;
     height: 40px;
   }
+
+  /* Responsive menu padding: smaller on tablet/mobile (reduced by 50px from desktop scale) */
+  .navbar-dropdown-inner {
+    padding-left: 20px;
+    padding-right: 16px;
+  }
+
+  /* Men / Women / Kids: fit width with margins, slightly smaller on tablet */
+  .navbar-slider-genders {
+    gap: 10px;
+  }
+
+  .navbar-slider-gender-btn {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
 }
 
 @media (max-width: 480px) {
+  .navbar.navbar-pill {
+    max-width: min(calc(100% + 48px), 100vw);
+  }
+
+  .navbar-search-form {
+    max-width: 340px; /* wider search bar on phone */
+  }
+
+  /* Tighter menu padding on small phones */
+  .navbar-dropdown-inner {
+    padding-left: 16px;
+    padding-right: 12px;
+  }
+
   .navbar-slider-top {
     padding: 0 12px 16px;
   }
@@ -505,10 +545,20 @@
     padding: 16px 12px 0;
   }
 
-  .navbar-slider-category-row {
-    min-height: 44px;
-    padding: 8px 12px 8px 16px;
+  /* Men / Women / Kids: compact on phone, still fit width */
+  .navbar-slider-genders {
+    gap: 8px;
+  }
+
+  .navbar-slider-gender-btn {
+    padding: 10px 12px;
     font-size: 14px;
+  }
+
+  .navbar-slider-category-row {
+    min-height: 64px;
+    padding: 14px 14px 14px 16px;
+    font-size: 24px;
   }
 }
 

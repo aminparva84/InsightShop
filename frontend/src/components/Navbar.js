@@ -99,31 +99,11 @@ const Navbar = () => {
     }
   };
 
+  /* Top bar: only Home and Products; Cart, Account, Log in, Sign up live in the menu */
   const navLinks = (
     <>
       <Link to="/" className="nav-link" onClick={closeMenu}>Home</Link>
       <Link to="/products" className="nav-link" onClick={closeMenu}>Products</Link>
-      <Link to="/cart" className="nav-link nav-cart-link" title="Shopping Cart" onClick={closeMenu}>
-        <span className="nav-cart-icon"><CartIcon /></span>
-        {cartCount > 0 && <span className="cart-badge" aria-label={`${cartCount} items in cart`}>{cartCount}</span>}
-      </Link>
-      {isAuthenticated ? (
-        <>
-          <Link to="/members" className="nav-link" onClick={closeMenu}>Account</Link>
-          {user?.is_superadmin && (
-            <Link to="/admin" className="nav-link" onClick={closeMenu}>Admin</Link>
-          )}
-          <div className="user-menu">
-            <span className="user-name">{user?.first_name}</span>
-            <button type="button" onClick={() => { handleLogout(); closeMenu(); }} className="btn-logout">Logout</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <Link to="/login" className="nav-link" onClick={closeMenu}>Account</Link>
-          <Link to="/register" className="btn btn-nav-register" onClick={closeMenu}>Sign Up</Link>
-        </>
-      )}
     </>
   );
 

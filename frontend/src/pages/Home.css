@@ -26,26 +26,44 @@
   pointer-events: none;
 }
 
-/* Layer 1: Background – solid muted medium brown/taupe */
+/* Layer 1: Background – lighter beige (swapped with asset 2) */
 .hero-layer-bg {
   inset: 0;
   z-index: 0;
-  background: #A18A72;
+  background: #C3B0A1;
 }
 
-/* Layer 2: One-corner rounded rectangle – bottom-right, lighter beige (#C3B0A1) */
+/* Group wrapper: hover on either asset 2 or 3 triggers both animations */
+.hero-banner-assets-group {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hero-banner-assets-group > * {
+  pointer-events: auto;
+}
+
+/* Layer 2: One-corner rounded rectangle – bottom-right, muted medium brown/taupe (swapped with bg) */
 .hero-layer-rounded-rect {
   right: -75px;
   bottom: 0;
   width: 50%;
   height: 70%;
   max-height: 76vh;
-  background: #C3B0A1;
+  background: #A18A72;
   border-top-left-radius: min(260px, 24vw);
   z-index: 1;
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
 }
 
-/* Layer 3: Image – woman (Asset 4), central-right, in front of rounded rect */
+.hero-banner-assets-group:hover #banner-asset-2 {
+  transform: scale(1.03);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+}
+
+/* Layer 3: Image – woman (Asset 4), central-right, in front of rounded rect; transparent PNG – use drop-shadow for its edges */
 .hero-layer-image {
   left: 50%;
   bottom: 0;
@@ -58,6 +76,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  transition: none;
 }
 
 .hero-layer-image-img {
@@ -66,13 +85,20 @@
   max-height: 80vh;
   object-fit: contain;
   object-position: center bottom;
+  transition: transform 0.35s ease, filter 0.35s ease;
+  transform-origin: center bottom;
 }
 
-/* Layer 4: Text – top-left quadrant, above woman */
+.hero-banner-assets-group:hover #banner-asset-3 .hero-layer-image-img {
+  transform: scale(1.03);
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.2));
+}
+
+/* Layer 4: Text – top-left quadrant, under image (z-index below asset-3) */
 .hero-layer-text {
   left: 168px;
   top: 22%;
-  z-index: 2;
+  z-index: 1;
   max-width: 55%;
   pointer-events: none;
 }

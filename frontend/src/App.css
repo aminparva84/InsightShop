@@ -1,13 +1,13 @@
-/* Global background: muted brown/taupe (Layer 1 of banner) */
+/* Global background: same as banner-asset-1 (hero layer 1) */
 body {
-  background: #A18A72;
+  background: #C3B0A1;
 }
 
 .App {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #A18A72;
+  background: #C3B0A1;
 }
 
 .main-content {

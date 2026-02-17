@@ -21,7 +21,7 @@ import {
 import ProductGrid from '../components/ProductGrid';
 import LogoLoop from '../components/LogoLoop';
 import FlowingMenu from '../components/FlowingMenu';
-import TextType from '../components/TextType';
+import BlurText from '../components/BlurText';
 import './Home.css';
 
 /* Seasonal menu: images from Unsplash (season-themed, free to use) */
@@ -60,6 +60,7 @@ const openAIChatPopup = () => {
   window.dispatchEvent(new CustomEvent('openAIChat'));
 };
 
+/* Stable arrays for TextType so animation effect deps don’t churn on re-render */
 const Home = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
@@ -139,37 +140,31 @@ const Home = () => {
       <section className="hero banner-four-layers">
         {/* Asset 1: Background */}
         <div id="banner-asset-1" className="hero-layer hero-layer-bg" data-asset-name="background" aria-hidden="true" />
-        {/* Asset 2: One-corner rounded rectangle (CSS shape) */}
-        <div id="banner-asset-2" className="hero-layer hero-layer-rounded-rect" data-asset-name="rounded-rectangle" aria-hidden="true" />
-        {/* Asset 3: Image (model/woman with sunglasses) */}
-        <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
-          <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
+        {/* Asset 2 + 3: grouped for shared hover (rounded rect + image) */}
+        <div className="hero-banner-assets-group">
+          <div id="banner-asset-2" className="hero-layer hero-layer-rounded-rect" data-asset-name="rounded-rectangle" aria-hidden="true" />
+          <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
+            <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
+          </div>
         </div>
-        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – TextType typing animation */}
+        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – BlurText animation */}
         <div id="banner-asset-4" className="hero-layer hero-layer-text" data-asset-name="text">
           <h1 className="hero-title-line">
-            <TextType
-              text={['INSIGHT SHOP']}
+            <BlurText
+              text="INSIGHT SHOP"
               as="span"
+              delay={250}
+              animateBy="words"
+              direction="top"
               className="hero-title"
-              typingSpeed={135}
-              pauseDuration={5000}
-              loop={false}
-              holdLast
-              showCursor={false}
-              startOnVisible
             />
-            <TextType
-              text={['insight shop']}
+            <BlurText
+              text="insight shop"
               as="span"
+              delay={280}
+              animateBy="words"
+              direction="top"
               className="hero-subtitle-script"
-              typingSpeed={135}
-              pauseDuration={5000}
-              loop={false}
-              holdLast
-              showCursor={false}
-              initialDelay={1800}
-              startOnVisible
             />
           </h1>
         </div>

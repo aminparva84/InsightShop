@@ -190,6 +190,53 @@ const Navbar = () => {
             {navLinks}
           </div>
         </div>
+
+        {/* Dropdown expands downward from the nav; content starts below the nav bar */}
+        <div
+          className={`navbar-dropdown ${menuOpen ? 'navbar-dropdown--open' : ''}`}
+          id="navbar-mobile"
+          role="dialog"
+          aria-label="Menu"
+          aria-hidden={!menuOpen}
+        >
+          <div className="navbar-dropdown-inner">
+            {sliderTopLinks}
+            <div className="navbar-slider-filters">
+              <span className="navbar-slider-filters-label">Shop by</span>
+              <div className="navbar-slider-genders">
+                {GENDERS.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className={`navbar-slider-gender-btn ${sliderGender === g.id ? 'navbar-slider-gender-btn--active' : ''}`}
+                    onClick={() => setSliderGender(sliderGender === g.id ? null : g.id)}
+                    aria-expanded={sliderGender === g.id}
+                    aria-controls={`slider-categories-${g.id}`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+              {sliderGender && (
+                <div id={`slider-categories-${sliderGender}`} className="navbar-slider-categories" role="region" aria-label={`${GENDERS.find((g) => g.id === sliderGender)?.label} categories`}>
+                  {CLOTHING_CATEGORIES.map((cat) => (
+                    <Link
+                      key={cat.id}
+                      to={`/products?category=${sliderGender}&clothing_category=${cat.id}`}
+                      className="navbar-slider-category-row"
+                      onClick={closeMenu}
+                    >
+                      <span className="navbar-slider-category-name">{cat.label}</span>
+                      <span className="navbar-slider-category-image" aria-hidden="true">
+                        <span className="navbar-slider-category-arrow">→</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </nav>
 
       <div
@@ -197,55 +244,6 @@ const Navbar = () => {
         aria-hidden="true"
         onClick={closeMenu}
       />
-      <div className={`navbar-slider ${menuOpen ? 'navbar-slider--open' : ''}`} id="navbar-mobile" role="dialog" aria-label="Menu">
-        <div className="navbar-slider-inner">
-          <div className="navbar-slider-header">
-            <button
-              type="button"
-              className="navbar-slider-close"
-              aria-label="Close menu"
-              onClick={closeMenu}
-            >
-              <span className="navbar-slider-close-icon" aria-hidden="true">×</span>
-            </button>
-          </div>
-          {sliderTopLinks}
-          <div className="navbar-slider-filters">
-            <span className="navbar-slider-filters-label">Shop by</span>
-            <div className="navbar-slider-genders">
-              {GENDERS.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  className={`navbar-slider-gender-btn ${sliderGender === g.id ? 'navbar-slider-gender-btn--active' : ''}`}
-                  onClick={() => setSliderGender(sliderGender === g.id ? null : g.id)}
-                  aria-expanded={sliderGender === g.id}
-                  aria-controls={`slider-categories-${g.id}`}
-                >
-                  {g.label}
-                </button>
-              ))}
-            </div>
-            {sliderGender && (
-              <div id={`slider-categories-${sliderGender}`} className="navbar-slider-categories" role="region" aria-label={`${GENDERS.find((g) => g.id === sliderGender)?.label} categories`}>
-                {CLOTHING_CATEGORIES.map((cat) => (
-                  <Link
-                    key={cat.id}
-                    to={`/products?category=${sliderGender}&clothing_category=${cat.id}`}
-                    className="navbar-slider-category-row"
-                    onClick={closeMenu}
-                  >
-                    <span className="navbar-slider-category-name">{cat.label}</span>
-                    <span className="navbar-slider-category-image" aria-hidden="true">
-                      <span className="navbar-slider-category-arrow">→</span>
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
     </header>
   );
 };

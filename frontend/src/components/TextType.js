@@ -48,6 +48,7 @@ const TextType = ({
   useEffect(() => {
     if (!startOnVisible || !containerRef.current) return;
 
+    const el = containerRef.current;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -56,31 +57,35 @@ const TextType = ({
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0, rootMargin: '0px' }
     );
 
-    observer.observe(containerRef.current);
+    observer.observe(el);
     return () => observer.disconnect();
   }, [startOnVisible]);
 
   useEffect(() => {
-    if (showCursor && cursorRef.current) {
-      gsap.set(cursorRef.current, { opacity: 1 });
-      gsap.to(cursorRef.current, {
-        opacity: 0,
-        duration: cursorBlinkDuration,
-        repeat: -1,
-        yoyo: true,
-        ease: 'power2.inOut',
-      });
-    }
+    if (!showCursor || !cursorRef.current) return;
+    const cursorEl = cursorRef.current;
+    gsap.set(cursorEl, { opacity: 1 });
+    const tween = gsap.to(cursorEl, {
+      opacity: 0,
+      duration: cursorBlinkDuration,
+      repeat: -1,
+      yoyo: true,
+      ease: 'power2.inOut',
+    });
+    return () => tween.kill();
   }, [showCursor, cursorBlinkDuration]);
 
   useEffect(() => {
     if (!isVisible) return;
+    if (!textArray.length) return;
 
     let timeout;
     const currentText = textArray[currentTextIndex];
+    if (currentText == null || currentText === '') return;
+
     const processedText = reverseMode ? currentText.split('').reverse().join('') : currentText;
     const isLastString = currentTextIndex === textArray.length - 1;
 

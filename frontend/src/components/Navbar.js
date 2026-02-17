@@ -20,6 +20,7 @@ import {
 } from 'react-icons/gi';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import SpotlightCard from './SpotlightCard';
 import './Navbar.css';
 
 const NAV_MOBILE_BREAKPOINT = 768;
@@ -220,17 +221,22 @@ const Navbar = () => {
                   {CLOTHING_CATEGORIES.map((cat) => {
                     const CategoryIcon = cat.Icon;
                     return (
-                      <Link
+                      <SpotlightCard
                         key={cat.id}
-                        to={`/products?category=${sliderGender}&clothing_category=${cat.id}`}
-                        className="navbar-slider-category-row"
-                        onClick={closeMenu}
+                        className="navbar-slider-category-spotlight"
+                        spotlightColor="rgba(255, 255, 255, 0.4)"
                       >
-                        <span className="navbar-slider-category-name">{cat.label}</span>
-                        <span className="navbar-slider-category-icon" aria-hidden="true">
-                          <CategoryIcon />
-                        </span>
-                      </Link>
+                        <Link
+                          to={`/products?category=${sliderGender}&clothing_category=${cat.id}`}
+                          className="navbar-slider-category-row"
+                          onClick={closeMenu}
+                        >
+                          <span className="navbar-slider-category-name">{cat.label}</span>
+                          <span className="navbar-slider-category-icon" aria-hidden="true">
+                            <CategoryIcon />
+                          </span>
+                        </Link>
+                      </SpotlightCard>
                     );
                   })}
                 </div>

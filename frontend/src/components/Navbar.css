@@ -418,6 +418,21 @@
   gap: 8px;
 }
 
+/* Spotlight wrapper for category rows: no extra chrome, only spotlight effect */
+.navbar-slider-category-spotlight.card-spotlight {
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  width: 100%;
+}
+
+/* Keep link below spotlight layer so gradient is visible on top */
+.navbar-slider-category-spotlight .navbar-slider-category-row {
+  position: relative;
+  z-index: 0;
+}
+
 /* Category rows: same radius as gender buttons, Times New Roman, all caps */
 .navbar-slider-category-row {
   display: flex;

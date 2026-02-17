@@ -96,7 +96,7 @@
 
 /* Layer 4: Text – top-left quadrant, under image (z-index below asset-3) */
 .hero-layer-text {
-  left: 168px;
+  left: 48px;
   top: 22%;
   z-index: 1;
   max-width: 55%;
@@ -122,12 +122,19 @@
   margin: 0;
 }
 
+#banner-asset-4-title {
+  font-size: clamp(58px, 10vw, 140px);
+  margin: -0.75em 0 0 -24px;
+}
+
+/* Small white “insight shop” – Saint Timothy, overlaps bottom of big title */
+#banner-asset-4-subtitle,
 .hero-subtitle-script {
   font-family: 'Saint Timothy', 'Dancing Script', cursive;
-  font-size: clamp(28px, 4vw, 52px);
+  font-size: clamp(20px, 3vw, 38px);
   font-weight: 400;
   color: #ffffff;
-  margin: -0.35em 0 0 0.15em;
+  margin: 0.75em 0 -0.2em 0.12em;
   white-space: nowrap;
   position: relative;
   z-index: 1;
@@ -954,7 +961,7 @@
   }
 
   .hero-layer-text {
-    left: 102px;
+    left: 32px;
     top: 20%;
     max-width: 58%;
   }
@@ -989,7 +996,7 @@
   }
 
   .hero-layer-text {
-    left: 94px;
+    left: 20px;
     top: 18%;
     max-width: 62%;
   }
@@ -999,9 +1006,15 @@
     letter-spacing: 0.08em;
   }
 
+  #banner-asset-4-title {
+    font-size: clamp(46px, 9vw, 82px);
+    margin: -0.65em 0 0 -28px;
+  }
+
+  #banner-asset-4-subtitle,
   .hero-subtitle-script {
-    font-size: clamp(24px, 5vw, 40px);
-    margin: -0.32em 0 0 0.12em;
+    font-size: clamp(18px, 3.5vw, 30px);
+    margin: 0.65em 0 -0.2em -8px;
   }
 
   .hero-cta {
@@ -1056,7 +1069,7 @@
   }
 
   .hero-layer-text {
-    left: 86px;
+    left: 12px;
     top: 14%;
     max-width: 70%;
   }
@@ -1066,9 +1079,15 @@
     letter-spacing: 0.06em;
   }
 
+  #banner-asset-4-title {
+    font-size: clamp(36px, 8vw, 58px);
+    margin: -0.55em 0 0 -20px;
+  }
+
+  #banner-asset-4-subtitle,
   .hero-subtitle-script {
-    font-size: clamp(20px, 4.5vw, 28px);
-    margin: -0.3em 0 0 0.1em;
+    font-size: clamp(16px, 3vw, 24px);
+    margin: 0.55em 0 -0.15em -6px;
   }
 
   .hero-cta {

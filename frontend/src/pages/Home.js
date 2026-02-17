@@ -151,20 +151,22 @@ const Home = () => {
         <div id="banner-asset-4" className="hero-layer hero-layer-text" data-asset-name="text">
           <h1 className="hero-title-line">
             <BlurText
-              text="INSIGHT SHOP"
-              as="span"
-              delay={250}
-              animateBy="words"
-              direction="top"
-              className="hero-title"
-            />
-            <BlurText
+              id="banner-asset-4-subtitle"
               text="insight shop"
               as="span"
               delay={280}
               animateBy="words"
               direction="top"
               className="hero-subtitle-script"
+            />
+            <BlurText
+              id="banner-asset-4-title"
+              text="INSIGHT SHOP"
+              as="span"
+              delay={250}
+              animateBy="words"
+              direction="top"
+              className="hero-title"
             />
           </h1>
         </div>

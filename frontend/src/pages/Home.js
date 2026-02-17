@@ -172,9 +172,11 @@ const Home = () => {
       <section className="hero banner-four-layers">
         {/* Asset 1: Background */}
         <div id="banner-asset-1" className="hero-layer hero-layer-bg" data-asset-name="background" aria-hidden="true" />
-        {/* Asset 2 + 3: grouped for shared hover (rounded rect + image) */}
+        {/* Asset 2 + doodle + 3: rounded rect, transparent doodle PNG, image */}
         <div className="hero-banner-assets-group">
           <div id="banner-asset-2" className="hero-layer hero-layer-rounded-rect" data-asset-name="rounded-rectangle" aria-hidden="true" />
+          {/* Doodle slot: add <img src={`${process.env.PUBLIC_URL || ''}/images/hero-doodle.png`} alt="" className="hero-layer-doodle-img" /> to show an image */}
+          <div id="banner-asset-doodle" className="hero-layer hero-layer-doodle" data-asset-name="doodle" aria-hidden="true" />
           <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
             <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
           </div>
@@ -228,20 +230,13 @@ const Home = () => {
         </button>
       </section>
 
-      {/* Hard to find – asset-20 container, Asset 19 text + image overlapping */}
-      <section className="home-hard-to-find" aria-labelledby="hard-to-find-heading">
-        <div className="home-hard-to-find-container">
-          <div className="home-hard-to-find-content">
-            <p id="hard-to-find-heading" className="home-hard-to-find-text">
-              HARD TO FIND<br />WHAT YOU NEED?
-            </p>
-            <img
-              src={`${process.env.PUBLIC_URL || ''}/images/asset-19.png`}
-              alt=""
-              className="home-hard-to-find-image"
-              aria-hidden="true"
-            />
-          </div>
+      {/* Mid banner: same bg as site, container (mid-asset-2) with Asset 20–style corners */}
+      <section id="mid-asset-1" className="mid-banner" aria-labelledby="mid-banner-heading">
+        <div id="mid-asset-2" className="mid-banner-container">
+          <p id="mid-banner-heading" className="mid-banner-title">
+            HARD TO FIND<br />WHAT YOU NEED?
+          </p>
+          <p className="mid-banner-subtitle">It&apos;s okay!</p>
         </div>
       </section>
 

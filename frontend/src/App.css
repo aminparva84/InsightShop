@@ -1,19 +1,20 @@
-/* Global background: same as banner-asset-1 (hero layer 1) */
+/* Global background: same as banner-asset-1 (hero layer 1), see :root in index.css */
 body {
-  background: #C3B0A1;
+  background: var(--site-bg);
 }
 
 .App {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #C3B0A1;
+  background: var(--site-bg);
 }
 
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: var(--site-bg);
 }
 
 /* Utility classes */

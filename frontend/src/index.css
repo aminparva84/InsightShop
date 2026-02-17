@@ -4,8 +4,14 @@
   box-sizing: border-box;
 }
 
+/* Same as banner-asset-1 (hero layer 1) – used for whole-site background */
+:root {
+  --site-bg: #C3B0A1;
+}
+
 html {
   scroll-behavior: smooth;
+  background: var(--site-bg);
 }
 
 body {
@@ -14,7 +20,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #C3B0A1;
+  background: var(--site-bg);
   color: #36454f;
   min-height: 100vh;
 }

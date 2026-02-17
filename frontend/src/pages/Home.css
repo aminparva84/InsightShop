@@ -22,7 +22,8 @@
   pointer-events: none;
 }
 
-.hero-layer-image {
+.hero-layer-image,
+.hero-layer-doodle {
   pointer-events: none;
 }
 
@@ -61,6 +62,35 @@
 .hero-banner-assets-group:hover #banner-asset-2 {
   transform: scale(1.03);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+}
+
+/* Doodle layer: same pattern as hero-layer-image; above banner-asset-2 (z 1), below banner-asset-3 (z 4) */
+.hero-layer-doodle {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, 45vw);
+  height: min(420px, 50vh);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: none;
+}
+
+.hero-layer-doodle-img {
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+  object-position: center center;
+  transition: transform 0.35s ease, filter 0.35s ease;
+  transform-origin: center center;
+}
+
+.hero-banner-assets-group:hover #banner-asset-doodle .hero-layer-doodle-img {
+  transform: scale(1.03);
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.2));
 }
 
 /* Layer 3: Image – woman (Asset 4), central-right, in front of rounded rect; transparent PNG – use drop-shadow for its edges */
@@ -163,64 +193,66 @@
   box-shadow: 0 6px 24px rgba(74, 88, 68, 0.5);
 }
 
-/* Hard to find segment: same bg as site, asset-20–style container, Asset 19 text + image overlapping */
-.home-hard-to-find {
-  padding: 48px 24px 56px;
-  background: #A18A72;
-}
-
-.home-hard-to-find-container {
-  max-width: 720px;
-  margin: 0 auto;
-  min-height: 160px;
-  background: #977E6C;
-  /* 3 rounded edges + one edge completely round (left = semicircle) */
-  border-top-left-radius: 999px;
-  border-bottom-left-radius: 999px;
-  border-top-right-radius: 24px;
-  border-bottom-right-radius: 24px;
+/* Mid banner: same as main background, centered container (Asset 20–style shape) – 1.5x scale */
+.mid-banner {
+  padding: 72px 36px 84px;
+  background: var(--site-bg, #C3B0A1);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 40px 32px 48px;
-  box-sizing: border-box;
 }
 
-.home-hard-to-find-content {
-  position: relative;
+.mid-banner-container {
+  width: 750px;
+  height: 450px;
+  background: #A18A72;
+  /* Asset 20–style: top-left fully round (circle-like), top-right 40%, bottom-right 40%, bottom-left adjusted */
+  border-top-left-radius: 999px;
+  border-top-right-radius: 40%;
+  border-bottom-right-radius: 40%;
+  border-bottom-left-radius: 35%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  padding: 60px 72px;
+  box-sizing: border-box;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-.home-hard-to-find-text {
+.mid-banner-title {
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: clamp(28px, 4.5vw, 48px);
+  font-size: clamp(42px, 6vw, 63px);
   font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #4C5441;
+  color: #4F5747;
   margin: 0;
-  position: relative;
-  z-index: 0;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.home-hard-to-find-image {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, calc(-50% - 8px));
-  max-width: 85%;
-  width: auto;
-  height: auto;
-  max-height: 120%;
-  object-fit: contain;
-  z-index: 1;
-  pointer-events: none;
-  margin: -4px 0 0 0;
+.mid-banner-subtitle {
+  font-family: 'Saint Timothy', 'Dancing Script', cursive;
+  font-size: clamp(24px, 3vw, 33px);
+  font-weight: 700;
+  color: #ffffff;
+  margin: 18px 0 0;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 840px) {
+  .mid-banner-container {
+    width: 100%;
+    max-width: 750px;
+    height: 420px;
+    padding: 48px 36px;
+  }
+
+  .mid-banner-title {
+    font-size: clamp(33px, 5vw, 48px);
+  }
 }
 
 .featured-products {
@@ -909,28 +941,6 @@
   box-shadow: 0 6px 20px rgba(26, 35, 50, 0.6);
 }
 
-@media (max-width: 768px) {
-  .home-hard-to-find {
-    padding: 36px 16px 44px;
-  }
-
-  .home-hard-to-find-container {
-    min-height: 140px;
-    padding: 28px 24px 28px 40px;
-    border-top-right-radius: 20px;
-    border-bottom-right-radius: 20px;
-  }
-
-  .home-hard-to-find-text {
-    font-size: clamp(22px, 5vw, 36px);
-  }
-
-  .home-hard-to-find-image {
-    max-height: 100%;
-    margin: -6px 0 0 0;
-  }
-}
-
 @media (max-width: 968px) {
   .hero.banner-four-layers {
     min-height: 80vh;
@@ -941,6 +951,11 @@
     width: 54%;
     height: 68%;
     right: -100px;
+  }
+
+  .hero-layer-doodle {
+    width: min(380px, 42vw);
+    height: min(380px, 45vh);
   }
 
   .hero-layer-image {
@@ -974,6 +989,11 @@
     border-top-left-radius: min(200px, 30vw);
   }
 
+  .hero-layer-doodle {
+    width: min(320px, 42vw);
+    height: min(320px, 42vh);
+  }
+
   .hero-layer-image {
     width: 52%;
     transform: translateX(calc(-8% + 50px));
@@ -991,13 +1011,13 @@
   }
 
   #banner-asset-4-title {
-    font-size: clamp(46px, 9vw, 82px);
+    font-size: clamp(54px, 11vw, 94px);
     margin: -0.65em 0 0 -28px;
   }
 
   #banner-asset-4-subtitle,
   .hero-subtitle-script {
-    font-size: clamp(18px, 3.5vw, 30px);
+    font-size: clamp(21px, 4vw, 34px);
     margin: 0.65em 0 -0.2em -8px;
   }
 
@@ -1047,6 +1067,11 @@
     border-top-left-radius: min(160px, 35vw);
   }
 
+  .hero-layer-doodle {
+    width: min(260px, 38vw);
+    height: min(260px, 38vh);
+  }
+
   .hero-layer-image {
     width: 58%;
     transform: translateX(calc(-5% + 30px));
@@ -1059,18 +1084,18 @@
   }
 
   .hero-title {
-    font-size: clamp(44px, 12vw, 72px);
+    font-size: clamp(48px, 13vw, 78px);
     letter-spacing: 0.06em;
   }
 
   #banner-asset-4-title {
-    font-size: clamp(36px, 8vw, 58px);
+    font-size: clamp(44px, 11vw, 66px);
     margin: -0.55em 0 0 -20px;
   }
 
   #banner-asset-4-subtitle,
   .hero-subtitle-script {
-    font-size: clamp(16px, 3vw, 24px);
+    font-size: clamp(19px, 3.8vw, 28px);
     margin: 0.55em 0 -0.15em -6px;
   }
 

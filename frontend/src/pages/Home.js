@@ -66,6 +66,9 @@ const openAIChatPopup = () => {
 const BANNER_TEXT_FADEOUT_MS = 5000;
 const BANNER_TEXT_FADEOUT_DURATION_S = 0.8;
 
+const MOBILE_BREAKPOINT = 640;
+const MOBILE_PRODUCTS_LIMIT = 4; // 2 rows × 2 columns on mobile
+
 const Home = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
@@ -75,8 +78,15 @@ const Home = () => {
   const [bannerTextKey, setBannerTextKey] = useState(0);
   const bannerCompleteCountRef = useRef(0);
   const bannerTimeoutRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT);
 
   const categoryLogos = useMemo(() => CATEGORIES, []);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const renderCategoryItem = useMemo(
     () => (item, key) => {
@@ -265,7 +275,14 @@ const Home = () => {
           {loading ? (
             <div className="spinner"></div>
           ) : products.length > 0 ? (
-            <ProductGrid products={products} />
+            <>
+              <ProductGrid products={isMobile ? products.slice(0, MOBILE_PRODUCTS_LIMIT) : products} />
+              {isMobile && products.length > MOBILE_PRODUCTS_LIMIT && (
+                <div className="featured-products-view-all">
+                  <Link to="/products" className="featured-products-view-all-link">View all products</Link>
+                </div>
+              )}
+            </>
           ) : (
             <div className="no-products-message">
               <p>No products available at the moment. Ask the AI assistant to find products!</p>

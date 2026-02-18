@@ -43,36 +43,46 @@ const ProductCard = ({ product, compact = false }) => {
   return (
     <Link to={`/products/${product.id}`} className={`product-card ${compact ? 'compact' : ''}`}>
       <div className="product-image">
-        <img 
-          src={product.image_url || `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80`} 
-          alt={product.name}
-          onError={(e) => {
-            e.target.src = `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80`;
-          }}
-        />
-        <div className="product-overlay">
-          <button onClick={handleAddToCart} className="btn-add-cart">
-            Add to Cart
-          </button>
+        <div className="product-image-inner">
+          <img 
+            src={product.image_url || `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80`} 
+            alt={product.name}
+            onError={(e) => {
+              e.target.src = `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80`;
+            }}
+          />
         </div>
       </div>
       <div className="product-info">
-        <h3 className="product-name">{product.name}</h3>
-        <ProductRating rating={product.rating || 0} reviewCount={product.review_count || 0} />
-        <div className="product-meta">
-          <span className="product-category">{product.category}</span>
+        <div className="product-info-row">
+          <h3 className="product-name">{product.name}</h3>
+          <div className="product-price">
+            {product.on_sale ? (
+              <>
+                <span className="original-price">${product.original_price.toFixed(2)}</span>
+                <span className="sale-price">${product.price.toFixed(2)}</span>
+                {product.discount_percentage && (
+                  <span className="discount-badge">-{product.discount_percentage.toFixed(0)}%</span>
+                )}
+              </>
+            ) : (
+              <span>${product.price.toFixed(2)}</span>
+            )}
+          </div>
         </div>
-        {/* Only show color selector if multiple colors available */}
-        {product.available_colors && product.available_colors.length > 1 && (
+        <ProductRating rating={product.rating || 0} reviewCount={product.review_count || 0} />
+        {product.category && (
+          <div className="product-meta">
+            <span className="product-category">{product.category}</span>
+          </div>
+        )}
+        {product.available_colors && product.available_colors.length > 0 && (
           <ColorSwatches 
             colors={product.available_colors} 
             selectedColor={selectedColor}
-            onColorSelect={(color) => {
-              setSelectedColor(color);
-            }}
+            onColorSelect={(color) => setSelectedColor(color)}
           />
         )}
-        {/* Only show size selector if multiple sizes available */}
         {product.available_sizes && product.available_sizes.length > 1 && (
           <SizeSelector 
             sizes={product.available_sizes} 
@@ -82,20 +92,11 @@ const ProductCard = ({ product, compact = false }) => {
             }}
           />
         )}
-        <div className="product-price">
-          {product.on_sale ? (
-            <>
-              <span className="original-price">${product.original_price.toFixed(2)}</span>
-              <span className="sale-price">${product.price.toFixed(2)}</span>
-              {product.discount_percentage && (
-                <span className="discount-badge">-{product.discount_percentage.toFixed(0)}%</span>
-              )}
-            </>
-          ) : (
-            <span>${product.price.toFixed(2)}</span>
-          )}
-        </div>
       </div>
+      <button type="button" onClick={handleAddToCart} className="btn-add-cart">
+        <span className="btn-add-cart-text">Add to cart</span>
+        <span className="btn-add-cart-icon" aria-hidden="true">+</span>
+      </button>
     </Link>
   );
 };

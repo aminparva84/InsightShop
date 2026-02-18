@@ -226,9 +226,6 @@ const Home = () => {
           </h1>
         </motion.div>
         <HeroChatPreview onOpenChat={openAIChatPopup} />
-        <button type="button" className="hero-cta" onClick={openAIChatPopup}>
-          Chat with Ai assistant
-        </button>
       </section>
 
       {/* Mid banner: same bg as site, container (mid-asset-2); subtitle (mid-asset-3) at end of "WHAT YOU NEED?" */}

@@ -57,10 +57,11 @@
   border-top-left-radius: min(260px, 24vw);
   z-index: 1;
   transition: transform 0.35s ease, box-shadow 0.35s ease;
+  transform: translateY(50px);
 }
 
 .hero-banner-assets-group:hover #banner-asset-2 {
-  transform: scale(1.03);
+  transform: translateY(50px) scale(1.03);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
 }
 
@@ -68,7 +69,7 @@
 .hero-layer-doodle {
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(calc(-50% + 360px), calc(-50% - 125px));
   width: min(420px, 45vw);
   height: min(420px, 50vh);
   z-index: 3;
@@ -78,7 +79,6 @@
   transition: none;
 }
 
-/* Doodle PNG has black fill; blend so black shows through as transparent (like asset-3) */
 .hero-layer-doodle-img {
   width: 100%;
   height: auto;
@@ -87,7 +87,6 @@
   object-position: center center;
   transition: transform 0.35s ease, filter 0.35s ease;
   transform-origin: center center;
-  mix-blend-mode: lighten;
 }
 
 .hero-banner-assets-group:hover #banner-asset-doodle .hero-layer-doodle-img {
@@ -99,7 +98,7 @@
 .hero-layer-image {
   left: 50%;
   bottom: 0;
-  transform: translateX(calc(-15% + 145px));
+  transform: translate(calc(-15% + 145px), 50px);
   width: 42%;
   max-width: 480px;
   height: 85%;
@@ -275,6 +274,7 @@
     font-weight: 400;
     transform: translateX(-65%) rotate(-18deg);
   }
+
 }
 
 .featured-products {
@@ -973,11 +973,17 @@
     width: 54%;
     height: 68%;
     right: -100px;
+    transform: none;
+  }
+
+  .hero-banner-assets-group:hover #banner-asset-2 {
+    transform: scale(1.03);
   }
 
   .hero-layer-doodle {
     width: min(380px, 42vw);
     height: min(380px, 45vh);
+    transform: translate(-50%, -50%);
   }
 
   .hero-layer-image {
@@ -1009,11 +1015,17 @@
     height: 65%;
     right: -20px;
     border-top-left-radius: min(200px, 30vw);
+    transform: none;
+  }
+
+  .hero-banner-assets-group:hover #banner-asset-2 {
+    transform: scale(1.03);
   }
 
   .hero-layer-doodle {
     width: min(320px, 42vw);
     height: min(320px, 42vh);
+    transform: translate(-50%, -50%);
   }
 
   .hero-layer-image {
@@ -1087,11 +1099,17 @@
     height: 60%;
     right: -10px;
     border-top-left-radius: min(160px, 35vw);
+    transform: none;
+  }
+
+  .hero-banner-assets-group:hover #banner-asset-2 {
+    transform: scale(1.03);
   }
 
   .hero-layer-doodle {
     width: min(260px, 38vw);
     height: min(260px, 38vh);
+    transform: translate(-50%, -50%);
   }
 
   .hero-layer-image {

@@ -58,6 +58,8 @@ generated_images/*.png
 !generated_images/*.jpg
 *.png
 !frontend/public/*.png
+!frontend/public/images/*.png
 !frontend/src/components/*.png
 !static/images/*.jpg
+!static/images/*.png
 

@@ -23,6 +23,7 @@ import ProductGrid from '../components/ProductGrid';
 import FlowingMenu from '../components/FlowingMenu';
 import BlurText from '../components/BlurText';
 import HeroChatPreview from '../components/HeroChatPreview';
+import WavyUnderline from '../components/WavyUnderline';
 import './Home.css';
 
 /* Seasonal menu: images from Unsplash (season-themed, free to use) */
@@ -63,7 +64,7 @@ const openAIChatPopup = () => {
 
 /* Stable arrays for TextType so animation effect deps don’t churn on re-render */
 const BANNER_TEXT_FADEOUT_MS = 5000;
-const BANNER_TEXT_FADEOUT_DURATION_S = 0.8;
+const BANNER_TEXT_FADEOUT_DURATION_S = 2;
 
 const MOBILE_BREAKPOINT = 640;
 const MOBILE_PRODUCTS_LIMIT = 4; // 2 rows × 2 columns on mobile
@@ -142,7 +143,7 @@ const Home = () => {
     }
   };
 
-  const heroModelSrc = `${process.env.PUBLIC_URL || ''}/images/hero-model.png`;
+  const heroModelSrc = `${process.env.PUBLIC_URL || ''}/images/Model_banner.png`;
 
   return (
     <div className="home">
@@ -207,7 +208,7 @@ const Home = () => {
         <HeroChatPreview onOpenChat={openAIChatPopup} />
       </section>
 
-      {/* Mid banner: same bg as site, container (mid-asset-2); subtitle (mid-asset-3) at end of "WHAT YOU NEED?" */}
+      {/* Mid banner: same bg as site, container (mid-asset-2); subtitle (mid-asset-3); doodle (mid-doodle) under mid-asset-2 */}
       <section id="mid-asset-1" className="mid-banner" aria-labelledby="mid-banner-heading">
         <div id="mid-asset-2" className="mid-banner-container">
           <p id="mid-banner-heading" className="mid-banner-title">
@@ -218,12 +219,22 @@ const Home = () => {
             </span>
           </p>
         </div>
+        <img
+          id="mid-doodle"
+          src={`${process.env.PUBLIC_URL || ''}/images/mid-doodle.png`}
+          alt=""
+          className="mid-banner-doodle"
+          aria-hidden="true"
+        />
       </section>
 
       {/* Featured Products */}
       <section className="featured-products">
         <div className="container">
-          <h2 className="section-title">Featured Products</h2>
+          <div className="section-title-wrap">
+            <h2 className="section-title">Featured Products</h2>
+            <WavyUnderline color="#373F2E" className="section-title-wavy" />
+          </div>
           <div className="featured-products-actions">
             <Link to="/products" className="featured-products-action-btn nav-bar-styler-gender-button">
               Search
@@ -254,7 +265,10 @@ const Home = () => {
       {/* Seasonal Shopping — FlowingMenu with logos */}
       <section className="seasonal-shopping">
         <div className="container">
-          <h2 className="section-title">Seasonal Shopping</h2>
+          <div className="section-title-wrap">
+            <h2 className="section-title">Seasonal Shopping</h2>
+            <WavyUnderline color="#373F2E" className="section-title-wavy" />
+          </div>
           <div className="seasonal-flowing-wrap">
             <FlowingMenu
               items={SEASONAL_ITEMS}

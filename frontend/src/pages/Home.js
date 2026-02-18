@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import axios from 'axios';
-import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain, FaSearch } from 'react-icons/fa';
+import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain } from 'react-icons/fa';
 import {
   GiTrousers,
   GiShirt,
@@ -20,7 +20,6 @@ import {
   GiUnderwear,
 } from 'react-icons/gi';
 import ProductGrid from '../components/ProductGrid';
-import LogoLoop from '../components/LogoLoop';
 import FlowingMenu from '../components/FlowingMenu';
 import BlurText from '../components/BlurText';
 import HeroChatPreview from '../components/HeroChatPreview';
@@ -73,47 +72,17 @@ const Home = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [bannerPhase, setBannerPhase] = useState('idle'); // 'idle' | 'fadingOut' | 'fadedOut'
   const [bannerTextKey, setBannerTextKey] = useState(0);
   const bannerCompleteCountRef = useRef(0);
   const bannerTimeoutRef = useRef(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT);
 
-  const categoryLogos = useMemo(() => CATEGORIES, []);
-
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  const renderCategoryItem = useMemo(
-    () => (item, key) => {
-      const Icon = item.Icon;
-      return (
-        <Link
-          to={item.path}
-          className="clothing-category-card logoloop-category-card"
-          aria-label={`Shop ${item.label}`}
-        >
-          <div className="clothing-category-icon">
-            <Icon />
-          </div>
-          <h3>{item.label}</h3>
-        </Link>
-      );
-    },
-    []
-  );
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    const trimmed = searchQuery.trim();
-    if (trimmed) {
-      navigate(`/products?search=${encodeURIComponent(trimmed)}`);
-    }
-  };
 
   useEffect(() => {
     fetchFeaturedProducts();
@@ -255,78 +224,30 @@ const Home = () => {
       <section className="featured-products">
         <div className="container">
           <h2 className="section-title">Featured Products</h2>
-          <form className="home-search-bar" onSubmit={handleSearchSubmit} role="search">
-            <div className="home-search-wrapper">
-              <FaSearch className="home-search-icon" aria-hidden="true" />
-              <input
-                type="search"
-                className="home-search-input"
-                placeholder="Search styles, colors, occasions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                aria-label="Search products"
-                autoComplete="off"
-              />
-              <button type="submit" className="home-search-btn">
-                Search
-              </button>
-            </div>
-          </form>
+          <div className="featured-products-actions">
+            <Link to="/products" className="featured-products-action-btn nav-bar-styler-gender-button">
+              Search
+            </Link>
+            <button type="button" onClick={openAIChatPopup} className="featured-products-action-btn nav-bar-styler-gender-button" aria-label="Ask AI for help">
+              Ask AI
+            </button>
+          </div>
+          <div className="featured-products-line" aria-hidden="true" />
           {loading ? (
             <div className="spinner"></div>
           ) : products.length > 0 ? (
             <>
               <ProductGrid products={isMobile ? products.slice(0, MOBILE_PRODUCTS_LIMIT) : products} />
-              {isMobile && products.length > MOBILE_PRODUCTS_LIMIT && (
-                <div className="featured-products-view-all">
-                  <Link to="/products" className="featured-products-view-all-link">View all products</Link>
-                </div>
-              )}
+              <div className="featured-products-line" aria-hidden="true" />
+              <div className="featured-products-view-all">
+                <Link to="/products" className="featured-products-view-all-link">View all products</Link>
+              </div>
             </>
           ) : (
             <div className="no-products-message">
               <p>No products available at the moment. Ask the AI assistant to find products!</p>
             </div>
           )}
-        </div>
-      </section>
-
-      {/* Shop by Category (LogoLoop: two rows, opposite directions) */}
-      <section className="shop-by-category">
-        <div className="container">
-          <h2 className="section-title">Shop by Category</h2>
-          <div className="shop-by-category-loop-wrapper" aria-label="Shop by category">
-            <LogoLoop
-              logos={categoryLogos}
-              speed={40}
-              direction="right"
-              logoHeight={56}
-              gap={24}
-              hoverSpeed={60}
-              scaleOnHover
-              fadeOut
-              fadeOutColor="#ffffff"
-              renderItem={renderCategoryItem}
-              ariaLabel="Shop by category"
-              className="shop-by-category-logoloop"
-            />
-          </div>
-          <div className="shop-by-category-loop-wrapper shop-by-category-loop-row-2" aria-label="Shop by category">
-            <LogoLoop
-              logos={categoryLogos}
-              speed={40}
-              direction="left"
-              logoHeight={56}
-              gap={24}
-              hoverSpeed={60}
-              scaleOnHover
-              fadeOut
-              fadeOutColor="#ffffff"
-              renderItem={renderCategoryItem}
-              ariaLabel="Shop by category"
-              className="shop-by-category-logoloop"
-            />
-          </div>
         </div>
       </section>
 
@@ -338,11 +259,11 @@ const Home = () => {
             <FlowingMenu
               items={SEASONAL_ITEMS}
               speed={15}
-              textColor="#ffffff"
-              bgColor="#060010"
-              marqueeBgColor="#ffffff"
-              marqueeTextColor="#060010"
-              borderColor="#ffffff"
+              textColor="#E8E4DC"
+              bgColor="transparent"
+              marqueeBgColor="#E8E4DC"
+              marqueeTextColor="#373F2E"
+              borderColor="rgba(232, 228, 220, 0.35)"
               linkComponent={Link}
             />
           </div>

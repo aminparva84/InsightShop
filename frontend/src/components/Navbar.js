@@ -118,22 +118,21 @@ const Navbar = () => {
     }
   };
 
-  /* Top bar: only Home and Products; Cart, Account, Log in, Sign up live in the menu */
+  /* Top bar: Home, Products, and Cart (icon only); Account, Log in, Sign up live in the menu */
   const navLinks = (
     <>
       <Link to="/" className="nav-link" onClick={closeMenu}>Home</Link>
       <Link to="/products" className="nav-link" onClick={closeMenu}>Products</Link>
+      <Link to="/cart" className="nav-link nav-cart-link" title="Shopping Cart" onClick={closeMenu} aria-label={cartCount > 0 ? `${cartCount} items in cart` : 'Shopping Cart'}>
+        <span className="nav-cart-icon" aria-hidden="true"><CartIcon /></span>
+        {cartCount > 0 && <span className="cart-badge" aria-label={`${cartCount} items in cart`}>{cartCount}</span>}
+      </Link>
     </>
   );
 
-  /* Slider top: Cart, Account, Login/Logout only */
+  /* Slider top: Account, Login/Logout only (Cart is in navbar) */
   const sliderTopLinks = (
     <div className="navbar-slider-top">
-      <Link to="/cart" className="navbar-slider-link nav-cart-link" title="Shopping Cart" onClick={closeMenu}>
-        <span className="nav-cart-icon"><CartIcon /></span>
-        <span className="navbar-slider-link-text">Cart</span>
-        {cartCount > 0 && <span className="cart-badge" aria-label={`${cartCount} items in cart`}>{cartCount}</span>}
-      </Link>
       {isAuthenticated ? (
         <>
           <Link to="/members" className="navbar-slider-link" onClick={closeMenu}>Account</Link>

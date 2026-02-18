@@ -311,15 +311,15 @@
 /* Section title – Bebas Neue, sage (matches mid-banner) */
 .featured-products .section-title {
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: clamp(38px, 5.5vw, 52px);
+  font-size: clamp(76px, 11vw, 104px);
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.02em;
   text-transform: uppercase;
   text-align: center;
-  margin-bottom: 44px;
+  margin-bottom: 20px;
   color: #373F2E;
   position: relative;
-  padding-bottom: 20px;
+  padding-bottom: 12px;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -329,85 +329,58 @@
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 80px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(55, 63, 46, 0.6), transparent);
+  width: 180px;
+  height: 8px;
+  border-radius: 0 0 90px 90px;
+  background: #373F2E;
 }
 
 /* Home search bar – vintage theme (warm tones, sage accent) */
-.home-search-bar {
-  max-width: 560px;
-  margin: 0 auto 44px;
-}
-
-.featured-products .home-search-wrapper {
+/* Featured Products – Search and Ask AI buttons (nav-bar-styler-gender-button style) */
+.featured-products-actions {
   display: flex;
-  align-items: center;
-  background: rgba(245, 242, 237, 0.95);
-  border: 2px solid rgba(161, 138, 114, 0.5);
-  border-radius: 50px;
-  padding: 6px 6px 6px 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.featured-products .home-search-wrapper:focus-within {
-  border-color: #4A5844;
-  box-shadow: 0 4px 16px rgba(74, 88, 68, 0.25);
-}
-
-.featured-products .home-search-icon {
-  flex-shrink: 0;
-  color: #4F5747;
-  font-size: 18px;
-  margin-right: 12px;
-  transition: color 0.2s ease;
-}
-
-.featured-products .home-search-wrapper:focus-within .home-search-icon {
-  color: #373F2E;
-}
-
-.featured-products .home-search-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  font-family: 'Cormorant Garamond', 'Lora', Georgia, serif;
-  font-size: 17px;
-  color: #373F2E;
-  letter-spacing: 0.5px;
-}
-
-.featured-products .home-search-input::placeholder {
-  color: rgba(55, 63, 46, 0.5);
-}
-
-.featured-products .home-search-btn {
-  flex-shrink: 0;
-  padding: 12px 24px;
-  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #F5F5DC;
-  background: #4A5844;
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(74, 88, 68, 0.35);
-}
-
-.featured-products .home-search-btn:hover {
+.featured-products-action-btn.nav-bar-styler-gender-button,
+.featured-products-actions .nav-bar-styler-gender-button {
+  flex: 0 1 auto;
+  min-width: 80px;
+  max-width: 140px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(232, 228, 220, 0.35);
   background: #3d4a38;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(74, 88, 68, 0.4);
+  color: #E8E4DC;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  text-decoration: none;
+  text-align: center;
+  box-sizing: border-box;
 }
 
-.featured-products .home-search-btn:active {
-  transform: translateY(0);
+.featured-products-action-btn.nav-bar-styler-gender-button:hover,
+.featured-products-actions .nav-bar-styler-gender-button:hover {
+  background: #75685c;
+  border-color: rgba(117, 104, 92, 0.8);
+  color: #E8E4DC;
+}
+
+.featured-products-actions a.nav-bar-styler-gender-button:focus-visible,
+.featured-products-actions button.nav-bar-styler-gender-button:focus-visible {
+  outline: 2px solid #4A5844;
+  outline-offset: 2px;
 }
 
 /* Global section title (other sections) – keep existing for Shop by Category, Seasonal */
@@ -519,8 +492,14 @@
   }
 
   .featured-products .section-title {
-    font-size: clamp(32px, 5vw, 44px);
-    margin-bottom: 36px;
+    font-size: clamp(64px, 10vw, 88px);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+  }
+  .featured-products .section-title::after {
+    width: 140px;
+    height: 6px;
+    border-radius: 0 0 70px 70px;
   }
 }
 
@@ -534,23 +513,8 @@
     border-radius: 6%;
   }
 
-  .home-search-bar {
-    margin-bottom: 36px;
-  }
-
-  .home-search-wrapper {
-    padding: 6px 6px 6px 14px;
-    border-radius: 40px;
-  }
-
-  .home-search-input {
-    font-size: 16px;
-  }
-
-  .home-search-btn {
-    padding: 10px 18px;
-    font-size: 12px;
-    letter-spacing: 1px;
+  .featured-products-actions {
+    margin-bottom: 12px;
   }
 
   .featured-products .product-grid {
@@ -627,10 +591,15 @@
 
 /* Featured Products – product grid and cards (vintage theme) */
 .featured-products .product-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
-  gap: 20px;
   margin-bottom: 0;
   align-items: stretch;
+}
+
+@media (min-width: 641px) {
+  .featured-products .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 20px;
+  }
 }
 
 .featured-products .product-grid-item-wrapper {
@@ -723,6 +692,26 @@
 .featured-products .no-products-message p {
   font-family: 'Cormorant Garamond', 'Lora', Georgia, serif;
   color: #373F2E;
+}
+
+.featured-products-line {
+  width: 100%;
+  height: 1px;
+  background: #373F2E;
+  margin: 14px 0;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .featured-products-line {
+    margin: 12px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .featured-products-line {
+    margin: 10px 0;
+  }
 }
 
 .featured-products-view-all {
@@ -1057,10 +1046,44 @@
   }
 }
 
-/* Seasonal Shopping */
+/* Seasonal Shopping – vintage theme (matches mid-banner, featured products) */
 .seasonal-shopping {
-  padding: 80px 0;
-  background: linear-gradient(180deg, #f0f4f0 0%, #e8efe8 50%, #f5f8f5 100%);
+  padding: 72px 36px 84px;
+  background: var(--site-bg, #C3B0A1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.seasonal-shopping .container {
+  width: 100%;
+  max-width: 1200px;
+}
+
+.seasonal-shopping .section-title {
+  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
+  font-size: clamp(76px, 11vw, 104px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 20px;
+  color: #373F2E;
+  position: relative;
+  padding-bottom: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.seasonal-shopping .section-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180px;
+  height: 8px;
+  border-radius: 0 0 90px 90px;
+  background: #373F2E;
 }
 
 .seasonal-flowing-wrap {
@@ -1069,9 +1092,21 @@
   margin: 0 auto;
   height: 360px;
   position: relative;
-  border-radius: 16px;
+  border-radius: 6%;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  background: #A18A72;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.seasonal-flowing-wrap .menu__item-link {
+  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.seasonal-flowing-wrap .marquee span {
+  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
+  letter-spacing: 0.03em;
+  font-weight: 600;
 }
 
 .season-grid {
@@ -1180,9 +1215,22 @@
 .season-winter:hover { border-color: rgba(74, 123, 167, 0.4); }
 .season-winter:hover .season-icon { color: #2c5282; transform: scale(1.1); }
 
+@media (max-width: 840px) {
+  .seasonal-shopping .section-title {
+    font-size: clamp(64px, 10vw, 88px);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+  }
+  .seasonal-shopping .section-title::after {
+    width: 140px;
+    height: 6px;
+    border-radius: 0 0 70px 70px;
+  }
+}
+
 @media (max-width: 768px) {
   .seasonal-shopping {
-    padding: 50px 0;
+    padding: 50px 36px 64px;
   }
 
   .seasonal-flowing-wrap {

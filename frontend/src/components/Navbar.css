@@ -516,7 +516,8 @@
     font-size: 13px;
   }
 
-  .navbar-links {
+  /* Keep navbar-links visible so cart icon is always shown; hide only Home/Products (they're in the menu) */
+  .navbar-links .nav-link:not(.nav-cart-link) {
     display: none;
   }
 

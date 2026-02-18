@@ -20,7 +20,8 @@
     "eject": "react-scripts eject"
   },
   "devDependencies": {
-    "react-scripts": "5.0.1"
+    "react-scripts": "5.0.1",
+    "sass": "^1.97.3"
   },
   "eslintConfig": {
     "extends": [

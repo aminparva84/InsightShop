@@ -175,8 +175,9 @@ const Home = () => {
         {/* Asset 2 + doodle + 3: rounded rect, transparent doodle PNG, image */}
         <div className="hero-banner-assets-group">
           <div id="banner-asset-2" className="hero-layer hero-layer-rounded-rect" data-asset-name="rounded-rectangle" aria-hidden="true" />
-          {/* Doodle slot: add <img src={`${process.env.PUBLIC_URL || ''}/images/hero-doodle.png`} alt="" className="hero-layer-doodle-img" /> to show an image */}
-          <div id="banner-asset-doodle" className="hero-layer hero-layer-doodle" data-asset-name="doodle" aria-hidden="true" />
+          <div id="banner-asset-doodle" className="hero-layer hero-layer-doodle" data-asset-name="doodle" aria-hidden="true">
+            <img src={`${process.env.PUBLIC_URL || ''}/images/hero-doodle.png`} alt="" className="hero-layer-doodle-img" />
+          </div>
           <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
             <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
           </div>
@@ -230,13 +231,16 @@ const Home = () => {
         </button>
       </section>
 
-      {/* Mid banner: same bg as site, container (mid-asset-2) with Asset 20–style corners */}
+      {/* Mid banner: same bg as site, container (mid-asset-2); subtitle (mid-asset-3) at end of "WHAT YOU NEED?" */}
       <section id="mid-asset-1" className="mid-banner" aria-labelledby="mid-banner-heading">
         <div id="mid-asset-2" className="mid-banner-container">
           <p id="mid-banner-heading" className="mid-banner-title">
-            HARD TO FIND<br />WHAT YOU NEED?
+            HARD TO FIND<br />
+            <span className="mid-banner-title-line">
+              WHAT YOU NEED?
+              <span id="mid-asset-3" className="mid-banner-subtitle">It&apos;s okay!</span>
+            </span>
           </p>
-          <p className="mid-banner-subtitle">It&apos;s okay!</p>
         </div>
       </section>
 

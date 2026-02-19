@@ -64,22 +64,22 @@
   flex-shrink: 0;
 }
 
-/* Hint bubble */
+/* Hint bubble – theme: warm beige/cream, sage text */
 .ai-hint-bubble {
   position: absolute;
   bottom: calc(100% + 14px);
   right: 0;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(232, 228, 220, 0.96);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: #1a2332;
+  color: #373F2E;
   padding: 14px 18px;
   border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(26, 35, 50, 0.1);
+  box-shadow: 0 8px 24px rgba(74, 88, 68, 0.15), 0 2px 8px rgba(0, 0, 0, 0.06);
   min-width: 260px;
   max-width: 320px;
   animation: hintFadeIn 0.3s ease-out;
-  border: 1px solid rgba(212, 175, 55, 0.2);
+  border: 1px solid rgba(161, 138, 114, 0.4);
 }
 
 @keyframes hintFadeIn {
@@ -102,7 +102,7 @@
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-top: 8px solid #ffffff;
+  border-top: 8px solid rgba(232, 228, 220, 0.96);
 }
 
 .hint-arrow::before {
@@ -115,14 +115,14 @@
   height: 0;
   border-left: 10px solid transparent;
   border-right: 10px solid transparent;
-  border-top: 10px solid #e2e8f0;
+  border-top: 10px solid rgba(161, 138, 114, 0.4);
 }
 
 .hint-text {
   margin: 0;
   font-size: 0.8125rem;
   line-height: 1.5;
-  color: #334155;
+  color: #4F5747;
   padding-right: 24px;
 }
 
@@ -132,7 +132,7 @@
   right: 10px;
   background: transparent;
   border: none;
-  color: #64748b;
+  color: #6b7355;
   font-size: 1.25rem;
   cursor: pointer;
   padding: 0;
@@ -141,23 +141,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease;
   line-height: 1;
   border-radius: 6px;
 }
 
 .hint-close:hover {
-  color: #0f172a;
-  background: #f1f5f9;
+  color: #373F2E;
+  background: rgba(195, 176, 161, 0.5);
 }
 
-/* Popup overlay – very light blur (minimal) */
+/* Popup overlay – warm tint to match site theme */
 .ai-chat-popup-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(26, 35, 50, 0.35);
-  backdrop-filter: blur(1px);
-  -webkit-backdrop-filter: blur(1px);
+  background: rgba(55, 63, 46, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 9999;
   animation: overlayFadeIn 0.2s ease-out;
 }
@@ -167,7 +167,7 @@
   to { opacity: 1; }
 }
 
-/* Chat container (popup) – glassy frosted panel (asset-40 #384234) */
+/* Chat container (popup) – matches hero-chat-preview__panel */
 .ai-chat-fixed-container {
   position: fixed;
   bottom: 24px;
@@ -181,16 +181,10 @@
   z-index: 10000;
   display: flex;
   flex-direction: column;
-  background: rgba(56, 66, 52, 0.72);
-  backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
-  border-radius: 18px;
-  box-shadow:
-    0 12px 40px rgba(26, 35, 50, 0.08),
-    0 0 0 1px rgba(255, 255, 255, 0.15) inset,
-    0 1px 0 0 rgba(255, 255, 255, 0.08);
+  background: #3A4036;
+  border-radius: 22px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   resize: none;
 }
 
@@ -209,7 +203,7 @@
   }
 }
 
-/* Resize handle */
+/* Resize handle – visible on dark panel (#3A4036) */
 .resize-handle {
   position: absolute;
   bottom: 0;
@@ -221,22 +215,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.06);
   border-top-left-radius: 10px;
   transition: background 0.2s ease;
 }
 
 .resize-handle:hover {
-  background: rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .resize-handle:active {
-  background: rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .resize-handle svg {
   pointer-events: none;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 /* Responsive – mobile: slightly smaller chatbox with insets */
@@ -271,10 +265,9 @@
     bottom: 16px !important;
     right: 16px !important;
     left: 16px !important;
-    border-radius: 16px;
-    background: rgba(56, 66, 52, 0.78);
-    backdrop-filter: blur(24px) saturate(1.2);
-    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    border-radius: 18px;
+    background: #3A4036;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   }
 
   .resize-handle {
@@ -291,6 +284,7 @@
     bottom: 12px !important;
     right: 12px !important;
     left: 12px !important;
-    border-radius: 14px;
+    border-radius: 18px;
+    background: #3A4036;
   }
 }

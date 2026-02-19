@@ -176,7 +176,7 @@ const FloatingAIAssistant = () => {
               }}
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M8 12L12 8M12 12L16 8M4 16L8 12" stroke="#d4af37" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M8 12L12 8M12 12L16 8M4 16L8 12" stroke="rgba(232,228,220,0.8)" strokeWidth="2" strokeLinecap="round"/>
               </svg>
             </div>
           </div>

@@ -15,6 +15,10 @@
   --ai-chat-accent: #8a7d6e;
   --ai-chat-accent-hover: #736455;
   --ai-chat-accent-muted: rgba(79, 87, 71, 0.2);
+  --ai-chat-button-hover-bg: rgba(201, 162, 39, 0.5);
+  --ai-chat-button-hover-border: #b8962e;
+  --ai-chat-button-hover-dark: #6b5d3a;
+  --ai-chat-button-hover-header: rgba(212, 175, 55, 0.45);
   --ai-chat-user-bubble: #f5f0e6;
   --ai-chat-user-text: #4F5747;
   --ai-chat-assistant-bubble: #f5f0e6;
@@ -339,8 +343,8 @@
 
 .message-play-btn:hover:not(:disabled) {
   opacity: 1;
-  background: var(--ai-chat-accent-muted) !important;
-  border-color: var(--ai-chat-accent) !important;
+  background: var(--ai-chat-button-hover-bg) !important;
+  border-color: var(--ai-chat-button-hover-border) !important;
   transform: scale(1.05);
 }
 
@@ -477,9 +481,9 @@
 }
 
 .ai-chat-input button[type="submit"]:hover:not(:disabled) {
-  background: #2d3229;
+  background: var(--ai-chat-button-hover-dark);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 12px rgba(201, 162, 39, 0.45);
 }
 
 .ai-chat-input button[type="submit"]:focus-visible {
@@ -536,8 +540,8 @@
 }
 
 .voice-btn:hover:not(:disabled) {
-  background: var(--ai-chat-accent-muted);
-  border-color: var(--ai-chat-accent);
+  background: var(--ai-chat-button-hover-bg);
+  border-color: var(--ai-chat-button-hover-border);
   color: var(--ai-chat-input-focus);
   transform: scale(1.05);
 }
@@ -566,8 +570,8 @@
 }
 
 .voice-gender-select:hover {
-  background: var(--ai-chat-accent-muted);
-  border-color: var(--ai-chat-accent);
+  background: var(--ai-chat-button-hover-bg);
+  border-color: var(--ai-chat-button-hover-border);
 }
 
 .voice-speed-control {
@@ -1079,7 +1083,9 @@
 
 .kendo-header-menu-btn:hover,
 .kendo-header-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--ai-chat-button-hover-header);
+  box-shadow: 0 0 0 1px var(--ai-chat-button-hover-border);
+  color: #fff;
 }
 
 .kendo-dropdown-wrap {
@@ -1149,13 +1155,13 @@
   margin: 0;
   font-size: var(--kendo-font-size-lg, 1.125rem);
   font-weight: 600;
-  color: var(--ai-chat-assistant-text);
+  color: #fff;
 }
 
 .kendo-empty-subtitle {
   margin: 0;
   font-size: var(--kendo-font-size-md, 0.9375rem);
-  color: var(--ai-chat-muted);
+  color: #fff;
   max-width: 280px;
 }
 
@@ -1172,15 +1178,17 @@
   border-radius: 20px;
   border: 1px solid var(--ai-chat-input-border);
   background: rgba(232, 228, 220, 0.9);
-  color: var(--ai-chat-input-focus);
+  color: #3d3629;
   font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
 }
 
 .kendo-suggestion-chip:hover {
-  background: var(--ai-chat-accent-muted);
-  border-color: var(--ai-chat-accent);
+  background: var(--ai-chat-button-hover-bg);
+  border-color: var(--ai-chat-button-hover-border);
+  color: #2d2819;
   transform: translateY(-1px);
 }
 
@@ -1202,15 +1210,17 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--ai-chat-muted);
+  color: #4F5747;
   font-size: 0.75rem;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .kendo-toolbar-btn:hover:not(:disabled) {
-  background: var(--ai-chat-surface);
-  color: var(--ai-chat-assistant-text);
+  background: var(--ai-chat-button-hover-bg);
+  border-color: var(--ai-chat-button-hover-border);
+  color: #2d2819;
 }
 
 .kendo-toolbar-btn:disabled {
@@ -1279,14 +1289,14 @@
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--ai-chat-muted);
+  color: #4F5747;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .kendo-type-box-icon:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--ai-chat-assistant-text);
+  background: var(--ai-chat-button-hover-bg);
+  color: #2d2819;
 }
 
 .kendo-type-box-icon:disabled {
@@ -1297,7 +1307,9 @@
 .kendo-attach-btn:hover:not(:disabled),
 .kendo-mic-btn:hover:not(:disabled),
 .kendo-speaker-btn:hover:not(:disabled) {
-  color: var(--ai-chat-header-bg);
+  background: var(--ai-chat-button-hover-bg);
+  border-color: var(--ai-chat-button-hover-border);
+  color: #3A4036;
 }
 
 .kendo-mic-btn.listening {
@@ -1370,9 +1382,10 @@
 }
 
 .kendo-type-box-inner .kendo-send-btn:hover:not(:disabled) {
-  background: #2d3229;
+  background: var(--ai-chat-button-hover-dark);
+  color: #f5f0e6;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 12px rgba(201, 162, 39, 0.45);
 }
 
 .kendo-type-box-inner .kendo-send-btn:disabled {
@@ -1431,7 +1444,7 @@
 }
 
 .kendo-dialog-primary:hover {
-  background: #2d3229;
+  background: var(--ai-chat-button-hover-dark);
 }
 
 .kendo-dialog-cancel {

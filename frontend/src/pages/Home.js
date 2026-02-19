@@ -22,7 +22,7 @@ import {
 import ProductGrid from '../components/ProductGrid';
 import FlowingMenu from '../components/FlowingMenu';
 import BlurText from '../components/BlurText';
-import HeroChatPreview from '../components/HeroChatPreview';
+import AIChat from '../components/AIChat';
 import WavyUnderline from '../components/WavyUnderline';
 import './Home.css';
 
@@ -143,69 +143,65 @@ const Home = () => {
     }
   };
 
-  const heroModelSrc = `${process.env.PUBLIC_URL || ''}/images/Model_banner.png`;
-
   return (
     <div className="home">
-      {/* Top Banner: 4 layers with IDs for reference
-          Asset 1 = background, Asset 2 = rounded rect, Asset 3 = image, Asset 4 = text */}
+      {/* Top Banner: background, main image (top-banner.png) on right, text */}
       <section className="hero banner-four-layers">
         {/* Asset 1: Background */}
         <div id="banner-asset-1" className="hero-layer hero-layer-bg" data-asset-name="background" aria-hidden="true" />
-        {/* Asset 2 + doodle + 3: rounded rect, transparent doodle PNG, image */}
-        <div className="hero-banner-assets-group">
-          <div id="banner-asset-2" className="hero-layer hero-layer-rounded-rect" data-asset-name="rounded-rectangle" aria-hidden="true" />
-          <div id="banner-asset-doodle" className="hero-layer hero-layer-doodle" data-asset-name="doodle" aria-hidden="true">
-            <img src={`${process.env.PUBLIC_URL || ''}/images/hero-doodle.png`} alt="" className="hero-layer-doodle-img" />
-          </div>
-          <div id="banner-asset-3" className="hero-layer hero-layer-image" data-asset-name="model-image">
-            <img src={heroModelSrc} alt="" className="hero-layer-image-img" />
+        {/* Main banner image – right side, responsive */}
+        <div id="banner-main" className="hero-layer hero-layer-banner-main" data-asset-name="top-banner" aria-hidden="true">
+          <img src={`${process.env.PUBLIC_URL || ''}/images/top-banner.png`} alt="" className="hero-layer-banner-main-img" />
+        </div>
+        {/* Asset 4: Text + chat – text first, chat template always under it */}
+        <div className="hero-banner-text-and-chat">
+          <motion.div
+            id="banner-asset-4"
+            className="hero-layer hero-layer-text"
+            data-asset-name="text"
+            initial={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+            animate={
+              bannerPhase === 'fadingOut'
+                ? { opacity: 0, filter: 'blur(10px)', y: -50 }
+                : { opacity: 1, filter: 'blur(0px)', y: 0 }
+            }
+            transition={{
+              duration: bannerPhase === 'fadingOut' ? BANNER_TEXT_FADEOUT_DURATION_S : 0,
+            }}
+            onAnimationComplete={() => {
+              if (bannerPhase === 'fadingOut') setBannerPhase('fadedOut');
+            }}
+          >
+            <h1 className="hero-title-line">
+              <BlurText
+                key={`subtitle-${bannerTextKey}`}
+                id="banner-asset-4-subtitle"
+                text="insight shop"
+                as="span"
+                delay={280}
+                animateBy="words"
+                direction="top"
+                className="hero-subtitle-script"
+                onAnimationComplete={handleBannerTextAnimationComplete}
+              />
+              <BlurText
+                key={`title-${bannerTextKey}`}
+                id="banner-asset-4-title"
+                text="INSIGHT SHOP"
+                as="span"
+                delay={250}
+                animateBy="words"
+                direction="top"
+                className="hero-title"
+                onAnimationComplete={handleBannerTextAnimationComplete}
+              />
+            </h1>
+          </motion.div>
+          {/* Inline AI chat in banner – always under banner-asset-4 */}
+          <div className="hero-chat-inline-wrap" aria-label="AI chat in banner">
+            <AIChat isInline />
           </div>
         </div>
-        {/* Asset 4: Text (INSIGHT SHOP + insight shop) – BlurText animation; after done → 5s → fade out → fade back in */}
-        <motion.div
-          id="banner-asset-4"
-          className="hero-layer hero-layer-text"
-          data-asset-name="text"
-          initial={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
-          animate={
-            bannerPhase === 'fadingOut'
-              ? { opacity: 0, filter: 'blur(10px)', y: -50 }
-              : { opacity: 1, filter: 'blur(0px)', y: 0 }
-          }
-          transition={{
-            duration: bannerPhase === 'fadingOut' ? BANNER_TEXT_FADEOUT_DURATION_S : 0,
-          }}
-          onAnimationComplete={() => {
-            if (bannerPhase === 'fadingOut') setBannerPhase('fadedOut');
-          }}
-        >
-          <h1 className="hero-title-line">
-            <BlurText
-              key={`subtitle-${bannerTextKey}`}
-              id="banner-asset-4-subtitle"
-              text="insight shop"
-              as="span"
-              delay={280}
-              animateBy="words"
-              direction="top"
-              className="hero-subtitle-script"
-              onAnimationComplete={handleBannerTextAnimationComplete}
-            />
-            <BlurText
-              key={`title-${bannerTextKey}`}
-              id="banner-asset-4-title"
-              text="INSIGHT SHOP"
-              as="span"
-              delay={250}
-              animateBy="words"
-              direction="top"
-              className="hero-title"
-              onAnimationComplete={handleBannerTextAnimationComplete}
-            />
-          </h1>
-        </motion.div>
-        <HeroChatPreview onOpenChat={openAIChatPopup} />
       </section>
 
       {/* Mid banner: same bg as site, container (mid-asset-2); subtitle (mid-asset-3); doodle (mid-doodle) under mid-asset-2 */}

@@ -34,13 +34,6 @@ const MoreVerticalIcon = ({ size = 20 }) => (
     <circle cx="12" cy="19" r="1"/>
   </svg>
 );
-const SparklesIcon = ({ size = 64 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
-    <path d="M5 19l1.5-2L9 17.5 7.5 19 6 20.5l1.5-2L9 17.5"/>
-    <path d="M19 5l-1.5 2L16 6.5 17.5 5 19 3.5l-1.5 2L16 6.5"/>
-  </svg>
-);
 const AttachmentIcon = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
@@ -1420,13 +1413,9 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
         </div>
       </div>
 
-      <div className="ai-chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
+      <div className={`ai-chat-messages${showEmptyState ? ' ai-chat-messages--empty' : ''}`} role="log" aria-live="polite" aria-label="Chat messages">
         {showEmptyState ? (
           <div className="kendo-empty-state">
-            <div className="kendo-empty-icon">
-              <SparklesIcon size={64} />
-            </div>
-            <p className="kendo-empty-title">Ask AI</p>
             <p className="kendo-empty-subtitle">Start conversation by typing a message or selecting a prompt.</p>
             <div className="kendo-suggestions-chips">
               {SUGGESTIONS.map(s => (

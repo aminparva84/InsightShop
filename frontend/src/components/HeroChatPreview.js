@@ -2,7 +2,7 @@ import React from 'react';
 import './HeroChatPreview.css';
 
 /**
- * Chatbot preview for the hero banner: sits left of banner-asset-2/3, under banner-asset-4.
+ * Chatbot preview for the hero banner: positioned under banner-asset-4 (text).
  * Matches the design mockup: dark olive panel, "Ai" header + wavy line, sample bubbles, input.
  */
 const HeroChatPreview = ({ onOpenChat }) => {

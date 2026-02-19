@@ -12,7 +12,7 @@
   box-sizing: border-box;
 }
 
-/* Top Banner: 4 layers only – background, one-corner rounded rect, image, text */
+/* Top Banner: background, main image (right), text */
 .hero.banner-four-layers {
   position: relative;
   overflow: hidden;
@@ -26,11 +26,6 @@
   pointer-events: none;
 }
 
-.hero-layer-image,
-.hero-layer-doodle {
-  pointer-events: none;
-}
-
 /* Layer 1: Background – lighter beige (swapped with asset 2) */
 .hero-layer-bg {
   inset: 0;
@@ -38,116 +33,62 @@
   background: #C3B0A1;
 }
 
-/* Group wrapper: hover on either asset 2 or 3 triggers both animations */
-.hero-banner-assets-group {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+/* Main banner image layer – right side, responsive */
+#banner-main.hero-layer-banner-main {
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(55%, 520px);
+  max-width: 520px;
+  height: auto;
+  max-height: 85vh;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
 }
 
-.hero-banner-assets-group > * {
+
+.hero-layer-banner-main-img {
+  width: 100%;
+  height: auto;
+  max-height: 85vh;
+  object-fit: contain;
+  object-position: right center;
+}
+
+/* Wrapper: text (banner-asset-4) + chat template – chat always under text */
+.hero-banner-text-and-chat {
+  position: absolute;
+  left: 118px;
+  top: 16%;
+  z-index: 2;
+  max-width: 55%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  pointer-events: none;
+}
+.hero-banner-text-and-chat .hero-chat-inline-wrap {
   pointer-events: auto;
 }
 
-/* Layer 2: One-corner rounded rectangle – bottom-right, muted medium brown/taupe (swapped with bg); cropped from bottom */
-.hero-layer-rounded-rect {
-  right: -120px;
-  bottom: 8vh;
-  width: 50%;
-  height: 58%;
-  max-height: 62vh;
-  background: #a98e71;
-  border-top-left-radius: min(260px, 24vw);
-  z-index: 1;
-  transition: transform 0.35s ease, box-shadow 0.35s ease;
-  transform: translateY(15px);
-}
-
-.hero-banner-assets-group:hover #banner-asset-2 {
-  transform: translateY(15px) scale(1.03);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
-}
-
-/* Doodle layer: same pattern as hero-layer-image; above banner-asset-2 (z 1), below banner-asset-3 (z 4) */
-.hero-layer-doodle {
-  left: 50%;
-  top: 50%;
-  transform: translate(calc(-50% + 360px), calc(-50% - 125px));
-  width: min(420px, 45vw);
-  height: min(420px, 50vh);
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: none;
-}
-
-@keyframes doodle-float {
-  0%, 100% {
-    transform: scale(1) rotate(-0.4deg);
-  }
-  50% {
-    transform: scale(1.015) rotate(0.4deg);
-  }
-}
-
-.hero-layer-doodle-img {
-  width: 100%;
-  height: auto;
-  max-height: 80vh;
-  object-fit: contain;
-  object-position: center center;
-  transition: filter 0.35s ease;
-  transform-origin: center center;
-  animation: doodle-float 7s ease-in-out infinite;
-}
-
-.hero-banner-assets-group:hover #banner-asset-doodle .hero-layer-doodle-img {
-  animation: none;
-  transform: scale(1.03);
-  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.2));
-}
-
-/* Layer 3: Image – woman (Asset 4), central-right, in front of rounded rect; transparent PNG – use drop-shadow for its edges */
-.hero-layer-image {
-  left: 50%;
-  bottom: 0;
-  transform: translate(calc(-15% + 145px), 65px);
-  width: 42%;
-  max-width: 480px;
-  height: 85%;
-  max-height: 80vh;
-  z-index: 4;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  transition: none;
-}
-
-.hero-layer-image-img {
-  width: 100%;
-  height: auto;
-  max-height: 80vh;
-  object-fit: contain;
-  object-position: center bottom;
-  transition: transform 0.35s ease, filter 0.35s ease;
-  transform-origin: center bottom;
-  transform: scale(1.25);
-}
-
-.hero-banner-assets-group:hover #banner-asset-3 .hero-layer-image-img {
-  transform: scale(1.29);
-  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.2));
-}
-
-/* Layer 4: Text – top-left quadrant, under image (z-index below asset-3) */
+/* Layer 4: Text – inside wrapper, no absolute positioning so chat flows below */
 .hero-layer-text {
   left: 118px;
   top: 16%;
   z-index: 1;
   max-width: 55%;
   pointer-events: none;
+}
+.hero-banner-text-and-chat .hero-layer-text {
+  position: relative;
+  left: 0;
+  top: 0;
+  width: max-content;
+  max-width: 100%;
 }
 
 .hero-title-line {
@@ -172,6 +113,7 @@
 #banner-asset-4-title {
   font-size: clamp(58px, 10vw, 140px);
   margin: -0.75em 0 0 -24px;
+  letter-spacing: 0.02em;
 }
 
 /* Small white “insight shop” – Saint Timothy, overlaps bottom of big title */
@@ -185,6 +127,7 @@
   white-space: nowrap;
   position: relative;
   z-index: 1;
+  letter-spacing: 0.01em;
 }
 
 .hero-cta {
@@ -208,6 +151,89 @@
 .hero-cta:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 24px rgba(74, 88, 68, 0.5);
+}
+
+/* Inline AI chat in top banner – always under banner-asset-4 (positioned by wrapper) */
+.hero-chat-inline-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 420px;
+  height: 280px;
+  background: #3A4036;
+  border-radius: 22px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hero-chat-inline-wrap:hover {
+  transform: scale(1.03);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.hero-chat-inline-wrap .ai-chat {
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Center "Ai" text in the banner chat header */
+.hero-chat-inline-wrap .ai-chat-header {
+  justify-content: center;
+  position: relative;
+}
+.hero-chat-inline-wrap .ai-chat-header .kendo-header-actions {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.hero-chat-inline-wrap .ai-chat-header .kendo-header-spacer {
+  display: none;
+}
+.hero-chat-inline-wrap .ai-chat-header-brand {
+  flex: 0 1 auto;
+}
+
+/* Center empty state (subtitle + suggestion buttons) in the template */
+.hero-chat-inline-wrap .ai-chat-messages.ai-chat-messages--empty {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hero-chat-inline-wrap .ai-chat-messages.ai-chat-messages--empty .kendo-empty-state {
+  width: 100%;
+  min-height: 0;
+}
+
+/* Hide suggestion button prompts in the banner chat template only */
+.hero-chat-inline-wrap .kendo-suggestions-chips {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .hero-chat-inline-wrap {
+    width: 360px;
+    height: 260px;
+    border-radius: 18px;
+  }
+}
+
+/* Hide the inline hero chat on small screens; floating chat button still available */
+@media (max-width: 768px) {
+  .hero-chat-inline-wrap {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-chat-inline-wrap {
+    width: 260px;
+    height: 240px;
+  }
 }
 
 /* Mid banner: same as main background, centered container (mid-asset-2) + subtitle (mid-asset-3) */
@@ -1424,29 +1450,17 @@
     padding: 0 32px 80px;
   }
 
-  .hero-layer-rounded-rect {
-    width: 54%;
-    height: 56%;
-    right: -100px;
-    transform: none;
-  }
-
-  .hero-banner-assets-group:hover #banner-asset-2 {
-    transform: scale(1.03);
-  }
-
-  .hero-layer-doodle {
-    width: min(380px, 42vw);
-    height: min(380px, 45vh);
-    transform: translate(-50%, -50%);
-  }
-
-  .hero-layer-image {
-    width: 46%;
-    transform: translateX(calc(-12% + 130px));
+  #banner-main.hero-layer-banner-main {
+    width: min(58%, 460px);
   }
 
   .hero-layer-text {
+    left: 82px;
+    top: 15%;
+    max-width: 58%;
+  }
+
+  .hero-banner-text-and-chat {
     left: 82px;
     top: 15%;
     max-width: 58%;
@@ -1459,68 +1473,62 @@
 
 }
 
+/* Desktop: larger banner image (after breakpoints so it wins for viewport >= 969px) */
+@media (min-width: 969px) {
+  #banner-main.hero-layer-banner-main {
+    width: min(80%, 1400px);
+    max-width: 1400px;
+    max-height: 98vh;
+    margin-right: 32px;
+  }
+
+  #banner-main.hero-layer-banner-main .hero-layer-banner-main-img {
+    max-height: 98vh;
+  }
+}
+
 @media (max-width: 768px) {
   .hero.banner-four-layers {
     min-height: 75vh;
     padding: 0 24px 72px;
   }
 
-  .hero-layer-rounded-rect {
-    width: 60%;
-    height: 54%;
-    right: -20px;
-    border-top-left-radius: min(200px, 30vw);
-    transform: none;
-  }
-
-  #banner-asset-2.hero-layer-rounded-rect {
-    margin-left: -50px;
-  }
-
-  .hero-banner-assets-group:hover #banner-asset-2 {
-    transform: scale(1.03);
-  }
-
-  .hero-layer-doodle {
-    width: min(320px, 42vw);
-    height: min(320px, 42vh);
-    transform: translate(-50%, -50%);
-  }
-
-  #banner-asset-doodle.hero-layer-doodle {
-    transform: translate(calc(-50% + 95px), calc(-50% - 35px));
-  }
-
-  .hero-layer-image {
-    width: 52%;
-    transform: translateX(calc(-8% + 50px));
-  }
-
-  #banner-asset-3.hero-layer-image {
-    margin-left: -125px;
-    margin-top: 20px;
+  #banner-main.hero-layer-banner-main {
+    width: min(62%, 400px);
+    max-height: 80vh;
+    z-index: 1;
   }
 
   .hero-layer-text {
     left: 70px;
     top: 14%;
     max-width: 62%;
+    z-index: 3;
+  }
+
+  .hero-banner-text-and-chat {
+    left: 70px;
+    top: 14%;
+    max-width: 62%;
+    z-index: 3;
   }
 
   .hero-title {
-    font-size: clamp(56px, 14vw, 100px);
+    font-size: clamp(64px, 16vw, 120px);
     letter-spacing: 0.08em;
   }
 
   #banner-asset-4-title {
-    font-size: clamp(54px, 11vw, 94px);
+    font-size: clamp(62px, 13vw, 110px);
     margin: -0.65em 0 0 -28px;
+    letter-spacing: 0.02em;
   }
 
   #banner-asset-4-subtitle,
   .hero-subtitle-script {
-    font-size: clamp(21px, 4vw, 34px);
+    font-size: clamp(24px, 4.5vw, 40px);
     margin: 0.65em 0 -0.2em -8px;
+    letter-spacing: 0.01em;
   }
 
   .hero-cta {
@@ -1562,58 +1570,42 @@
     padding: 0 16px 56px;
   }
 
-  .hero-layer-rounded-rect {
-    width: 68%;
-    height: 52%;
-    right: -10px;
-    border-top-left-radius: min(160px, 35vw);
-    transform: none;
-  }
-
-  .hero-banner-assets-group:hover #banner-asset-2 {
-    transform: scale(1.03);
-  }
-
-  .hero-layer-doodle {
-    width: min(260px, 38vw);
-    height: min(260px, 38vh);
-    transform: translate(-50%, -50%);
-  }
-
-  #banner-asset-doodle.hero-layer-doodle {
-    transform: translate(calc(-50% + 145px), calc(-50% - 35px));
-  }
-
-  .hero-layer-image {
-    width: 58%;
-    transform: translateX(calc(-5% + 30px));
-  }
-
-  #banner-asset-3.hero-layer-image {
-    margin-left: -75px;
-    margin-top: 20px;
+  #banner-main.hero-layer-banner-main {
+    width: min(70%, 340px);
+    max-height: 75vh;
+    z-index: 1;
   }
 
   .hero-layer-text {
     left: 62px;
     top: 11%;
     max-width: 70%;
+    z-index: 3;
+  }
+
+  .hero-banner-text-and-chat {
+    left: 62px;
+    top: 11%;
+    max-width: 70%;
+    z-index: 3;
   }
 
   .hero-title {
-    font-size: clamp(48px, 13vw, 78px);
+    font-size: clamp(56px, 15vw, 92px);
     letter-spacing: 0.06em;
   }
 
   #banner-asset-4-title {
-    font-size: clamp(44px, 11vw, 66px);
+    font-size: clamp(52px, 12vw, 80px);
     margin: -0.55em 0 0 -20px;
+    letter-spacing: 0.02em;
   }
 
   #banner-asset-4-subtitle,
   .hero-subtitle-script {
-    font-size: clamp(19px, 3.8vw, 28px);
+    font-size: clamp(22px, 4.5vw, 34px);
     margin: 0.55em 0 -0.15em -6px;
+    letter-spacing: 0.01em;
   }
 
   .hero-cta {

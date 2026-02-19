@@ -279,6 +279,12 @@
 .navbar-dropdown--open {
   max-height: calc(100vh - 100px);
   overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.navbar-dropdown--open::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .navbar-dropdown-inner {
@@ -315,6 +321,67 @@
 .navbar-slider-link:hover {
   background: rgba(232, 228, 220, 0.12);
   color: #FFFEF5;
+}
+
+/* Account, Admin, Logout, Log In, Sign Up – stand out in the menu (high contrast on dark navbar) */
+.navbar-slider-link--standout {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  background: #E8E4DC;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #2C3526;
+  padding: 12px 18px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-slider-link--standout .navbar-slider-link-icon {
+  color: #2C3526;
+  flex-shrink: 0;
+  font-size: 1.1em;
+}
+
+.navbar-slider-link--standout:hover {
+  background: #FFFEF5;
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #1a1a1a;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.25);
+}
+
+.navbar-slider-link--standout:hover .navbar-slider-link-icon {
+  color: #1a1a1a;
+}
+
+.navbar-slider-link--standout.navbar-slider-register {
+  background: #C4A77D;
+  border-color: #b8956a;
+  color: #1a1a1a;
+}
+
+.navbar-slider-link--standout.navbar-slider-register .navbar-slider-link-icon {
+  color: #1a1a1a;
+}
+
+.navbar-slider-link--standout.navbar-slider-register:hover {
+  background: #d4b78d;
+  border-color: #c9a572;
+  color: #0d0d0d;
+}
+
+/* Logout button: white text and icon */
+.navbar-slider-link--standout.navbar-slider-btn {
+  color: #ffffff;
+}
+
+.navbar-slider-link--standout.navbar-slider-btn .navbar-slider-link-icon {
+  color: #ffffff;
+}
+
+.navbar-slider-link--standout.navbar-slider-btn:hover {
+  color: #ffffff;
+}
+
+.navbar-slider-link--standout.navbar-slider-btn:hover .navbar-slider-link-icon {
+  color: #ffffff;
 }
 
 .navbar-slider-link-text {

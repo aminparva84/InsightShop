@@ -1,228 +1,403 @@
-"""Seed the database with 1000 clothing products."""
+"""Seed the database with 20 detailed clothing products (inspired by curated outfit imagery)."""
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app
 from models.database import db
 from models.product import Product
+from models.cart import CartItem
+from models.order import OrderItem
+from models.review import Review
+from models.product_relation import ProductRelation
 import random
-import string
 
-# Product data
-CATEGORIES = ['men', 'women', 'kids']
-COLORS = ['Red', 'Blue', 'Green', 'Yellow', 'Black', 'White', 'Gray', 'Pink', 'Purple', 'Orange', 'Brown', 'Navy', 'Beige', 'Maroon', 'Teal']
-SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
-SEASONS = ['spring', 'summer', 'fall', 'winter', 'all_season']
-# Real retail clothing categories (one per product)
-CLOTHING_CATEGORY_MAP = {
-    'T-Shirt': 't_shirts',
-    'Polo Shirt': 'shirts',
-    'Dress Shirt': 'shirts',
-    'Blouse': 'blouses',
-    'Dress': 'dresses',
-    'Jeans': 'pants',
-    'Chinos': 'pants',
-    'Shorts': 'shorts',
-    'Skirt': 'skirts',
-    'Leggings': 'leggings',
-    'Hoodie': 'hoodies',
-    'Sweater': 'sweaters',
-    'Jacket': 'jackets',
-    'Blazer': 'jackets',
-    'Coat': 'coats',
-    'Suit': 'suits',
-    'Underwear': 'underwear',
-    'Bra': 'underwear',
-    'Socks': 'socks',
-    'Shoes': 'shoes',
-    'Sneakers': 'sneakers',
-    'Heels': 'shoes',
-    'Sandals': 'sandals',
-    'Pajamas': 'pajamas',
-}
-CLOTHING_TYPES = {
-    'men': ['T-Shirt', 'Polo Shirt', 'Dress Shirt', 'Jeans', 'Chinos', 'Shorts', 'Hoodie', 'Sweater', 'Jacket', 'Blazer', 'Suit', 'Underwear', 'Socks', 'Shoes', 'Sneakers'],
-    'women': ['T-Shirt', 'Blouse', 'Dress', 'Skirt', 'Jeans', 'Leggings', 'Shorts', 'Hoodie', 'Sweater', 'Jacket', 'Coat', 'Underwear', 'Bra', 'Socks', 'Shoes', 'Heels', 'Sandals'],
-    'kids': ['T-Shirt', 'Polo Shirt', 'Dress', 'Jeans', 'Shorts', 'Hoodie', 'Sweater', 'Jacket', 'Underwear', 'Socks', 'Shoes', 'Sneakers', 'Pajamas']
-}
+# 20 products with distinct details and colors; each uses one of 6 outfit images
+PRODUCTS = [
+    {
+        "name": "Cropped Plaid Button-Up Shirt with Raw Hem",
+        "description": "Long-sleeve button-up with a classic plaid in dark olive and tan. Features a raw, unfinished hem for a deconstructed look, contrast dark collar (velvet-style), light beige buttons, and an oversized relaxed fit. Cotton or flannel weave.",
+        "price": 68,
+        "category": "women",
+        "color": "Dark Olive & Tan Plaid",
+        "size": "M",
+        "fabric": "Cotton Flannel",
+        "clothing_type": "Blouse",
+        "clothing_category": "shirts",
+        "occasion": "casual,date_night",
+        "age_group": "young_adult",
+        "season": "fall",
+        "image_index": 1,
+    },
+    {
+        "name": "High-Waisted Pleated Trousers",
+        "description": "Tailored high-waist trousers in warm sienna brown. Double front pleats, relaxed wide-leg fit, smooth cotton twill or suiting blend. Single brown button and hidden hook closure, side pockets, clean crease.",
+        "price": 89,
+        "category": "women",
+        "color": "Sienna Brown",
+        "size": "M",
+        "fabric": "Cotton Twill",
+        "clothing_type": "Chinos",
+        "clothing_category": "pants",
+        "occasion": "business_casual,casual",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 1,
+    },
+    {
+        "name": "Ribbed Mock-Neck Sweater",
+        "description": "Light beige ribbed turtleneck with vertical knit texture. Slim fit, ideal for layering under shirts or alone. Soft cotton or cotton-blend knit.",
+        "price": 45,
+        "category": "women",
+        "color": "Light Beige",
+        "size": "S",
+        "fabric": "Cotton Knit",
+        "clothing_type": "Sweater",
+        "clothing_category": "sweaters",
+        "occasion": "casual,business_casual",
+        "age_group": "all",
+        "season": "fall,winter",
+        "image_index": 2,
+    },
+    {
+        "name": "Cropped Plaid Flannel Shirt",
+        "description": "Rich brown base with thin orange-brown and rust grid lines. Cropped hem, worn open as a layer. Small rust-toned buttons, relaxed sleeves and body. Lightweight cotton or flannel.",
+        "price": 62,
+        "category": "women",
+        "color": "Brown & Rust Plaid",
+        "size": "L",
+        "fabric": "Cotton Flannel",
+        "clothing_type": "Blouse",
+        "clothing_category": "shirts",
+        "occasion": "casual",
+        "age_group": "young_adult",
+        "season": "fall",
+        "image_index": 2,
+    },
+    {
+        "name": "Pleated Wide-Leg Trousers in Camel",
+        "description": "High-waisted trousers in solid camel. Prominent front pleats, relaxed leg, smooth drape. Wool, linen blend, or suiting fabric. Button closure at waist.",
+        "price": 95,
+        "category": "women",
+        "color": "Camel",
+        "size": "M",
+        "fabric": "Wool Blend",
+        "clothing_type": "Chinos",
+        "clothing_category": "pants",
+        "occasion": "business_casual,date_night",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 2,
+    },
+    {
+        "name": "Gold Locket Pendant Necklace",
+        "description": "Delicate gold-toned chain with a circular locket-style pendant. Resin or glass encased design with floral or miniature artwork. Statement layering piece.",
+        "price": 38,
+        "category": "women",
+        "color": "Gold",
+        "size": "One Size",
+        "fabric": "Metal & Resin",
+        "clothing_type": "Blouse",
+        "clothing_category": "other",
+        "occasion": "casual,date_night",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 2,
+    },
+    {
+        "name": "Short-Sleeve Plaid Linen Shirt",
+        "description": "Light beige and oatmeal base with subtle plaid in light blue and faint reddish-brown. Camp collar, half-placket with single mother-of-pearl button. Linen or linen-blend, relaxed fit.",
+        "price": 58,
+        "category": "men",
+        "color": "Oatmeal & Light Blue Plaid",
+        "size": "L",
+        "fabric": "Linen Blend",
+        "clothing_type": "Polo Shirt",
+        "clothing_category": "shirts",
+        "occasion": "casual,summer",
+        "age_group": "all",
+        "season": "spring,summer",
+        "image_index": 3,
+    },
+    {
+        "name": "High-Waisted Pleated Olive Trousers",
+        "description": "Olive green or khaki high-waisted trousers. Front pleats, wide-leg, linen or linen-blend. Side pockets, relaxed drape. Earthy, minimalist look.",
+        "price": 82,
+        "category": "men",
+        "color": "Olive Khaki",
+        "size": "M",
+        "fabric": "Linen Blend",
+        "clothing_type": "Chinos",
+        "clothing_category": "pants",
+        "occasion": "casual,business_casual",
+        "age_group": "all",
+        "season": "spring,summer",
+        "image_index": 3,
+    },
+    {
+        "name": "Leather Belt with Brass Buckle",
+        "description": "Dark brown leather belt with a substantial rectangular brass or gold-toned buckle. Classic waist accent for high-waisted trousers or jeans.",
+        "price": 42,
+        "category": "men",
+        "color": "Dark Brown",
+        "size": "32",
+        "fabric": "Leather",
+        "clothing_type": "Suit",
+        "clothing_category": "other",
+        "occasion": "casual,business_casual",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 3,
+    },
+    {
+        "name": "Olive Cross-Body Bag",
+        "description": "Soft unstructured cross-body bag in olive green or khaki. Wide fabric webbing strap, matches earth-tone outfits. Roomy and casual.",
+        "price": 55,
+        "category": "women",
+        "color": "Olive Green",
+        "size": "One Size",
+        "fabric": "Canvas / Fabric",
+        "clothing_type": "Blouse",
+        "clothing_category": "other",
+        "occasion": "casual",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 3,
+    },
+    {
+        "name": "Light Blue Button-Up Shirt",
+        "description": "Soft pastel light blue collared shirt with two chest pockets and flaps. Lightweight cotton or linen-like fabric, relaxed drape. Wear open over a turtleneck or buttoned. Sleeves roll to elbow.",
+        "price": 52,
+        "category": "women",
+        "color": "Light Blue",
+        "size": "M",
+        "fabric": "Cotton Blend",
+        "clothing_type": "Dress Shirt",
+        "clothing_category": "shirts",
+        "occasion": "business_casual,casual",
+        "age_group": "all",
+        "season": "spring,summer",
+        "image_index": 4,
+    },
+    {
+        "name": "Ribbed Cream Turtleneck",
+        "description": "Cream or off-white ribbed turtleneck with a close fit. Vertical rib knit, long sleeves. Perfect under blazers or open shirts. Cotton or stretch blend.",
+        "price": 44,
+        "category": "women",
+        "color": "Cream White",
+        "size": "S",
+        "fabric": "Cotton-Spandex Blend",
+        "clothing_type": "Sweater",
+        "clothing_category": "sweaters",
+        "occasion": "business_casual,casual",
+        "age_group": "all",
+        "season": "fall,winter",
+        "image_index": 4,
+    },
+    {
+        "name": "Tailored Chocolate Brown Trousers",
+        "description": "Rich chocolate or caramel brown high-waisted trousers. Straight or wide leg, smooth suiting or wool blend. Belt loops, clean finish. Smart casual staple.",
+        "price": 88,
+        "category": "women",
+        "color": "Chocolate Brown",
+        "size": "M",
+        "fabric": "Wool Blend",
+        "clothing_type": "Chinos",
+        "clothing_category": "pants",
+        "occasion": "business_casual,date_night",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 4,
+    },
+    {
+        "name": "Black Belt with Gold Buckle",
+        "description": "Classic black leather strap with a simple rectangular gold or brass buckle. Thin profile, pairs with tailored trousers or jeans.",
+        "price": 35,
+        "category": "women",
+        "color": "Black",
+        "size": "28",
+        "fabric": "Leather",
+        "clothing_type": "Suit",
+        "clothing_category": "other",
+        "occasion": "business_casual,casual",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 4,
+    },
+    {
+        "name": "Cropped Micro-Check Short-Sleeve Shirt",
+        "description": "Beige and light brown base with fine black or dark brown grid. Short sleeves, cropped length, raw or unfinished hem. Relaxed fit, collared, full button front. Deconstructed casual look.",
+        "price": 56,
+        "category": "women",
+        "color": "Beige & Black Micro-Check",
+        "size": "M",
+        "fabric": "Cotton",
+        "clothing_type": "Blouse",
+        "clothing_category": "shirts",
+        "occasion": "casual",
+        "age_group": "young_adult",
+        "season": "spring,summer",
+        "image_index": 5,
+    },
+    {
+        "name": "Black Fitted Turtleneck",
+        "description": "Solid black close-fitting turtleneck. Long sleeves, smooth knit or jersey. Ideal base layer under cropped shirts or blazers.",
+        "price": 40,
+        "category": "women",
+        "color": "Black",
+        "size": "S",
+        "fabric": "Cotton Jersey",
+        "clothing_type": "Sweater",
+        "clothing_category": "sweaters",
+        "occasion": "casual,business_casual",
+        "age_group": "all",
+        "season": "fall,winter",
+        "image_index": 5,
+    },
+    {
+        "name": "High-Waisted Pleated Trousers in Rust",
+        "description": "Warm reddish-brown (rust or camel) high-waisted trousers. Front pleats, relaxed fit through hip and thigh, slight taper. Neat waistband with button closure. Side pockets.",
+        "price": 86,
+        "category": "women",
+        "color": "Rust Brown",
+        "size": "M",
+        "fabric": "Cotton Twill",
+        "clothing_type": "Chinos",
+        "clothing_category": "pants",
+        "occasion": "casual,date_night",
+        "age_group": "all",
+        "season": "fall",
+        "image_index": 5,
+    },
+    {
+        "name": "Gold Circular Pendant Necklace",
+        "description": "Long gold chain with a large circular pendant—locket or artistic medallion with intricate design. Statement accessory for layered looks.",
+        "price": 48,
+        "category": "women",
+        "color": "Gold",
+        "size": "One Size",
+        "fabric": "Metal",
+        "clothing_type": "Blouse",
+        "clothing_category": "other",
+        "occasion": "casual,date_night",
+        "age_group": "all",
+        "season": "all_season",
+        "image_index": 5,
+    },
+    {
+        "name": "Oversized Cropped Plaid Shirt",
+        "description": "Dark olive or forest green base with subtle plaid in light brown and tan. Oversized fit, cropped hem, long sleeves, single chest pocket. Lightweight cotton or flannel. Unbuttoned layering piece.",
+        "price": 64,
+        "category": "women",
+        "color": "Dark Olive & Tan Plaid",
+        "size": "L",
+        "fabric": "Cotton Flannel",
+        "clothing_type": "Blouse",
+        "clothing_category": "shirts",
+        "occasion": "casual",
+        "age_group": "young_adult",
+        "season": "fall",
+        "image_index": 6,
+    },
+    {
+        "name": "Tan Ribbed Turtleneck",
+        "description": "Warm tan or camel ribbed turtleneck. Fitted, vertical knit texture. Pairs with plaid shirts and high-waisted trousers. Soft cotton or blend.",
+        "price": 46,
+        "category": "women",
+        "color": "Tan Camel",
+        "size": "M",
+        "fabric": "Cotton Knit",
+        "clothing_type": "Sweater",
+        "clothing_category": "sweaters",
+        "occasion": "casual,business_casual",
+        "age_group": "all",
+        "season": "fall,winter",
+        "image_index": 6,
+    },
+]
 
-DESCRIPTIONS = {
-    'T-Shirt': 'Comfortable and stylish t-shirt made from premium cotton. Perfect for everyday wear.',
-    'Polo Shirt': 'Classic polo shirt with a modern fit. Great for casual and semi-formal occasions.',
-    'Dress Shirt': 'Professional dress shirt with a crisp, clean look. Perfect for the office.',
-    'Blouse': 'Elegant blouse with a flattering fit. Versatile for work or casual wear.',
-    'Dress': 'Beautiful dress that combines style and comfort. Perfect for any occasion.',
-    'Jeans': 'Classic jeans with a perfect fit. Durable and comfortable for everyday wear.',
-    'Chinos': 'Smart casual chinos that are both comfortable and stylish.',
-    'Shorts': 'Comfortable shorts perfect for warm weather. Great for casual wear.',
-    'Skirt': 'Stylish skirt that pairs well with any top. Versatile and comfortable.',
-    'Leggings': 'Comfortable leggings perfect for active wear or casual outfits.',
-    'Hoodie': 'Cozy hoodie perfect for cooler weather. Soft and comfortable.',
-    'Sweater': 'Warm sweater that combines style and comfort. Perfect for layering.',
-    'Jacket': 'Stylish jacket that provides warmth without bulk. Great for transitional weather.',
-    'Blazer': 'Professional blazer that adds polish to any outfit.',
-    'Coat': 'Warm coat perfect for cold weather. Stylish and functional.',
-    'Suit': 'Professional suit that fits perfectly. Great for formal occasions.',
-    'Underwear': 'Comfortable underwear made from breathable materials.',
-    'Bra': 'Supportive and comfortable bra with a perfect fit.',
-    'Socks': 'Comfortable socks that keep your feet warm and dry.',
-    'Shoes': 'Stylish shoes that are both comfortable and durable.',
-    'Sneakers': 'Comfortable sneakers perfect for everyday wear and light exercise.',
-    'Heels': 'Elegant heels that add height and style to any outfit.',
-    'Sandals': 'Comfortable sandals perfect for warm weather.',
-    'Pajamas': 'Comfortable pajamas perfect for a good night\'s sleep.'
-}
 
-FABRICS = {
-    'T-Shirt': ['100% Cotton', 'Cotton Blend', 'Organic Cotton'],
-    'Polo Shirt': ['100% Cotton', 'Cotton-Polyester Blend', 'Pima Cotton'],
-    'Dress Shirt': ['100% Cotton', 'Cotton-Polyester Blend', 'Oxford Cotton'],
-    'Blouse': ['100% Cotton', 'Silk', 'Polyester', 'Rayon'],
-    'Dress': ['Cotton', 'Polyester', 'Silk', 'Linen', 'Cotton-Polyester Blend'],
-    'Jeans': ['100% Cotton Denim', 'Stretch Denim', 'Organic Denim'],
-    'Chinos': ['100% Cotton', 'Cotton-Polyester Blend'],
-    'Shorts': ['100% Cotton', 'Cotton-Polyester Blend', 'Linen'],
-    'Skirt': ['Cotton', 'Polyester', 'Wool Blend', 'Linen'],
-    'Leggings': ['Polyester-Spandex Blend', 'Cotton-Spandex Blend', 'Nylon-Spandex'],
-    'Hoodie': ['Cotton-Polyester Blend', 'Fleece', '100% Cotton'],
-    'Sweater': ['Wool', 'Cashmere', 'Cotton', 'Acrylic', 'Wool Blend'],
-    'Jacket': ['Polyester', 'Nylon', 'Cotton', 'Wool Blend'],
-    'Blazer': ['Wool', 'Wool Blend', 'Polyester', 'Cotton'],
-    'Coat': ['Wool', 'Wool Blend', 'Down', 'Polyester'],
-    'Suit': ['Wool', 'Wool Blend', 'Polyester-Wool Blend'],
-    'Underwear': ['100% Cotton', 'Cotton-Spandex Blend', 'Modal'],
-    'Bra': ['Cotton', 'Polyester-Spandex Blend', 'Lace'],
-    'Socks': ['100% Cotton', 'Cotton-Polyester Blend', 'Wool Blend'],
-    'Shoes': ['Leather', 'Synthetic Leather', 'Canvas'],
-    'Sneakers': ['Canvas', 'Mesh', 'Leather', 'Synthetic'],
-    'Heels': ['Leather', 'Synthetic Leather', 'Satin'],
-    'Sandals': ['Leather', 'Synthetic', 'Rubber'],
-    'Pajamas': ['100% Cotton', 'Cotton-Polyester Blend', 'Flannel']
-}
+def generate_slug(name, index):
+    """Generate a unique URL-friendly slug."""
+    slug = name.lower().replace(" ", "-")
+    slug = "".join(c for c in slug if c.isalnum() or c == "-")
+    return f"{slug}-{index}"
 
-def generate_slug(name):
-    """Generate a URL-friendly slug from a name."""
-    slug = name.lower()
-    slug = slug.replace(' ', '-')
-    slug = ''.join(c for c in slug if c.isalnum() or c == '-')
-    return slug
 
-def generate_product_name(category, clothing_type, color):
-    """Generate a product name."""
-    return f"{color} {clothing_type} for {category.capitalize()}"
+def get_image_filename(image_index):
+    """Return the image filename for this product (1–6)."""
+    return f"product-{image_index}.png"
 
-def generate_price(category, clothing_type):
-    """Generate a realistic price based on category and type."""
-    base_prices = {
-        'men': {'T-Shirt': 25, 'Polo Shirt': 35, 'Dress Shirt': 45, 'Jeans': 60, 'Chinos': 50, 'Shorts': 35, 'Hoodie': 55, 'Sweater': 65, 'Jacket': 80, 'Blazer': 120, 'Suit': 200, 'Underwear': 15, 'Socks': 10, 'Shoes': 80, 'Sneakers': 90},
-        'women': {'T-Shirt': 28, 'Blouse': 40, 'Dress': 70, 'Skirt': 45, 'Jeans': 65, 'Leggings': 35, 'Shorts': 38, 'Hoodie': 58, 'Sweater': 68, 'Jacket': 85, 'Coat': 120, 'Underwear': 18, 'Bra': 35, 'Socks': 12, 'Shoes': 85, 'Heels': 95, 'Sandals': 45},
-        'kids': {'T-Shirt': 18, 'Polo Shirt': 25, 'Dress': 40, 'Jeans': 35, 'Shorts': 22, 'Hoodie': 40, 'Sweater': 45, 'Jacket': 55, 'Underwear': 12, 'Socks': 8, 'Shoes': 50, 'Sneakers': 55, 'Pajamas': 30}
-    }
-    
-    base = base_prices.get(category, {}).get(clothing_type, 30)
-    # Add some variation
-    price = base + random.randint(-5, 15)
-    return max(10, price)  # Minimum $10
 
 def seed_products():
-    """Seed the database with products."""
+    """Seed the database with 20 detailed products. Replaces any existing products."""
     with app.app_context():
         print("Starting to seed products...")
-        
-        products_created = 0
-        
-        for category in CATEGORIES:
-            clothing_types = CLOTHING_TYPES[category]
-            
-            for clothing_type in clothing_types:
-                for color in COLORS:
-                    for size in SIZES:
-                        # Create product
-                        name = generate_product_name(category, clothing_type, color)
-                        description = DESCRIPTIONS.get(clothing_type, f'High-quality {clothing_type.lower()} for {category}.')
-                        price = generate_price(category, clothing_type)
-                        slug = f"{generate_slug(name)}-{size.lower()}-{random.randint(1000, 9999)}"
-                        
-                        # Get fabric for this clothing type
-                        available_fabrics = FABRICS.get(clothing_type, ['100% Cotton', 'Cotton Blend'])
-                        fabric = random.choice(available_fabrics)
-                        
-                        # Determine occasion based on clothing type
-                        occasion_map = {
-                            'Suit': 'wedding,business_formal',
-                            'Dress': 'wedding,date_night,business_casual',
-                            'Blazer': 'business_formal,business_casual,date_night',
-                            'Dress Shirt': 'business_formal,business_casual',
-                            'Blouse': 'business_casual,date_night',
-                            'T-Shirt': 'casual,summer',
-                            'Jeans': 'casual',
-                            'Chinos': 'business_casual,casual',
-                            'Shorts': 'casual,summer,outdoor_active',
-                            'Sneakers': 'casual,outdoor_active',
-                            'Heels': 'business_casual,date_night,wedding',
-                            'Sweater': 'winter,casual',
-                            'Jacket': 'winter,casual',
-                            'Coat': 'winter',
-                            'Hoodie': 'casual,winter',
-                            'Sandals': 'summer,casual',
-                            'Pajamas': 'casual'
-                        }
-                        occasion = occasion_map.get(clothing_type, 'casual')
-                        
-                        # Determine age group
-                        age_group_map = {
-                            'Suit': 'mature',
-                            'Dress': 'all',
-                            'Blazer': 'mature',
-                            'Dress Shirt': 'mature',
-                            'T-Shirt': 'all',
-                            'Hoodie': 'young_adult',
-                            'Sneakers': 'all',
-                            'Pajamas': 'all'
-                        }
-                        age_group = age_group_map.get(clothing_type, 'all')
-                        
-                        # All seed products are relevant to every season for now
-                        season = 'all_season'
-                        clothing_category = CLOTHING_CATEGORY_MAP.get(clothing_type, 'other')
-                        
-                        product = Product(
-                            name=name,
-                            description=description,
-                            price=price,
-                            category=category,
-                            color=color,
-                            size=size,
-                            fabric=fabric,
-                            clothing_type=clothing_type,
-                            clothing_category=clothing_category,
-                            occasion=occasion,
-                            age_group=age_group,
-                            season=season,
-                            image_url=f"https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80",
-                            stock_quantity=random.randint(5, 50),
-                            is_active=True,
-                            slug=slug,
-                            meta_title=f"{name} - InsightShop",
-                            meta_description=f"Shop {name} at InsightShop. {description}"
-                        )
-                        
-                        db.session.add(product)
-                        products_created += 1
-                        
-                        # Commit in batches
-                        if products_created % 100 == 0:
-                            db.session.commit()
-                            print(f"Created {products_created} products...")
-        
-        # Final commit
+
+        # Remove dependent rows first (foreign keys to products)
+        for model, label in [
+            (CartItem, "cart items"),
+            (OrderItem, "order items"),
+            (Review, "reviews"),
+            (ProductRelation, "product relations"),
+        ]:
+            try:
+                n = model.query.delete()
+                if n:
+                    print(f"Removed {n} {label}.")
+            except Exception as e:
+                print(f"Note: could not clear {label}: {e}")
         db.session.commit()
-        print(f"Successfully created {products_created} products!")
-        # Vector DB is populated by deferred background sync in models.database.init_db()
-        # so we avoid OOM in the worker during startup (no 4050+ embeddings in one process).
+
+        # Remove existing products so we have exactly these 20
+        deleted = Product.query.delete()
+        if deleted:
+            print(f"Removed {deleted} existing product(s).")
+        db.session.commit()
+
+        static_images_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "static",
+            "images",
+        )
+        for i in range(1, 7):
+            path = os.path.join(static_images_dir, get_image_filename(i))
+            if not os.path.exists(path):
+                print(
+                    f"Note: {get_image_filename(i)} not found in static/images. Add product images there for correct display."
+                )
+
+        for idx, p in enumerate(PRODUCTS, start=1):
+            slug = generate_slug(p["name"], idx)
+            image_url = f"/api/images/{get_image_filename(p['image_index'])}"
+
+            product = Product(
+                name=p["name"],
+                description=p["description"],
+                price=p["price"],
+                category=p["category"],
+                color=p["color"],
+                size=p["size"],
+                fabric=p["fabric"],
+                clothing_type=p["clothing_type"],
+                clothing_category=p["clothing_category"],
+                occasion=p["occasion"],
+                age_group=p["age_group"],
+                season=p["season"],
+                image_url=image_url,
+                stock_quantity=random.randint(8, 40),
+                is_active=True,
+                slug=slug,
+                meta_title=f"{p['name']} - InsightShop",
+                meta_description=f"Shop {p['name']} at InsightShop. {p['description'][:150]}...",
+            )
+            db.session.add(product)
+
+        db.session.commit()
+        print(f"Successfully created {len(PRODUCTS)} products.")
         print("Product seeding completed! (Vector DB will sync in background.)")
 
-if __name__ == '__main__':
-    seed_products()
 
+if __name__ == "__main__":
+    seed_products()

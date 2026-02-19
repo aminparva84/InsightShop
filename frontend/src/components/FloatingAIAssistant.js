@@ -165,8 +165,7 @@ const FloatingAIAssistant = () => {
             aria-label="AI chat"
           >
             <AIChat 
-              onClose={() => setShowChat(false)} 
-              onMinimize={() => setShowChat(false)}
+              onClose={() => setShowChat(false)}
             />
             <div 
               className="resize-handle"

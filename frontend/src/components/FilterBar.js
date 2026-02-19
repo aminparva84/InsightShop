@@ -80,20 +80,27 @@ const FilterBar = ({
           )}
         </div>
 
-        {/* Search Input */}
+        {/* Search Input – same style as navbar search bar */}
         <div className="filter-search-container">
-          <input
-            type="text"
-            value={activeFilters.search || ''}
-            onChange={(e) => onFilterChange('search', e.target.value)}
-            placeholder="Search products..."
-            className="filter-search-input"
-          />
+          <div className="filter-search-bar">
+            <svg className="filter-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <input
+              type="search"
+              value={activeFilters.search || ''}
+              onChange={(e) => onFilterChange('search', e.target.value)}
+              placeholder="SEARCH"
+              className="filter-search-input"
+              aria-label="Search products"
+              autoComplete="off"
+            />
+          </div>
         </div>
 
         <div className="filter-dropdowns">
           {/* Gender Filter */}
-          <div className="filter-dropdown">
+          <div className={`filter-dropdown ${isOpen.category ? 'open' : ''}`}>
             <button
               className={`filter-button ${activeFilters.category ? 'active' : ''}`}
               onClick={() => toggleDropdown('category')}
@@ -128,7 +135,7 @@ const FilterBar = ({
           </div>
 
           {/* Color Filter */}
-          <div className="filter-dropdown">
+          <div className={`filter-dropdown ${isOpen.color ? 'open' : ''}`}>
             <button
               className={`filter-button ${activeFilters.color ? 'active' : ''}`}
               onClick={() => toggleDropdown('color')}
@@ -165,7 +172,7 @@ const FilterBar = ({
 
           {/* Size Filter */}
           {sizes.length > 0 && (
-            <div className="filter-dropdown">
+            <div className={`filter-dropdown ${isOpen.size ? 'open' : ''}`}>
               <button
                 className={`filter-button ${activeFilters.size ? 'active' : ''}`}
                 onClick={() => toggleDropdown('size')}
@@ -202,7 +209,7 @@ const FilterBar = ({
 
           {/* Fabric Filter */}
           {fabrics.length > 0 && (
-            <div className="filter-dropdown">
+            <div className={`filter-dropdown ${isOpen.fabric ? 'open' : ''}`}>
               <button
                 className={`filter-button ${activeFilters.fabric ? 'active' : ''}`}
                 onClick={() => toggleDropdown('fabric')}
@@ -239,7 +246,7 @@ const FilterBar = ({
 
           {/* Season Filter */}
           {seasons.length > 0 && (
-            <div className="filter-dropdown">
+            <div className={`filter-dropdown ${isOpen.season ? 'open' : ''}`}>
               <button
                 className={`filter-button ${activeFilters.season ? 'active' : ''}`}
                 onClick={() => toggleDropdown('season')}
@@ -276,7 +283,7 @@ const FilterBar = ({
 
           {/* Clothing Category Filter */}
           {clothingCategories.length > 0 && (
-            <div className="filter-dropdown">
+            <div className={`filter-dropdown ${isOpen.clothingCategory ? 'open' : ''}`}>
               <button
                 className={`filter-button ${activeFilters.clothing_category ? 'active' : ''}`}
                 onClick={() => toggleDropdown('clothingCategory')}
@@ -312,7 +319,7 @@ const FilterBar = ({
           )}
 
           {/* Price Range Filter */}
-          <div className="filter-dropdown">
+          <div className={`filter-dropdown ${isOpen.price ? 'open' : ''}`}>
             <button
               className={`filter-button ${(activeFilters.minPrice || activeFilters.maxPrice) ? 'active' : ''}`}
               onClick={() => toggleDropdown('price')}

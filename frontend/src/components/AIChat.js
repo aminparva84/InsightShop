@@ -61,7 +61,7 @@ const SendIcon = ({ size = 20 }) => (
   </svg>
 );
 
-const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null }) => {
+const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { fetchCart } = useCart();
@@ -1415,10 +1415,7 @@ const AIChat = ({ onClose, onMinimize, isInline = false, onProductsUpdate = null
             )}
           </div>
           {!isInline && (
-            <>
-              <button type="button" onClick={onMinimize || onClose} className="kendo-header-icon-btn" title="Minimize">−</button>
-              <button type="button" onClick={onClose} className="kendo-header-icon-btn" title="Close">×</button>
-            </>
+            <button type="button" onClick={onClose} className="kendo-header-icon-btn" title="Close">×</button>
           )}
         </div>
       </div>

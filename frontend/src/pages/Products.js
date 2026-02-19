@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductGrid from '../components/ProductGrid';
 import FilterBar from '../components/FilterBar';
+import WavyUnderline from '../components/WavyUnderline';
 import './Products.css';
 
 const PER_PAGE = 12;
@@ -15,6 +16,8 @@ const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [totalProducts, setTotalProducts] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [loadedPage, setLoadedPage] = useState(1); // How many pages we've loaded (for Load More)
+  const [loadMoreLoading, setLoadMoreLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     // Check URL for tab parameter or ai_results
     const tabParam = searchParams.get('tab');
@@ -316,7 +319,7 @@ const Products = () => {
         setAiProducts([]);
       }
       
-      // Regular filtering with pagination
+      // Regular filtering — always fetch first page (Load More appends via loadMoreProducts)
       const params = new URLSearchParams();
       if (filters.category) params.append('category', filters.category);
       if (filters.color) params.append('color', filters.color);
@@ -327,8 +330,7 @@ const Products = () => {
       if (filters.minPrice) params.append('min_price', filters.minPrice);
       if (filters.maxPrice) params.append('max_price', filters.maxPrice);
       if (filters.search) params.append('search', filters.search);
-      const page = parseInt(searchParams.get('page') || '1', 10) || 1;
-      params.append('page', String(page));
+      params.append('page', '1');
       params.append('per_page', String(PER_PAGE));
 
       const response = await axios.get(`/api/products?${params.toString()}`);
@@ -336,6 +338,7 @@ const Products = () => {
       setAllProducts(response.data.products);
       setTotalProducts(response.data.total ?? 0);
       setTotalPages(Math.max(1, response.data.pages ?? 1));
+      setLoadedPage(1);
     } catch (error) {
       console.error('Error fetching products:', error);
       console.error('Error details:', error.response?.data || error.message);
@@ -360,15 +363,14 @@ const Products = () => {
       newFilters.ai_results = '';
     }
     setFilters(newFilters);
-    const params = { ...newFilters, page: 1 }; // Reset to page 1 when filters change
+    const params = { ...newFilters };
     if (!params.ai_results) delete params.ai_results;
-    // Remove empty filter values
+    // Remove empty filter values (no page in URL — we use Load More)
     Object.keys(params).forEach(k => {
       if (params[k] === '' || params[k] === null || params[k] === undefined) {
         delete params[k];
       }
     });
-    if (params.page === 1) delete params.page; // Omit page=1 to keep URL clean
     setSearchParams(params);
   };
   
@@ -403,12 +405,43 @@ const Products = () => {
     });
   };
 
+  // Load next page of products (AJAX) and append to list
+  const loadMoreProducts = async () => {
+    if (loadMoreLoading || activeTab !== 'normal') return;
+    const nextPage = loadedPage + 1;
+    if (nextPage > totalPages) return;
+    setLoadMoreLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filters.category) params.append('category', filters.category);
+      if (filters.color) params.append('color', filters.color);
+      if (filters.size) params.append('size', filters.size);
+      if (filters.fabric) params.append('fabric', filters.fabric);
+      if (filters.season) params.append('season', filters.season);
+      if (filters.clothing_category) params.append('clothing_category', filters.clothing_category);
+      if (filters.minPrice) params.append('min_price', filters.minPrice);
+      if (filters.maxPrice) params.append('max_price', filters.maxPrice);
+      if (filters.search) params.append('search', filters.search);
+      params.append('page', String(nextPage));
+      params.append('per_page', String(PER_PAGE));
+      const response = await axios.get(`/api/products?${params.toString()}`);
+      const newProducts = response.data.products || [];
+      if (newProducts.length > 0) {
+        setProducts(prev => [...prev, ...newProducts]);
+        setAllProducts(prev => [...prev, ...newProducts]);
+      }
+      setLoadedPage(nextPage);
+    } catch (error) {
+      console.error('Error loading more products:', error);
+    } finally {
+      setLoadMoreLoading(false);
+    }
+  };
+
   // Get products to display based on active tab
   const displayProducts = activeTab === 'ai' ? aiProducts : products;
   const displayAllProducts = activeTab === 'ai' ? aiProducts : allProducts;
-  const currentPage = parseInt(searchParams.get('page') || '1', 10) || 1;
-  // Derive total pages from API or from total count so pagination shows when there are multiple pages
-  const effectiveTotalPages = totalPages > 1 ? totalPages : (totalProducts > PER_PAGE ? Math.ceil(totalProducts / PER_PAGE) : 1);
+  const hasMore = activeTab === 'normal' && totalProducts > products.length;
 
   const activeFilterCount = [
     filters.search,
@@ -422,17 +455,6 @@ const Products = () => {
     filters.maxPrice
   ].filter(Boolean).length;
 
-  const handlePageChange = (newPage) => {
-    if (newPage < 1 || newPage > effectiveTotalPages) return;
-    const next = new URLSearchParams(searchParams);
-    if (newPage === 1) {
-      next.delete('page');
-    } else {
-      next.set('page', String(newPage));
-    }
-    setSearchParams(next);
-  };
-  
   // Debug logging - track state changes
   useEffect(() => {
     console.log('Products Page: State update - activeTab:', activeTab, 'aiProducts:', aiProducts.length, 'displayProducts:', displayProducts.length);
@@ -446,7 +468,10 @@ const Products = () => {
   return (
     <div className="products-page">
       <div className="container">
-        <h1 className="page-title">All Products</h1>
+        <div className="products-page-title-wrap">
+          <h1 className="page-title">All Products</h1>
+          <WavyUnderline color="#373F2E" className="products-page-title-wavy" />
+        </div>
 
         {/* Tabs */}
         <div className="products-tabs">
@@ -539,8 +564,8 @@ const Products = () => {
                       </span>
                     ) : (
                       <span>
-                        {effectiveTotalPages > 1
-                          ? `Showing ${(currentPage - 1) * PER_PAGE + 1}–${Math.min(currentPage * PER_PAGE, totalProducts)} of ${totalProducts} products`
+                        {totalProducts > products.length
+                          ? `Showing ${products.length} of ${totalProducts} products`
                           : `${totalProducts} product${totalProducts !== 1 ? 's' : ''} found`}
                       </span>
                     )}
@@ -595,45 +620,26 @@ const Products = () => {
                   showCompareCheckbox={true}
                 />
 
-                {activeTab === 'normal' && effectiveTotalPages > 1 && (
-                  <nav className="pagination" aria-label="Products pagination">
+                {activeTab === 'normal' && hasMore && (
+                  <div className="load-more-wrapper">
                     <button
                       type="button"
-                      className="pagination-btn pagination-prev"
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage <= 1}
-                      aria-label="Previous page"
+                      className="btn load-more-btn"
+                      onClick={loadMoreProducts}
+                      disabled={loadMoreLoading}
+                      aria-busy={loadMoreLoading}
+                      aria-label={loadMoreLoading ? 'Loading more products' : 'Load more products'}
                     >
-                      Previous
+                      {loadMoreLoading ? (
+                        <>
+                          <span className="load-more-spinner" aria-hidden="true"></span>
+                          Loading…
+                        </>
+                      ) : (
+                        `Load more (${totalProducts - products.length} remaining)`
+                      )}
                     </button>
-                    <div className="pagination-pages">
-                      {Array.from({ length: effectiveTotalPages }, (_, i) => i + 1)
-                        .filter(p => p === 1 || p === effectiveTotalPages || (p >= currentPage - 2 && p <= currentPage + 2))
-                        .map((p, i, arr) => (
-                          <React.Fragment key={p}>
-                            {i > 0 && arr[i - 1] !== p - 1 && <span className="pagination-ellipsis">…</span>}
-                            <button
-                              type="button"
-                              className={`pagination-btn pagination-num ${p === currentPage ? 'active' : ''}`}
-                              onClick={() => handlePageChange(p)}
-                              aria-label={`Page ${p}`}
-                              aria-current={p === currentPage ? 'page' : undefined}
-                            >
-                              {p}
-                            </button>
-                          </React.Fragment>
-                        ))}
-                    </div>
-                    <button
-                      type="button"
-                      className="pagination-btn pagination-next"
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage >= effectiveTotalPages}
-                      aria-label="Next page"
-                    >
-                      Next
-                    </button>
-                  </nav>
+                  </div>
                 )}
               </>
             )}

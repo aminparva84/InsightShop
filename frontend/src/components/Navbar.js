@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { FaUserTie, FaCloudRain, FaSocks, FaShoePrints } from 'react-icons/fa';
+import { FaUserTie, FaCloudRain, FaSocks, FaShoePrints, FaSignOutAlt } from 'react-icons/fa';
 import {
   GiTrousers,
   GiShirt,
@@ -135,23 +135,24 @@ const Navbar = () => {
     </>
   );
 
-  /* Slider top: Account, Login/Logout only (Cart is in navbar) */
+  /* Slider top: Account, Login/Logout only (Cart is in navbar) – standout auth links */
   const sliderTopLinks = (
     <div className="navbar-slider-top">
       {isAuthenticated ? (
         <>
-          <Link to="/members" className="navbar-slider-link" onClick={closeMenu}>Account</Link>
+          <Link to="/members" className="navbar-slider-link navbar-slider-link--standout" onClick={closeMenu}>Account</Link>
           {user?.is_superadmin && (
-            <Link to="/admin" className="navbar-slider-link" onClick={closeMenu}>Admin</Link>
+            <Link to="/admin" className="navbar-slider-link navbar-slider-link--standout" onClick={closeMenu}>Admin</Link>
           )}
-          <button type="button" onClick={() => { handleLogout(); closeMenu(); }} className="navbar-slider-link navbar-slider-btn">
+          <button type="button" onClick={() => { handleLogout(); closeMenu(); }} className="navbar-slider-link navbar-slider-btn navbar-slider-link--standout" aria-label="Log out">
+            <FaSignOutAlt className="navbar-slider-link-icon" aria-hidden="true" />
             Logout
           </button>
         </>
       ) : (
         <>
-          <Link to="/login" className="navbar-slider-link" onClick={closeMenu}>Log In</Link>
-          <Link to="/register" className="navbar-slider-link navbar-slider-register" onClick={closeMenu}>Sign Up</Link>
+          <Link to="/login" className="navbar-slider-link navbar-slider-link--standout" onClick={closeMenu}>Log In</Link>
+          <Link to="/register" className="navbar-slider-link navbar-slider-register navbar-slider-link--standout" onClick={closeMenu}>Sign Up</Link>
         </>
       )}
     </div>

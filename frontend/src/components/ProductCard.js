@@ -94,7 +94,8 @@ const ProductCard = ({ product, compact = false }) => {
         )}
       </div>
       <button type="button" onClick={handleAddToCart} className="btn-add-cart">
-        <span className="btn-add-cart-text">Add to cart</span>
+        <span className="btn-add-cart-text btn-add-cart-text-desktop">Add to cart</span>
+        <span className="btn-add-cart-text btn-add-cart-text-mobile" aria-hidden="true">Add</span>
         <span className="btn-add-cart-icon" aria-hidden="true">+</span>
       </button>
     </Link>

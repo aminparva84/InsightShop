@@ -135,6 +135,14 @@ const Navbar = () => {
     </>
   );
 
+  /* Mobile menu: Home and Products (shown in expanded dropdown on small screens) */
+  const sliderNavLinks = (
+    <div className="navbar-slider-nav">
+      <Link to="/" className="navbar-slider-link navbar-slider-nav-link" onClick={closeMenu}>Home</Link>
+      <Link to="/products" className="navbar-slider-link navbar-slider-nav-link" onClick={closeMenu}>Products</Link>
+    </div>
+  );
+
   /* Slider top: Account, Login/Logout only (Cart is in navbar) – standout auth links */
   const sliderTopLinks = (
     <div className="navbar-slider-top">
@@ -204,6 +212,7 @@ const Navbar = () => {
           aria-hidden={!menuOpen}
         >
           <div className="navbar-dropdown-inner">
+            {sliderNavLinks}
             {sliderTopLinks}
             <div className="navbar-slider-filters">
               <span className="navbar-slider-filters-label">Shop by</span>

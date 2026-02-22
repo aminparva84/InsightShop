@@ -4,16 +4,17 @@
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  background: #f9fafb;
+  background: var(--site-bg);
 }
 
 .auth-container {
-  background: white;
+  background: #faf0e6;
   padding: 40px;
   border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 24px rgba(26, 35, 50, 0.15);
   width: 100%;
   max-width: 500px;
+  border: 1px solid rgba(26, 35, 50, 0.08);
 }
 
 .auth-container h1 {
@@ -21,14 +22,14 @@
   font-size: 36px;
   font-weight: 700;
   margin-bottom: 8px;
-  color: #1f2937;
+  color: #1a2332;
   text-align: center;
   letter-spacing: 1px;
 }
 
 .auth-subtitle {
   text-align: center;
-  color: #6b7280;
+  color: #36454f;
   margin-bottom: 32px;
 }
 
@@ -40,6 +41,19 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+/* Override .btn-primary so Login/Sign Up buttons use navbar green */
+.auth-page .btn-primary.btn-auth {
+  background: #4A5844;
+  color: #F5F5DC;
+  border-color: #4A5844;
+}
+
+.auth-page .btn-primary.btn-auth:hover {
+  background: #3d4a38;
+  border-color: #3d4a38;
+  color: #FFFEF5;
 }
 
 .btn-auth {
@@ -62,7 +76,7 @@
   top: 50%;
   width: 45%;
   height: 1px;
-  background: #e5e7eb;
+  background: rgba(26, 35, 50, 0.2);
 }
 
 .auth-divider::before {
@@ -74,9 +88,9 @@
 }
 
 .auth-divider span {
-  background: white;
+  background: #faf0e6;
   padding: 0 16px;
-  color: #6b7280;
+  color: #36454f;
   position: relative;
   z-index: 1;
 }
@@ -87,12 +101,16 @@
 
 .auth-footer {
   text-align: center;
-  color: #6b7280;
+  color: #36454f;
 }
 
 .auth-footer a {
-  color: #7c3aed;
+  color: #1a2332;
   font-weight: 600;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 768px) {

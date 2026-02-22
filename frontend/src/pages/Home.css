@@ -10,6 +10,7 @@
   max-width: 100%;
   min-width: 0; /* allow shrinking so inner horizontal scroll (Special offers) can overflow */
   box-sizing: border-box;
+  background: var(--site-bg, #C3B0A1); /* explicit so transparent PNGs (e.g. mid-banner) show site bg, not black */
   /* Do not use overflow-x: hidden - it prevents the Special offers horizontal scroll from working */
 }
 
@@ -17,8 +18,8 @@
 .hero.banner-four-layers {
   position: relative;
   overflow: hidden;
-  min-height: 95vh;
-  padding: 80px 48px 100px 48px;
+  min-height: 120vh;
+  padding: 80px 48px 56px 48px;
   box-sizing: border-box;
 }
 
@@ -34,15 +35,38 @@
   background: #C3B0A1;
 }
 
-/* Main banner image layer – right side, responsive */
+/* Content row: text+chat on the left, hero image exactly on their right */
+.hero-banner-content {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 32px;
+  z-index: 2;
+  pointer-events: none;
+}
+.hero-banner-content .hero-banner-text-and-chat,
+.hero-banner-content #banner-main.hero-layer-banner-main {
+  pointer-events: none;
+}
+.hero-banner-content .hero-chat-inline-wrap {
+  pointer-events: auto;
+}
+
+/* Main banner image – right side of text+chat; container fits image, image sized by height so it actually scales */
 #banner-main.hero-layer-banner-main {
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: min(55%, 520px);
-  max-width: 520px;
+  flex: 0 0 auto;
+  position: relative;
+  right: auto;
+  top: auto;
+  transform: none;
+  width: auto;
+  max-width: min(68%, 920px);
   height: auto;
-  max-height: 85vh;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -50,22 +74,38 @@
   pointer-events: none;
 }
 
+.hero-banner-content #banner-main.hero-layer-banner-main {
+  margin-left: 0;
+}
 
+/* Size image by height so increasing height = actually larger image (not pushed right) */
 .hero-layer-banner-main-img {
-  width: 100%;
-  height: auto;
-  max-height: 85vh;
+  height: 115vh;
+  min-height: 720px;
+  width: auto;
+  max-width: none;
   object-fit: contain;
-  object-position: right center;
+  object-position: center center;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Small screens: let image scale down with viewport (no min-height) */
+@media (max-width: 968px) {
+  .hero-layer-banner-main-img {
+    min-height: 0;
+  }
 }
 
 /* Wrapper: text (banner-asset-4) + chat template – chat always under text */
 .hero-banner-text-and-chat {
-  position: absolute;
-  left: 118px;
-  top: 16%;
-  z-index: 2;
+  position: relative;
+  left: 0;
+  top: 0;
+  flex: 0 1 auto;
   max-width: 55%;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -167,6 +207,8 @@
   display: flex;
   flex-direction: column;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  --ai-chat-inline-bg: #3A4036;
+  --ai-chat-inline-header-text: #E8E4DC;
 }
 
 .hero-chat-inline-wrap:hover {
@@ -237,114 +279,36 @@
   }
 }
 
-/* Mid banner: same as main background, centered container (mid-asset-2) + subtitle (mid-asset-3) */
+/* Mid banner: image inside centered container, smaller size */
 .mid-banner {
-  padding: 72px 36px 84px;
+  padding: 24px 24px 56px;
   background: var(--site-bg, #C3B0A1);
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  position: relative;
-}
-
-/* Doodle graphic on the left side of mid-banner */
-#mid-doodle.mid-banner-doodle {
-  position: absolute;
-  left: 174px; /* 24px + 150px to the right */
-  top: 50%;
-  transform: translateY(-50%) scale(1.5);
-  height: min(200px, 35vh);
-  width: auto;
-  max-width: min(280px, 28vw);
-  object-fit: contain;
-  object-position: left center;
-  pointer-events: none;
-  z-index: 0;
+  align-items: center;
+  line-height: 0;
 }
 
 .mid-banner-container {
-  position: relative;
-  z-index: 1;
-  width: 750px;
-  height: 316px;
-  background: #A18A72;
-  /* Asset 20–style: top-left fully round, top-right and bottom-right less rounded, bottom-left reduced */
-  border-top-left-radius: 999px;
-  border-top-right-radius: 20%;
-  border-bottom-right-radius: 20%;
-  border-bottom-left-radius: 18%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 72px;
-  box-sizing: border-box;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.12);
+  width: 100%;
+  max-width: min(1280px, 95vw);
+  margin: 0 auto;
+  background: var(--site-bg, #C3B0A1); /* surface behind transparent PNG so alpha=0 shows site color, not black */
 }
 
-.mid-banner-title {
-  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: clamp(53px, 7.5vw, 79px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
-  color: #373F2E;
-  margin: 0;
-  line-height: 1.2;
-  text-align: center;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
+.mid-banner-container picture {
+  display: block;
+  width: 100%;
 }
 
-.mid-banner-title-line {
-  position: relative;
-  display: inline-block;
-}
-
-#mid-asset-3.mid-banner-subtitle {
-  position: absolute;
-  left: 100%;
-  top: 85px;
-  margin-left: -0.08em;
-  z-index: 1;
-  white-space: nowrap;
-  font-family: 'Saint Timothy', 'Dancing Script', cursive;
-  font-size: clamp(20px, 2.5vw, 28px);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  color: #ffffff;
-  transform: translateX(-65%) rotate(-18deg);
-  transform-origin: left top;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
-}
-
-@media (max-width: 840px) {
-  .mid-banner {
-    width: 100%;
-    padding-left: 24px;
-    padding-right: 24px;
-    box-sizing: border-box;
-  }
-
-  .mid-banner-container {
-    width: 100%;
-    max-width: 750px;
-    height: 296px;
-    padding: 48px 36px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .mid-banner-title {
-    font-size: clamp(42px, 6.25vw, 60px);
-  }
-
-  #mid-asset-3.mid-banner-subtitle {
-    top: 45px;
-    font-weight: 400;
-    transform: translateX(-65%) rotate(-18deg);
-  }
-
+.mid-banner-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(75vh, 900px);
+  object-fit: contain;
+  object-position: center;
+  vertical-align: middle;
 }
 
 /* Featured Products – aligned with top banner, mid-banner, navbar (vintage theme) */
@@ -599,13 +563,13 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
-  /* Scroll row: fixed width so row overflows and scroll works */
+  /* Scroll row: fixed width so 2 cards visible by default */
   .featured-products .special-offers .special-offers-scroll-wrap .product-grid {
     gap: 10px;
   }
   .featured-products .special-offers .product-grid-item-wrapper {
-    width: 180px;
-    min-width: 160px;
+    width: min(165px, calc(50vw - 20px));
+    min-width: 140px;
   }
 
   .featured-products .product-image {
@@ -635,11 +599,6 @@
 }
 
 @media (max-width: 480px) {
-  .mid-banner {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
   .featured-products .container {
     padding: 28px 16px 36px;
   }
@@ -648,13 +607,13 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
-  /* Scroll row: fixed width so row overflows and scroll works */
+  /* Scroll row: fixed width so 2 cards visible by default */
   .featured-products .special-offers .special-offers-scroll-wrap .product-grid {
     gap: 8px;
   }
   .featured-products .special-offers .product-grid-item-wrapper {
-    width: 160px;
-    min-width: 140px;
+    width: min(145px, calc(50vw - 16px));
+    min-width: 128px;
   }
 
   .featured-products .product-image {
@@ -736,11 +695,11 @@
   width: max-content;
   min-width: max-content; /* never shrink so horizontal scroll always has content to scroll */
 }
-/* Fixed width per item so row overflows and horizontal scroll works (no % of scroll container) */
+/* Fixed width per item so row overflows and horizontal scroll works; sized so 2 cards visible by default */
 .featured-products .special-offers .product-grid-item-wrapper {
   flex: 0 0 auto;
-  width: 260px;
-  min-width: 220px;
+  width: min(200px, calc(50vw - 24px));
+  min-width: 160px;
 }
 .featured-products .special-offers .product-grid-item-wrapper .product-card {
   width: 100%;
@@ -922,6 +881,8 @@
   overflow: hidden;
   border: 1px solid #e0e0e0;
   background-color: #fdfbf8;
+  --ai-chat-inline-bg: #fdfbf8;
+  --ai-chat-inline-header-text: #4F5747;
 }
 
 /* Inline AI Chat Styles - Reduced height */
@@ -1522,24 +1483,24 @@
 
 @media (max-width: 968px) {
   .hero.banner-four-layers {
-    min-height: 80vh;
+    min-height: 115vh;
     padding: 0 32px 80px;
   }
 
-  #banner-main.hero-layer-banner-main {
-    width: min(58%, 460px);
+  .hero-banner-content {
+    gap: 24px;
   }
 
-  .hero-layer-text {
-    left: 82px;
-    top: 15%;
-    max-width: 58%;
+  #banner-main.hero-layer-banner-main {
+    max-width: min(78%, 920px);
+  }
+
+  .hero-layer-banner-main-img {
+    height: 110vh;
   }
 
   .hero-banner-text-and-chat {
-    left: 82px;
-    top: 15%;
-    max-width: 58%;
+    max-width: 38%;
   }
 
   .hero-cta {
@@ -1549,44 +1510,82 @@
 
 }
 
-/* Desktop: larger banner image (after breakpoints so it wins for viewport >= 969px) */
+/* Desktop: text+chat and hero image closer together, with padding from edges (viewport >= 969px) */
 @media (min-width: 969px) {
+  .hero.banner-four-layers {
+    padding-left: 72px;
+    padding-right: 72px;
+  }
+
+  .hero-banner-content {
+    gap: 24px;
+    justify-content: center;
+  }
+
   #banner-main.hero-layer-banner-main {
-    width: min(80%, 1400px);
-    max-width: 1400px;
-    max-height: 98vh;
-    margin-right: 32px;
+    max-width: min(88%, 1280px);
+    margin-left: 0;
+    justify-content: flex-end;
   }
 
   #banner-main.hero-layer-banner-main .hero-layer-banner-main-img {
-    max-height: 98vh;
+    height: 115vh;
+    min-height: 800px;
+    margin-left: auto;
+    margin-right: 0;
+    margin-top: -6vh;
+    object-position: right center;
   }
 }
 
 @media (max-width: 768px) {
   .hero.banner-four-layers {
-    min-height: 75vh;
-    padding: 0 24px 72px;
+    min-height: 95vh;
+    padding: 0 24px 40px;
+  }
+
+  .hero-banner-content {
+    gap: 20px;
   }
 
   #banner-main.hero-layer-banner-main {
-    width: min(62%, 400px);
-    max-height: 80vh;
+    max-width: min(58%, 560px);
     z-index: 1;
   }
 
-  .hero-layer-text {
-    left: 70px;
-    top: 14%;
-    max-width: 62%;
-    z-index: 3;
+  .hero-layer-banner-main-img {
+    height: 90vh;
+  }
+
+  /* Mid banner: less gap from hero, centered on mobile */
+  .mid-banner {
+    padding: 16px 16px 40px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .mid-banner-container {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: min(100%, 95vw);
+    display: flex;
+    justify-content: center;
+  }
+
+  .mid-banner-container picture,
+  .mid-banner-container .mid-banner-image {
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .hero-banner-text-and-chat {
-    left: 70px;
-    top: 14%;
-    max-width: 62%;
+    max-width: 42%;
     z-index: 3;
+  }
+
+  #banner-asset-4 {
+    margin-top: 250px;
   }
 
   .hero-title {
@@ -1642,27 +1641,25 @@
 
 @media (max-width: 480px) {
   .hero.banner-four-layers {
-    min-height: 70vh;
+    min-height: 90vh;
     padding: 0 16px 56px;
   }
 
+  .hero-banner-content {
+    gap: 16px;
+  }
+
   #banner-main.hero-layer-banner-main {
-    width: min(70%, 340px);
-    max-height: 75vh;
+    max-width: min(54%, 460px);
     z-index: 1;
   }
 
-  .hero-layer-text {
-    left: 62px;
-    top: 11%;
-    max-width: 70%;
-    z-index: 3;
+  .hero-layer-banner-main-img {
+    height: 85vh;
   }
 
   .hero-banner-text-and-chat {
-    left: 62px;
-    top: 11%;
-    max-width: 70%;
+    max-width: 44%;
     z-index: 3;
   }
 

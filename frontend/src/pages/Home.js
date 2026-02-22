@@ -24,6 +24,9 @@ import FlowingMenu from '../components/FlowingMenu';
 import BlurText from '../components/BlurText';
 import AIChat from '../components/AIChat';
 import WavyUnderline from '../components/WavyUnderline';
+import womanImage from '../assets/woman-image.webp';
+import midBannerMain from '../assets/mid-banner-main.webp';
+import midBannerMobile from '../assets/mid-banner-mobile.webp';
 import './Home.css';
 
 /* Seasonal menu: images from Unsplash (season-themed, free to use) */
@@ -213,16 +216,14 @@ const Home = () => {
 
   return (
     <div className="home">
-      {/* Top Banner: background, main image (top-banner.png) on right, text */}
+      {/* Top Banner: background, hero image (woman-image) on right, text */}
       <section className="hero banner-four-layers">
         {/* Asset 1: Background */}
         <div id="banner-asset-1" className="hero-layer hero-layer-bg" data-asset-name="background" aria-hidden="true" />
-        {/* Main banner image – right side, responsive */}
-        <div id="banner-main" className="hero-layer hero-layer-banner-main" data-asset-name="top-banner" aria-hidden="true">
-          <img src={`${process.env.PUBLIC_URL || ''}/images/top-banner.png`} alt="" className="hero-layer-banner-main-img" />
-        </div>
-        {/* Asset 4: Text + chat – text first, chat template always under it */}
-        <div className="hero-banner-text-and-chat">
+        {/* Content row: text + chat, then hero image exactly on their right */}
+        <div className="hero-banner-content">
+          {/* Asset 4: Text + chat – text first, chat template always under it */}
+          <div className="hero-banner-text-and-chat">
           <motion.div
             id="banner-asset-4"
             className="hero-layer hero-layer-text"
@@ -269,27 +270,30 @@ const Home = () => {
           <div className="hero-chat-inline-wrap" aria-label="AI chat in banner">
             <AIChat isInline />
           </div>
+          </div>
+          {/* Hero image – exactly to the right of text and chat */}
+          <div id="banner-main" className="hero-layer hero-layer-banner-main" data-asset-name="hero-image" aria-hidden="true">
+            <img src={womanImage} alt="" className="hero-layer-banner-main-img" />
+          </div>
         </div>
       </section>
 
-      {/* Mid banner: same bg as site, container (mid-asset-2); subtitle (mid-asset-3); doodle (mid-doodle) under mid-asset-2 */}
-      <section id="mid-asset-1" className="mid-banner" aria-labelledby="mid-banner-heading">
-        <div id="mid-asset-2" className="mid-banner-container">
-          <p id="mid-banner-heading" className="mid-banner-title">
-            HARD TO FIND<br />
-            <span className="mid-banner-title-line">
-              WHAT YOU NEED?
-              <span id="mid-asset-3" className="mid-banner-subtitle">It&apos;s okay!</span>
-            </span>
-          </p>
+      {/* Mid banner: image inside centered container, smaller size */}
+      <section id="mid-asset-1" className="mid-banner" aria-label="Mid banner">
+        <div className="mid-banner-container">
+          <picture>
+            <source
+              media="(max-width: 768px)"
+              srcSet={midBannerMobile}
+              src={midBannerMobile}
+            />
+            <img
+              src={midBannerMain}
+              alt="Hard to find what you need? It's ok!"
+              className="mid-banner-image"
+            />
+          </picture>
         </div>
-        <img
-          id="mid-doodle"
-          src={`${process.env.PUBLIC_URL || ''}/images/mid-doodle.png`}
-          alt=""
-          className="mid-banner-doodle"
-          aria-hidden="true"
-        />
       </section>
 
       {/* Featured Products (container includes Special offers above) */}

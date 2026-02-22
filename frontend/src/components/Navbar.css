@@ -295,13 +295,28 @@
   min-height: 0;
 }
 
+/* Home & Products in expanded menu – hidden on desktop, shown on mobile */
+.navbar-slider-nav {
+  display: none;
+}
+
+.navbar-slider-nav-link {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #E8E4DC;
+}
+
+.navbar-slider-nav-link:hover {
+  color: #FFFEF5;
+}
+
 /* Top of slider: Cart, Account, Log in / Log out */
 .navbar-slider-top {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  padding: 0 16px 20px;
+  padding: 12px 16px 20px;
   border-bottom: 1px solid rgba(232, 228, 220, 0.2);
 }
 
@@ -583,6 +598,16 @@
     font-size: 13px;
   }
 
+  /* Show Home & Products in the expanded dropdown on mobile */
+  .navbar-slider-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid rgba(232, 228, 220, 0.2);
+  }
+
   /* Keep navbar-links visible so cart icon is always shown; hide only Home/Products (they're in the menu) */
   .navbar-links .nav-link:not(.nav-cart-link) {
     display: none;
@@ -626,7 +651,7 @@
   }
 
   .navbar-slider-top {
-    padding: 0 12px 16px;
+    padding: 12px 12px 16px;
   }
 
   .navbar-slider-filters {

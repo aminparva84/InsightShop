@@ -672,6 +672,19 @@
 /* --------------------------------------------------------------------------
    Inline variant (e.g. on Home/Products)
    -------------------------------------------------------------------------- */
+.ai-chat-inline .ai-chat-header {
+  background: var(--ai-chat-inline-bg, var(--ai-chat-surface));
+  color: var(--ai-chat-inline-header-text, var(--ai-chat-user-text));
+  border-bottom-color: var(--ai-chat-border-strong);
+}
+
+.ai-chat-inline .ai-chat-header h3,
+.ai-chat-inline .ai-chat-header .close-btn,
+.ai-chat-inline .ai-chat-header .clear-btn,
+.ai-chat-inline .ai-chat-header-brand {
+  color: var(--ai-chat-inline-header-text, var(--ai-chat-user-text));
+}
+
 .ai-chat-inline .ai-chat-messages {
   padding: var(--ai-chat-spacing-lg);
 }

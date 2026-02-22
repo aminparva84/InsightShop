@@ -251,6 +251,8 @@
   overflow: hidden;
   border: 1px solid #e0e0e0;
   background-color: #fdfbf8;
+  --ai-chat-inline-bg: #fdfbf8;
+  --ai-chat-inline-header-text: #4F5747;
 }
 
 /* Inline AI Chat Styles - Reduced height */
@@ -267,7 +269,6 @@
 
 .ai-chat-inline .ai-chat-header {
   border-radius: 0;
-  background: #1a2332;
 }
 
 @media (max-width: 968px) {

@@ -248,6 +248,14 @@ def init_db(app):
             except Exception as e:
                 print(f"Warning: Could not seed products: {e}")
 
+        # Seed special-offer products (idempotent; skip in test mode)
+        if not app.config.get('TESTING'):
+            try:
+                from scripts.seed_special_offer_products import seed_special_offer_products
+                seed_special_offer_products()
+            except Exception as e:
+                print(f"Warning: Could not seed special-offer products: {e}")
+
         # Seed superadmin and demo users so admin can manage the app (production / App Runner)
         if not app.config.get('TESTING'):
             try:

@@ -130,6 +130,7 @@ const Home = () => {
     specialOffersDragRef.current.isDragging = false;
     setSpecialOffersDragging(false);
   };
+  /* Re-run when special offers mount so ref is set and drag listeners are attached (desktop) */
   useEffect(() => {
     const el = specialOffersScrollRef.current;
     if (!el) return;
@@ -141,7 +142,20 @@ const Home = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, []);
+  }, [specialOffers.length]);
+
+  /* Desktop: translate vertical wheel over carousel into horizontal scroll */
+  useEffect(() => {
+    const el = specialOffersScrollRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [specialOffers.length]);
 
   const handleBannerTextAnimationComplete = () => {
     bannerCompleteCountRef.current += 1;

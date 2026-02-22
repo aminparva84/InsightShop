@@ -72,7 +72,22 @@ def get_products():
                     'pages': 1
                 }), 200
         
+        on_sale_only = request.args.get('on_sale', '').strip().lower() in ('1', 'true', 'yes')
         query = Product.query.filter_by(is_active=True)
+        
+        if on_sale_only:
+            # Filter to products currently on sale (product-level sale active now)
+            today = __import__('datetime').date.today()
+            from sqlalchemy import and_
+            product_sale = and_(
+                Product.sale_enabled == True,
+                Product.sale_start.isnot(None),
+                Product.sale_end.isnot(None),
+                Product.sale_percentage.isnot(None),
+                Product.sale_start <= today,
+                Product.sale_end >= today
+            )
+            query = query.filter(product_sale)
         
         if category:
             query = query.filter_by(category=category)
@@ -159,6 +174,32 @@ def get_products():
         print(f"Error in get_products: {e}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+@products_bp.route('/special-offers', methods=['GET'])
+def get_special_offers():
+    """Get products currently on sale (product-level or global sale), for the Special offers section."""
+    try:
+        limit = min(int(request.args.get('limit', 20)), 50)
+        all_active = Product.query.filter_by(is_active=True).limit(300).all()
+        sale_products = []
+        for p in all_active:
+            try:
+                if p.get_sale_price():
+                    sale_products.append(p.to_dict())
+                    if len(sale_products) >= limit:
+                        break
+            except Exception:
+                continue
+        return jsonify({
+            'products': sale_products,
+            'total': len(sale_products)
+        }), 200
+    except Exception as e:
+        import traceback
+        print(f"Error in get_special_offers: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 # IMPORTANT: Specific routes must come BEFORE the dynamic route to avoid conflicts
 @products_bp.route('/categories', methods=['GET'])

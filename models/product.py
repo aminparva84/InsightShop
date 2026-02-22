@@ -26,6 +26,12 @@ class Product(db.Model):
     stock_quantity = db.Column(db.Integer, default=0, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     
+    # Per-product sale (admin can enable with start/end and percentage)
+    sale_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    sale_start = db.Column(db.Date, nullable=True)  # Sale valid from this date (inclusive)
+    sale_end = db.Column(db.Date, nullable=True)    # Sale valid until this date (inclusive)
+    sale_percentage = db.Column(db.Numeric(5, 2), nullable=True)  # e.g. 25.00 for 25% off
+    
     # Ratings
     rating = db.Column(db.Numeric(3, 2), default=0.0, nullable=False)  # Average rating (0.00 to 5.00)
     review_count = db.Column(db.Integer, default=0, nullable=False)  # Number of reviews
@@ -55,50 +61,81 @@ class Product(db.Model):
         Index('idx_clothing_category', 'clothing_category'),
     )
     
+    def _is_product_sale_active(self, check_date=None):
+        """Check if this product's own sale is currently active (sale_enabled and date within start/end)."""
+        from datetime import date
+        d = check_date or date.today()
+        if not self.sale_enabled or not self.sale_start or not self.sale_end:
+            return False
+        try:
+            return self.sale_start <= d <= self.sale_end
+        except Exception:
+            return False
+
     def get_sale_price(self):
-        """Get the sale price if product is on sale, otherwise return original price."""
+        """Get the sale price if product is on sale (product-level or global sale), otherwise return None."""
+        from datetime import date
+        current_date = date.today()
+        original_price = float(self.price) if self.price else 0.0
+
+        # 1) Product-level sale takes precedence
+        if self._is_product_sale_active(current_date) and self.sale_percentage is not None:
+            try:
+                pct = float(self.sale_percentage)
+                if 0 < pct <= 100:
+                    sale_price = original_price * (1 - pct / 100)
+                    return {
+                        'original_price': original_price,
+                        'sale_price': round(sale_price, 2),
+                        'discount_percentage': pct,
+                        'sale': None  # product-level, no Sale row
+                    }
+            except (TypeError, ValueError):
+                pass
+
+        # 2) Global Sale table (filter-based sales)
         try:
             from models.sale import Sale
-            from datetime import date
-            
-            # Check if Sale table exists
-            try:
-                # Find active sales that apply to this product
-                active_sales = Sale.query.filter_by(is_active=True).all()
-            except Exception as e:
-                # Sale table might not exist yet, return None
-                return None
-            
-            current_date = date.today()
-            
-            best_discount = 0.0
-            sale_info = None
-            
-            for sale in active_sales:
-                try:
-                    if sale.is_currently_active(current_date) and sale.matches_product(self):
-                        discount = float(sale.discount_percentage) if sale.discount_percentage else 0.0
-                        if discount > best_discount:
-                            best_discount = discount
-                            sale_info = sale
-                except Exception:
-                    # Skip this sale if there's an error
-                    continue
-            
-            if best_discount > 0:
-                original_price = float(self.price) if self.price else 0.0
-                sale_price = original_price * (1 - best_discount / 100)
-                return {
-                    'original_price': original_price,
-                    'sale_price': round(sale_price, 2),
-                    'discount_percentage': best_discount,
-                    'sale': sale_info.to_dict() if sale_info else None
-                }
+            active_sales = Sale.query.filter_by(is_active=True).all()
         except Exception:
-            # If anything fails, just return None (no sale)
-            pass
-        
+            return None
+
+        best_discount = 0.0
+        sale_info = None
+        for sale in active_sales:
+            try:
+                if sale.is_currently_active(current_date) and sale.matches_product(self):
+                    discount = float(sale.discount_percentage) if sale.discount_percentage else 0.0
+                    if discount > best_discount:
+                        best_discount = discount
+                        sale_info = sale
+            except Exception:
+                continue
+
+        if best_discount > 0:
+            sale_price = original_price * (1 - best_discount / 100)
+            return {
+                'original_price': original_price,
+                'sale_price': round(sale_price, 2),
+                'discount_percentage': best_discount,
+                'sale': sale_info.to_dict() if sale_info else None
+            }
         return None
+
+    # Known special-offer product names -> image filename so correct images always show
+    _SPECIAL_OFFER_IMAGES = {
+        'Autumn Plaid High-Waisted Shorts': 'special-offer-1.png',
+        'Sky Blue Ribbed Polo Sweater': 'special-offer-2.png',
+        'Burgundy Relaxed Crewneck Tee': 'special-offer-3.png',
+        'Warm Plaid Pleated Trousers': 'special-offer-4.png',
+        'Sage Green Pleated Cuff Shorts': 'special-offer-5.png',
+    }
+
+    def _resolved_image_url(self):
+        """Return image URL; for known special-offer products use /images/special-offer-N.png (frontend public) so they always load."""
+        if self.name and self.name.strip() in self._SPECIAL_OFFER_IMAGES:
+            return '/images/' + self._SPECIAL_OFFER_IMAGES[self.name.strip()]
+        return self.image_url
     
     def to_dict(self):
         """Convert product to dictionary."""
@@ -146,7 +183,7 @@ class Product(db.Model):
             'occasion': self.occasion,
             'age_group': self.age_group,
             'season': self.season or 'all_season',
-            'image_url': self.image_url,
+            'image_url': self._resolved_image_url(),
             'stock_quantity': self.stock_quantity,
             'is_active': self.is_active,
             'rating': float(self.rating) if self.rating else 0.0,
@@ -164,7 +201,13 @@ class Product(db.Model):
             result['sale'] = sale_data.get('sale')
         else:
             result['on_sale'] = False
-        
+
+        # Per-product sale fields (for admin CRUD)
+        result['sale_enabled'] = bool(self.sale_enabled)
+        result['sale_start'] = self.sale_start.isoformat() if self.sale_start else None
+        result['sale_end'] = self.sale_end.isoformat() if self.sale_end else None
+        result['sale_percentage'] = float(self.sale_percentage) if self.sale_percentage is not None else None
+
         return result
     
     def to_dict_for_ai(self):

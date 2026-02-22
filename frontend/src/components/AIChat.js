@@ -1348,7 +1348,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
     setInput('');
   };
 
-  const showEmptyState = messages.length <= 1 && messages[0]?.role === 'assistant';
+  /* In inline (banner) chat template, always show the intro message; in modal use empty state when only intro */
+  const showEmptyState = !isInline && messages.length <= 1 && messages[0]?.role === 'assistant';
   const handleDownloadConversation = () => {
     setHeaderMenuOpen(false);
     const text = messages.map(m => `${m.role === 'user' ? 'You' : 'AI'}: ${m.content || ''}`).join('\n');
@@ -1433,8 +1434,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
           return (
           <div key={idx} className={`message ${msg.role}`} role="article" aria-label={msg.role === 'user' ? 'Your message' : 'Assistant message'}>
             <div className="message-content">
-              {/* Kendo-style toolbar for assistant messages: Copy, Retry, Download + Play */}
-              {msg.role === 'assistant' && (
+              {/* Kendo-style toolbar for assistant messages: Copy, Retry, Download + Play (chatbox only, not inline banner) */}
+              {msg.role === 'assistant' && !isInline && (
                 <div className="kendo-message-toolbar">
                   <button type="button" className="kendo-toolbar-btn" title="Copy" onClick={() => handleToolbarAction('copy', msg, idx)}>
                     <CopyIcon size={14} /> Copy

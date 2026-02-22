@@ -49,6 +49,7 @@ const Products = () => {
     minPrice: searchParams.get('minPrice') || '',
     maxPrice: searchParams.get('maxPrice') || '',
     search: searchParams.get('search') || '',
+    on_sale: searchParams.get('on_sale') || '',
     ai_results: searchParams.get('ai_results') || ''
   });
 
@@ -77,6 +78,7 @@ const Products = () => {
       minPrice: searchParams.get('minPrice') || '',
       maxPrice: searchParams.get('maxPrice') || '',
       search: searchParams.get('search') || '',
+      on_sale: searchParams.get('on_sale') || '',
       ai_results: aiResultsFromUrl
     };
     
@@ -330,6 +332,7 @@ const Products = () => {
       if (filters.minPrice) params.append('min_price', filters.minPrice);
       if (filters.maxPrice) params.append('max_price', filters.maxPrice);
       if (filters.search) params.append('search', filters.search);
+      if (filters.on_sale) params.append('on_sale', '1');
       params.append('page', '1');
       params.append('per_page', String(PER_PAGE));
 
@@ -385,6 +388,7 @@ const Products = () => {
       minPrice: priceRange.min,
       maxPrice: priceRange.max,
       search: '',
+      on_sale: '',
       ai_results: filters.ai_results // Keep AI results if they exist
     };
     setFilters(clearedFilters);
@@ -422,6 +426,7 @@ const Products = () => {
       if (filters.minPrice) params.append('min_price', filters.minPrice);
       if (filters.maxPrice) params.append('max_price', filters.maxPrice);
       if (filters.search) params.append('search', filters.search);
+      if (filters.on_sale) params.append('on_sale', '1');
       params.append('page', String(nextPage));
       params.append('per_page', String(PER_PAGE));
       const response = await axios.get(`/api/products?${params.toString()}`);
@@ -452,7 +457,8 @@ const Products = () => {
     filters.season,
     filters.clothing_category,
     filters.minPrice,
-    filters.maxPrice
+    filters.maxPrice,
+    filters.on_sale
   ].filter(Boolean).length;
 
   // Debug logging - track state changes

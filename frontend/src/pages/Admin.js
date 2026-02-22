@@ -81,7 +81,11 @@ const Admin = () => {
     clothing_category: 'other',
     image_url: '',
     stock_quantity: 0,
-    is_active: true
+    is_active: true,
+    sale_enabled: false,
+    sale_start: '',
+    sale_end: '',
+    sale_percentage: ''
   });
   const [newSale, setNewSale] = useState({
     name: '',
@@ -183,7 +187,11 @@ const Admin = () => {
         clothing_category: prefill.clothing_category ?? 'other',
         image_url: prefill.image_url ?? '',
         stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
-        is_active: prefill.is_active !== undefined ? prefill.is_active : true
+        is_active: prefill.is_active !== undefined ? prefill.is_active : true,
+        sale_enabled: prefill.sale_enabled === true,
+        sale_start: prefill.sale_start || '',
+        sale_end: prefill.sale_end || '',
+        sale_percentage: prefill.sale_percentage != null && prefill.sale_percentage !== '' ? String(prefill.sale_percentage) : ''
       });
       setShowProductForm(true);
       setProductValidationErrors([]);
@@ -207,7 +215,11 @@ const Admin = () => {
         clothing_category: prefill.clothing_category ?? 'other',
         image_url: prefill.image_url ?? '',
         stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
-        is_active: prefill.is_active !== undefined ? prefill.is_active : true
+        is_active: prefill.is_active !== undefined ? prefill.is_active : true,
+        sale_enabled: prefill.sale_enabled === true,
+        sale_start: prefill.sale_start || '',
+        sale_end: prefill.sale_end || '',
+        sale_percentage: prefill.sale_percentage != null && prefill.sale_percentage !== '' ? String(prefill.sale_percentage) : ''
       });
       setShowProductForm(true);
       setProductValidationErrors([]);
@@ -914,7 +926,11 @@ const Admin = () => {
           clothing_category: 'other',
           image_url: '',
           stock_quantity: 0,
-          is_active: true
+          is_active: true,
+          sale_enabled: false,
+          sale_start: '',
+          sale_end: '',
+          sale_percentage: ''
         });
         loadProducts();
         // Trigger sync so SQL and ChromaDB stay in sync for AI search
@@ -1099,7 +1115,11 @@ const Admin = () => {
       clothing_category: product.clothing_category || 'other',
       image_url: product.image_url || '',
       stock_quantity: product.stock_quantity || 0,
-      is_active: product.is_active !== undefined ? product.is_active : true
+      is_active: product.is_active !== undefined ? product.is_active : true,
+      sale_enabled: product.sale_enabled === true,
+      sale_start: product.sale_start || '',
+      sale_end: product.sale_end || '',
+      sale_percentage: product.sale_percentage != null && product.sale_percentage !== '' ? String(product.sale_percentage) : ''
     });
     setShowProductForm(true);
   };
@@ -2215,6 +2235,57 @@ const Admin = () => {
                     </div>
                   </div>
 
+                  {/* Sale Section */}
+                  <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '4px', marginTop: '15px' }}>
+                    <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>Sale</label>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={newProduct.sale_enabled === true}
+                          onChange={(e) => setNewProduct({ ...newProduct, sale_enabled: e.target.checked })}
+                          style={{ marginRight: '8px' }}
+                        />
+                        Enable sale for this product
+                      </label>
+                    </div>
+                    {newProduct.sale_enabled && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginTop: '10px' }}>
+                        <div>
+                          <label>Sale start date</label>
+                          <input
+                            type="date"
+                            value={newProduct.sale_start || ''}
+                            onChange={(e) => setNewProduct({ ...newProduct, sale_start: e.target.value })}
+                            style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                          />
+                        </div>
+                        <div>
+                          <label>Sale end date</label>
+                          <input
+                            type="date"
+                            value={newProduct.sale_end || ''}
+                            onChange={(e) => setNewProduct({ ...newProduct, sale_end: e.target.value })}
+                            style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                          />
+                        </div>
+                        <div>
+                          <label>Discount %</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            step="0.5"
+                            value={newProduct.sale_percentage ?? ''}
+                            onChange={(e) => setNewProduct({ ...newProduct, sale_percentage: e.target.value })}
+                            placeholder="e.g. 25"
+                            style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Available Colors Section */}
                   <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '4px' }}>
                     <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>Available Colors</label>
@@ -2398,7 +2469,11 @@ const Admin = () => {
                           clothing_category: 'other',
                           image_url: '',
                           stock_quantity: 0,
-                          is_active: true
+                          is_active: true,
+                          sale_enabled: false,
+                          sale_start: '',
+                          sale_end: '',
+                          sale_percentage: ''
                         });
                       }}
                     >

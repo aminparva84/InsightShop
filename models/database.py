@@ -172,6 +172,31 @@ def init_db(app):
         except Exception as e:
             print(f"[WARNING] Could not add/backfill products.clothing_category column: {e}")
 
+        # Add Product per-product sale columns if missing (sale_enabled, sale_start, sale_end, sale_percentage)
+        try:
+            from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
+            with db.engine.connect() as conn:
+                if not _table_has_column(conn, 'products', 'sale_enabled', dialect_name):
+                    default_bool = "0" if dialect_name == 'sqlite' else "FALSE"
+                    conn.execute(text(f"ALTER TABLE products ADD COLUMN sale_enabled BOOLEAN DEFAULT {default_bool}"))
+                    conn.commit()
+                    print("[OK] Added column products.sale_enabled")
+                if not _table_has_column(conn, 'products', 'sale_start', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN sale_start DATE"))
+                    conn.commit()
+                    print("[OK] Added column products.sale_start")
+                if not _table_has_column(conn, 'products', 'sale_end', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN sale_end DATE"))
+                    conn.commit()
+                    print("[OK] Added column products.sale_end")
+                if not _table_has_column(conn, 'products', 'sale_percentage', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN sale_percentage NUMERIC(5,2)"))
+                    conn.commit()
+                    print("[OK] Added column products.sale_percentage")
+        except Exception as e:
+            print(f"[WARNING] Could not add product sale columns: {e}")
+
         # Add User.is_superadmin column if missing (existing databases)
         try:
             from sqlalchemy import text

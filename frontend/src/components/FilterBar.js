@@ -8,7 +8,8 @@ const CLOSED_STATE = {
   fabric: false,
   season: false,
   clothingCategory: false,
-  price: false
+  price: false,
+  onSale: false
 };
 
 const FilterBar = ({
@@ -65,6 +66,7 @@ const FilterBar = ({
     if (activeFilters.season) count++;
     if (activeFilters.clothing_category) count++;
     if (activeFilters.minPrice || activeFilters.maxPrice) count++;
+    if (activeFilters.on_sale) count++;
     return count;
   };
 
@@ -99,6 +101,44 @@ const FilterBar = ({
         </div>
 
         <div className="filter-dropdowns">
+          {/* On Sale Filter */}
+          <div className={`filter-dropdown ${isOpen.onSale ? 'open' : ''}`}>
+            <button
+              className={`filter-button ${activeFilters.on_sale ? 'active' : ''}`}
+              onClick={() => toggleDropdown('onSale')}
+            >
+              <span>Sales</span>
+              {activeFilters.on_sale && (
+                <span className="filter-value">On sale</span>
+              )}
+              <span className="dropdown-arrow">▼</span>
+            </button>
+            {isOpen.onSale && (
+              <div className="dropdown-menu">
+                <div className="dropdown-header">
+                  <span>Show</span>
+                  {activeFilters.on_sale && (
+                    <button onClick={() => clearFilter('on_sale')} className="clear-btn">Clear</button>
+                  )}
+                </div>
+                <div className="dropdown-options">
+                  <div
+                    className={`dropdown-option ${activeFilters.on_sale ? 'selected' : ''}`}
+                    onClick={() => handleFilterSelect('on_sale', '1')}
+                  >
+                    On sale only
+                  </div>
+                  <div
+                    className={`dropdown-option ${!activeFilters.on_sale ? 'selected' : ''}`}
+                    onClick={() => handleFilterSelect('on_sale', '')}
+                  >
+                    All products
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Gender Filter */}
           <div className={`filter-dropdown ${isOpen.category ? 'open' : ''}`}>
             <button

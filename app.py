@@ -192,9 +192,8 @@ def serve_image(filename):
     static_images_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'images')
     if os.path.exists(static_images_dir) and os.path.exists(os.path.join(static_images_dir, filename)):
         return send_from_directory(static_images_dir, filename)
-    else:
-        from flask import abort
-        abort(404)
+    from flask import abort
+    abort(404)
 
 # Serve background images from generated_images directory
 @app.route('/api/images/generated/<filename>')

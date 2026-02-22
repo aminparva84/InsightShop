@@ -72,12 +72,17 @@ const MOBILE_PRODUCTS_LIMIT = 4; // 2 rows × 2 columns on mobile
 const Home = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
+  const [specialOffers, setSpecialOffers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [specialOffersLoading, setSpecialOffersLoading] = useState(true);
   const [bannerPhase, setBannerPhase] = useState('idle'); // 'idle' | 'fadingOut' | 'fadedOut'
   const [bannerTextKey, setBannerTextKey] = useState(0);
   const bannerCompleteCountRef = useRef(0);
   const bannerTimeoutRef = useRef(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT);
+  const specialOffersScrollRef = useRef(null);
+  const specialOffersDragRef = useRef({ isDragging: false, startX: 0, startScrollLeft: 0 });
+  const [specialOffersDragging, setSpecialOffersDragging] = useState(false);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
@@ -87,6 +92,55 @@ const Home = () => {
 
   useEffect(() => {
     fetchFeaturedProducts();
+  }, []);
+
+  useEffect(() => {
+    const fetchSpecialOffers = async () => {
+      try {
+        const response = await axios.get('/api/products/special-offers?limit=12');
+        if (response.data && response.data.products) {
+          setSpecialOffers(response.data.products);
+        } else {
+          setSpecialOffers([]);
+        }
+      } catch (error) {
+        console.error('Error fetching special offers:', error);
+        setSpecialOffers([]);
+      } finally {
+        setSpecialOffersLoading(false);
+      }
+    };
+    fetchSpecialOffers();
+  }, []);
+
+  const handleSpecialOffersMouseDown = (e) => {
+    if (!specialOffersScrollRef.current) return;
+    specialOffersDragRef.current.isDragging = true;
+    specialOffersDragRef.current.startX = e.pageX;
+    specialOffersDragRef.current.startScrollLeft = specialOffersScrollRef.current.scrollLeft;
+    setSpecialOffersDragging(true);
+  };
+  const handleSpecialOffersMouseMove = (e) => {
+    if (!specialOffersDragRef.current.isDragging || !specialOffersScrollRef.current) return;
+    e.preventDefault();
+    const walk = (e.pageX - specialOffersDragRef.current.startX) * 1.2;
+    specialOffersScrollRef.current.scrollLeft = specialOffersDragRef.current.startScrollLeft - walk;
+  };
+  const handleSpecialOffersMouseUpOrLeave = () => {
+    specialOffersDragRef.current.isDragging = false;
+    setSpecialOffersDragging(false);
+  };
+  useEffect(() => {
+    const el = specialOffersScrollRef.current;
+    if (!el) return;
+    const onMove = (e) => handleSpecialOffersMouseMove(e);
+    const onUp = () => handleSpecialOffersMouseUpOrLeave();
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
   }, []);
 
   const handleBannerTextAnimationComplete = () => {
@@ -224,9 +278,40 @@ const Home = () => {
         />
       </section>
 
-      {/* Featured Products */}
+      {/* Featured Products (container includes Special offers above) */}
       <section className="featured-products">
         <div className="container">
+          {/* Special offers – above Featured Products, same container */}
+          {specialOffers.length > 0 && (
+            <div className="special-offers">
+              <div className="section-title-wrap">
+                <h2 className="section-title">Special offers</h2>
+                <WavyUnderline color="#373F2E" className="section-title-wavy" />
+              </div>
+              {specialOffersLoading ? (
+                <div className="spinner"></div>
+              ) : (
+                <>
+                  <div
+                    ref={specialOffersScrollRef}
+                    className={`special-offers-scroll-wrap${specialOffersDragging ? ' special-offers-scroll-wrap--dragging' : ''}`}
+                    onMouseDown={handleSpecialOffersMouseDown}
+                    onMouseLeave={handleSpecialOffersMouseUpOrLeave}
+                    role="region"
+                    aria-label="Special offers carousel"
+                  >
+                    <ProductGrid products={specialOffers} />
+                  </div>
+                  <div className="featured-products-view-all">
+                    <Link to="/products?on_sale=1" className="featured-products-view-all-link">View all deals</Link>
+                  </div>
+                  <div className="featured-products-line" aria-hidden="true" />
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Featured Products */}
           <div className="section-title-wrap">
             <h2 className="section-title">Featured Products</h2>
             <WavyUnderline color="#373F2E" className="section-title-wavy" />
@@ -239,13 +324,11 @@ const Home = () => {
               Ask AI
             </button>
           </div>
-          <div className="featured-products-line" aria-hidden="true" />
           {loading ? (
             <div className="spinner"></div>
           ) : products.length > 0 ? (
             <>
               <ProductGrid products={isMobile ? products.slice(0, MOBILE_PRODUCTS_LIMIT) : products} />
-              <div className="featured-products-line" aria-hidden="true" />
               <div className="featured-products-view-all">
                 <Link to="/products" className="featured-products-view-all-link">View all products</Link>
               </div>

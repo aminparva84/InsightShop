@@ -13,9 +13,26 @@ from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
 from utils.seasonal_events import get_upcoming_holidays, get_current_holidays_and_events
 from utils.vector_db import add_product_to_vector_db, update_product_in_vector_db, delete_product_from_vector_db
 from functools import wraps
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 import os
+
+
+def _parse_date(value):
+    """Parse YYYY-MM-DD string to date, or return None."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    try:
+        s = str(value).strip()[:10]
+        if len(s) == 10:
+            return datetime.strptime(s, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        pass
+    return None
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -484,6 +501,21 @@ def create_product():
         if isinstance(available_sizes, list):
             available_sizes = json.dumps(available_sizes) if available_sizes else None
         
+        # Per-product sale
+        sale_enabled = bool(data.get('sale_enabled', False))
+        sale_start = _parse_date(data.get('sale_start'))
+        sale_end = _parse_date(data.get('sale_end'))
+        sale_pct = data.get('sale_percentage')
+        if sale_pct is not None and sale_pct != '':
+            try:
+                sale_percentage = float(sale_pct)
+                if sale_percentage < 0 or sale_percentage > 100:
+                    sale_percentage = None
+            except (TypeError, ValueError):
+                sale_percentage = None
+        else:
+            sale_percentage = None
+
         product = Product(
             name=name,
             description=data.get('description') or None,
@@ -507,7 +539,11 @@ def create_product():
             review_count=int(data.get('review_count', 0)),
             slug=data.get('slug'),
             meta_title=data.get('meta_title'),
-            meta_description=data.get('meta_description')
+            meta_description=data.get('meta_description'),
+            sale_enabled=sale_enabled,
+            sale_start=sale_start,
+            sale_end=sale_end,
+            sale_percentage=sale_percentage
         )
         
         db.session.add(product)
@@ -624,7 +660,23 @@ def update_product(product_id):
             product.meta_title = data.get('meta_title')
         if 'meta_description' in data:
             product.meta_description = data.get('meta_description')
-        
+        if 'sale_enabled' in data:
+            product.sale_enabled = bool(data.get('sale_enabled', False))
+        if 'sale_start' in data:
+            product.sale_start = _parse_date(data.get('sale_start'))
+        if 'sale_end' in data:
+            product.sale_end = _parse_date(data.get('sale_end'))
+        if 'sale_percentage' in data:
+            sp = data.get('sale_percentage')
+            if sp is not None and sp != '':
+                try:
+                    pct = float(sp)
+                    product.sale_percentage = pct if 0 <= pct <= 100 else None
+                except (TypeError, ValueError):
+                    product.sale_percentage = None
+            else:
+                product.sale_percentage = None
+
         db.session.commit()
 
         # Sync to vector DB so AI search stays up to date

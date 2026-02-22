@@ -210,6 +210,88 @@
   box-shadow: 0 6px 24px rgba(74, 88, 68, 0.5);
 }
 
+/* Inline AI chat in top banner – always under banner-asset-4 (positioned by wrapper) */
+.hero-chat-inline-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 520px;
+  height: 360px;
+  background: #3A4036;
+  border-radius: 22px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hero-chat-inline-wrap:hover {
+  transform: scale(1.03);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.hero-chat-inline-wrap .ai-chat {
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Center "Ai" text in the banner chat header */
+.hero-chat-inline-wrap .ai-chat-header {
+  justify-content: center;
+  position: relative;
+}
+.hero-chat-inline-wrap .ai-chat-header .kendo-header-actions {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.hero-chat-inline-wrap .ai-chat-header .kendo-header-spacer {
+  display: none;
+}
+.hero-chat-inline-wrap .ai-chat-header-brand {
+  flex: 0 1 auto;
+}
+
+/* Center empty state (subtitle + suggestion buttons) in the template */
+.hero-chat-inline-wrap .ai-chat-messages.ai-chat-messages--empty {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hero-chat-inline-wrap .ai-chat-messages.ai-chat-messages--empty .kendo-empty-state {
+  width: 100%;
+  min-height: 0;
+}
+
+/* Hide suggestion button prompts in the banner chat template only */
+.hero-chat-inline-wrap .kendo-suggestions-chips {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .hero-chat-inline-wrap {
+    width: 440px;
+    height: 320px;
+    border-radius: 18px;
+  }
+}
+
+/* Hide the inline hero chat on small screens; floating chat button still available */
+@media (max-width: 768px) {
+  .hero-chat-inline-wrap {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-chat-inline-wrap {
+    width: 320px;
+    height: 300px;
+  }
+}
 /* Mid banner: same as main background, centered container (mid-asset-2) + subtitle (mid-asset-3) */
 .mid-banner {
   padding: 72px 36px 84px;

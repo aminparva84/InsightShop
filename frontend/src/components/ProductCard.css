@@ -1,7 +1,7 @@
-/* Card – background #373F2E, top-left very rounded, 3 sharp corners. !important to override page-level overrides (e.g. Home featured-products). */
+/* Card – background #373F2E, small radius on all corners. !important to override page-level overrides (e.g. Home featured-products). */
 .product-card {
   background: #373F2E !important;
-  border-radius: 50% 0 0 0;
+  border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -39,16 +39,17 @@
   max-width: 150px;
 }
 
-/* Product image – padding from top/left/right; same top-left radius as card; beige container */
+/* Product image – padding from top/left/right; beige container */
 .product-image {
   position: relative;
   width: 100%;
-  padding: 28px 28px 0 28px;
+  padding: 10px 10px 0 10px;
   overflow: visible;
   background: transparent;
-  border-radius: 50% 0 0 0;
+  border-radius: 8px;
   box-sizing: border-box;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 /* Portrait aspect to match vertical product images (~735×916) */
@@ -58,7 +59,7 @@
   padding-top: 125%; /* ~4:5 portrait, matches tall product images */
   overflow: hidden;
   background: #E0D0BE;
-  border-radius: 60% 0 0 0;
+  border-radius: 8px;
   border-right: 1px solid #373F2E;
   border-bottom: 1px solid #373F2E;
   box-sizing: border-box;

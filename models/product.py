@@ -3,6 +3,20 @@ from datetime import datetime
 from sqlalchemy import Index
 import json
 
+# Predefined brands; use 'other' for custom brand name (stored in brand_other).
+BRAND_CHOICES = {
+    'ralph_lauren': 'Ralph Lauren',
+    'costa': 'Costa',
+    'champion': 'Champion',
+    'blueberry': 'Blueberry',
+    'polo': 'Polo',
+    'tnf': 'TNF',
+    'levis': 'Levis',
+    'tommy': 'Tommy',
+    'wrangler': 'Wrangler',
+    'other': 'Other',
+}
+
 class Product(db.Model):
     __tablename__ = 'products'
     
@@ -22,6 +36,8 @@ class Product(db.Model):
     occasion = db.Column(db.String(100), nullable=True, index=True)  # e.g., "wedding", "business_formal", "casual", "date_night"
     age_group = db.Column(db.String(50), nullable=True, index=True)  # e.g., "young_adult", "mature", "senior", "all"
     season = db.Column(db.String(20), nullable=False, default='all_season', index=True)  # spring, summer, fall, winter, all_season
+    brand = db.Column(db.String(50), nullable=False, default='other', index=True)  # BRAND_CHOICES key; 'other' = use brand_other
+    brand_other = db.Column(db.String(255), nullable=True)  # Custom brand name when brand == 'other'
     image_url = db.Column(db.String(500), nullable=True)
     stock_quantity = db.Column(db.Integer, default=0, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
@@ -59,6 +75,7 @@ class Product(db.Model):
         Index('idx_is_active_category', 'is_active', 'category'),
         Index('idx_category_season', 'category', 'season'),
         Index('idx_clothing_category', 'clothing_category'),
+        Index('idx_brand', 'brand'),
     )
     
     def _is_product_sale_active(self, check_date=None):
@@ -122,20 +139,15 @@ class Product(db.Model):
             }
         return None
 
-    # Known special-offer product names -> image filename so correct images always show
-    _SPECIAL_OFFER_IMAGES = {
-        'Autumn Plaid High-Waisted Shorts': 'special-offer-1.png',
-        'Sky Blue Ribbed Polo Sweater': 'special-offer-2.png',
-        'Burgundy Relaxed Crewneck Tee': 'special-offer-3.png',
-        'Warm Plaid Pleated Trousers': 'special-offer-4.png',
-        'Sage Green Pleated Cuff Shorts': 'special-offer-5.png',
-    }
-
     def _resolved_image_url(self):
-        """Return image URL; for known special-offer products use /images/special-offer-N.png (frontend public) so they always load."""
-        if self.name and self.name.strip() in self._SPECIAL_OFFER_IMAGES:
-            return '/images/' + self._SPECIAL_OFFER_IMAGES[self.name.strip()]
+        """Return the product's stored image_url (no overwriting)."""
         return self.image_url
+
+    def get_display_brand(self):
+        """Return display name for brand: choice label or brand_other when brand is 'other'."""
+        if self.brand == 'other' and self.brand_other:
+            return (self.brand_other or '').strip()
+        return BRAND_CHOICES.get(self.brand, self.brand or 'Other')
     
     def to_dict(self):
         """Convert product to dictionary."""
@@ -183,6 +195,9 @@ class Product(db.Model):
             'occasion': self.occasion,
             'age_group': self.age_group,
             'season': self.season or 'all_season',
+            'brand': self.brand or 'other',
+            'brand_other': self.brand_other,
+            'display_brand': self.get_display_brand(),
             'image_url': self._resolved_image_url(),
             'stock_quantity': self.stock_quantity,
             'is_active': self.is_active,
@@ -221,6 +236,7 @@ class Product(db.Model):
         occasion_info = f", Occasion: {self.occasion}" if self.occasion else ""
         age_group_info = f", Age Group: {self.age_group}" if self.age_group else ""
         season_info = f", Season: {self.season}" if self.season else ""
+        brand_info = f", Brand: {self.get_display_brand()}" if self.get_display_brand() else ""
         
         # Get recent reviews (last 5) for AI context
         recent_reviews = Review.query.filter_by(product_id=self.id).order_by(Review.created_at.desc()).limit(5).all()
@@ -240,7 +256,7 @@ class Product(db.Model):
         
         return {
             **self.to_dict(),
-            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Clothing: {self.clothing_category or 'other'}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{clothing_category_info}{dress_style_info}{occasion_info}{age_group_info}{season_info}, Price: ${self.price}{rating_info}",
+            'full_description': f"Product #{self.id}: {self.name} - {self.description or ''} - Category: {self.category}, Clothing: {self.clothing_category or 'other'}, Color: {self.color or 'Various'}, Size: {self.size or 'Various'}{fabric_info}{clothing_type_info}{clothing_category_info}{dress_style_info}{occasion_info}{age_group_info}{season_info}{brand_info}, Price: ${self.price}{rating_info}",
             'reviews': [r.to_dict() for r in recent_reviews],
             'rating_summary': {
                 'average_rating': float(self.rating) if self.rating else 0.0,

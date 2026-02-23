@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import axios from 'axios';
-import { FaUserTie, FaUser, FaChild, FaSeedling, FaSun, FaLeaf, FaSnowflake, FaSocks, FaShoePrints, FaCloudRain } from 'react-icons/fa';
+import { FaUserTie, FaUser, FaChild, FaSocks, FaShoePrints, FaCloudRain } from 'react-icons/fa';
 import {
   GiTrousers,
   GiShirt,
@@ -20,21 +20,20 @@ import {
   GiUnderwear,
 } from 'react-icons/gi';
 import ProductGrid from '../components/ProductGrid';
-import FlowingMenu from '../components/FlowingMenu';
 import BlurText from '../components/BlurText';
 import AIChat from '../components/AIChat';
-import WavyUnderline from '../components/WavyUnderline';
+import SectionTitleWithWavy from '../components/SectionTitleWithWavy';
 import womanImage from '../assets/woman-image.webp';
 import midBannerMain from '../assets/mid-banner-main.webp';
 import midBannerMobile from '../assets/mid-banner-mobile.webp';
 import './Home.css';
 
-/* Seasonal menu: images from Unsplash (season-themed, free to use) */
-const SEASONAL_ITEMS = [
-  { link: '/products?season=spring', text: 'Spring', image: 'https://images.unsplash.com/photo-1522383225653-ed111181a951?w=600&q=80', logo: <FaSeedling />, logoColor: '#2d7d46' },
-  { link: '/products?season=summer', text: 'Summer', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80', logo: <FaSun />, logoColor: '#d4a017' },
-  { link: '/products?season=fall', text: 'Fall', image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&q=80', logo: <FaLeaf />, logoColor: '#c45c26' },
-  { link: '/products?season=winter', text: 'Winter', image: 'https://images.unsplash.com/photo-1706893684108-fa7ca5718c3a?w=600&q=80', logo: <FaSnowflake />, logoColor: '#4a7ba7' },
+/* Season banners: image + glass overlay + label, link to filtered products */
+const SEASON_BANNERS = [
+  { name: 'Spring', link: '/products?season=spring', image: 'https://images.unsplash.com/photo-1522383225653-ed111181a951?w=600&q=80' },
+  { name: 'Summer', link: '/products?season=summer', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80' },
+  { name: 'Fall', link: '/products?season=fall', image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&q=80' },
+  { name: 'Winter', link: '/products?season=winter', image: 'https://images.unsplash.com/photo-1706893684108-fa7ca5718c3a?w=600&q=80' },
 ];
 
 const CATEGORIES = [
@@ -72,6 +71,13 @@ const BANNER_TEXT_FADEOUT_DURATION_S = 2;
 const MOBILE_BREAKPOINT = 640;
 const MOBILE_PRODUCTS_LIMIT = 4; // 2 rows × 2 columns on mobile
 
+/** Featured products: 3 rows × N columns. Columns: 3 (<640px), 4 (640–1024), 5 (≥1024). */
+const getFeaturedCount = (width) => {
+  if (width < 640) return 9;   // 3 cols × 3 rows
+  if (width < 1024) return 12;  // 4 cols × 3 rows
+  return 15;                    // 5 cols × 3 rows
+};
+
 const Home = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
@@ -83,12 +89,19 @@ const Home = () => {
   const bannerCompleteCountRef = useRef(0);
   const bannerTimeoutRef = useRef(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT);
+  const [featuredCount, setFeaturedCount] = useState(() =>
+    typeof window !== 'undefined' ? getFeaturedCount(window.innerWidth) : 15
+  );
   const specialOffersScrollRef = useRef(null);
   const specialOffersDragRef = useRef({ isDragging: false, startX: 0, startScrollLeft: 0 });
   const [specialOffersDragging, setSpecialOffersDragging] = useState(false);
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    const onResize = () => {
+      const w = window.innerWidth;
+      setIsMobile(w <= MOBILE_BREAKPOINT);
+      setFeaturedCount(getFeaturedCount(w));
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -188,19 +201,17 @@ const Home = () => {
       // Fetch more products to filter for those with images
       const response = await axios.get('/api/products?per_page=100');
       if (response.data && response.data.products) {
-        // Filter products that have images (from generated_images or static/images)
+        // Prefer products that have a valid image URL (local or API); otherwise show all
         const productsWithImages = response.data.products.filter(product => {
           if (!product.image_url) return false;
-          // Check if image is from our local sources (not external URLs)
-          return product.image_url.includes('/api/images/') || 
+          return product.image_url.startsWith('/api/images/') ||
+                 product.image_url.startsWith('/images/') ||
                  product.image_url.includes('static/images/') ||
                  product.image_url.includes('generated_images/');
         });
-        
-        // If we have products with images, use them; otherwise use all products
-        const productsList = productsWithImages.length > 0 
-          ? productsWithImages.slice(0, 12) 
-          : response.data.products.slice(0, 12);
+        const productsList = productsWithImages.length > 0
+          ? productsWithImages.slice(0, 15)
+          : response.data.products.slice(0, 15);
         
         setProducts(productsList);
       } else {
@@ -278,33 +289,33 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Mid banner: image inside centered container, smaller size */}
-      <section id="mid-asset-1" className="mid-banner" aria-label="Mid banner">
-        <div className="mid-banner-container">
-          <picture>
-            <source
-              media="(max-width: 768px)"
-              srcSet={midBannerMobile}
-              src={midBannerMobile}
-            />
-            <img
-              src={midBannerMain}
-              alt="Hard to find what you need? It's ok!"
-              className="mid-banner-image"
-            />
-          </picture>
-        </div>
-      </section>
-
-      {/* Featured Products (container includes Special offers above) */}
+      {/* Featured Products (container includes Special offers below) */}
       <section className="featured-products">
         <div className="container">
-          {/* Special offers – above Featured Products, same container */}
+          {/* Featured Products – first */}
+          <div className="section-title-wrap">
+            <SectionTitleWithWavy title="Featured Products" />
+          </div>
+          {loading ? (
+            <div className="spinner"></div>
+          ) : products.length > 0 ? (
+            <>
+              <ProductGrid products={products.slice(0, featuredCount)} />
+              <div className="featured-products-view-all">
+                <Link to="/products" className="featured-products-view-all-link">View all products</Link>
+              </div>
+            </>
+          ) : (
+            <div className="no-products-message">
+              <p>No products available at the moment. Ask the AI assistant to find products!</p>
+            </div>
+          )}
+
+          {/* Special offers – after Featured Products, same container */}
           {specialOffers.length > 0 && (
             <div className="special-offers">
               <div className="section-title-wrap">
-                <h2 className="section-title">Special offers</h2>
-                <WavyUnderline color="#373F2E" className="section-title-wavy" />
+                <SectionTitleWithWavy title="Special offers" />
               </div>
               {specialOffersLoading ? (
                 <div className="spinner"></div>
@@ -328,55 +339,74 @@ const Home = () => {
               )}
             </div>
           )}
-
-          {/* Featured Products */}
-          <div className="section-title-wrap">
-            <h2 className="section-title">Featured Products</h2>
-            <WavyUnderline color="#373F2E" className="section-title-wavy" />
-          </div>
-          <div className="featured-products-actions">
-            <Link to="/products" className="featured-products-action-btn nav-bar-styler-gender-button">
-              Search
-            </Link>
-            <button type="button" onClick={openAIChatPopup} className="featured-products-action-btn nav-bar-styler-gender-button" aria-label="Ask AI for help">
-              Ask AI
-            </button>
-          </div>
-          {loading ? (
-            <div className="spinner"></div>
-          ) : products.length > 0 ? (
-            <>
-              <ProductGrid products={isMobile ? products.slice(0, MOBILE_PRODUCTS_LIMIT) : products} />
-              <div className="featured-products-view-all">
-                <Link to="/products" className="featured-products-view-all-link">View all products</Link>
-              </div>
-            </>
-          ) : (
-            <div className="no-products-message">
-              <p>No products available at the moment. Ask the AI assistant to find products!</p>
-            </div>
-          )}
         </div>
       </section>
 
-      {/* Seasonal Shopping — FlowingMenu with logos */}
-      <section className="seasonal-shopping">
-        <div className="container">
-          <div className="section-title-wrap">
-            <h2 className="section-title">Seasonal Shopping</h2>
-            <WavyUnderline color="#373F2E" className="section-title-wavy" />
-          </div>
-          <div className="seasonal-flowing-wrap">
-            <FlowingMenu
-              items={SEASONAL_ITEMS}
-              speed={15}
-              textColor="#E8E4DC"
-              bgColor="transparent"
-              marqueeBgColor="#E8E4DC"
-              marqueeTextColor="#373F2E"
-              borderColor="rgba(232, 228, 220, 0.35)"
-              linkComponent={Link}
+      {/* Special offers CTA banner – below featured products container, vintage style */}
+      <section
+        className="special-offers-cta-banner"
+        aria-label="Don't miss our special offers"
+        style={{ '--special-offers-banner-bg': `url(${process.env.PUBLIC_URL || ''}/images/special-offers-banner.jpg)` }}
+      >
+        <div className="special-offers-cta-banner-inner">
+          <span className="special-offers-cta-banner-accent" aria-hidden="true">— Limited time —</span>
+          <h2 className="special-offers-cta-banner-title">Don't Miss Our Special Offers</h2>
+          <p className="special-offers-cta-banner-subtitle">Save up to <strong className="special-offers-cta-banner-percent">50%</strong> on curated deals — exclusive savings, crafted for you.</p>
+          <Link to="/products?on_sale=1" className="special-offers-cta-banner-btn">View all deals</Link>
+        </div>
+        <div className="special-offers-cta-banner-ornament" aria-hidden="true" />
+      </section>
+
+      {/* Mid banner: image inside centered container, below featured products */}
+      <section id="mid-asset-1" className="mid-banner" aria-label="Mid banner">
+        <div className="mid-banner-container">
+          <picture>
+            <source
+              media="(max-width: 768px)"
+              srcSet={midBannerMobile}
+              src={midBannerMobile}
             />
+            <img
+              src={midBannerMain}
+              alt="Hard to find what you need? It's ok!"
+              className="mid-banner-image"
+            />
+          </picture>
+        </div>
+      </section>
+
+      {/* Season banners: 4 side by side, glass overlay, season-specific hover effects */}
+      <section className="season-banners" aria-label="Shop by season">
+        <div className="season-banners-inner">
+          <div className="section-title-wrap">
+            <SectionTitleWithWavy title="Seasonal Shopping" />
+          </div>
+          <div className="season-banners-container">
+          {SEASON_BANNERS.map((season) => (
+            <Link
+              key={season.name}
+              to={season.link}
+              className="season-banner-card"
+              style={{ backgroundImage: `url(${season.image})` }}
+              aria-label={`Shop ${season.name} collection`}
+            >
+              <span className="season-banner-glass" aria-hidden="true" />
+              <span className="season-banner-label">{season.name}</span>
+              {/* Season-specific hover effect: snow, petals, heat shimmer, leaves */}
+              <div className={`season-banner-effect season-banner-effect--${season.name.toLowerCase()}`} aria-hidden="true">
+                {season.name === 'Winter' && Array.from({ length: 14 }, (_, i) => (
+                  <span key={i} className="season-particle season-particle--snow" style={{ left: `${(i * 7) % 100}%`, '--anim-delay': `${(i * 0.35) % 4}s`, '--anim-duration': `${2.5 + (i % 3) * 0.5}s` }} />
+                ))}
+                {season.name === 'Spring' && Array.from({ length: 10 }, (_, i) => (
+                  <span key={i} className="season-particle season-particle--petal" style={{ left: `${10 + (i * 9)}%`, '--anim-delay': `${(i * 0.3) % 3}s`, '--anim-duration': `${3 + (i % 2) * 0.6}s` }} />
+                ))}
+                {season.name === 'Summer' && <span className="season-particle season-particle--shimmer" />}
+                {season.name === 'Fall' && Array.from({ length: 10 }, (_, i) => (
+                  <span key={i} className="season-particle season-particle--leaf" style={{ left: `${(i * 11) % 95}%`, '--anim-delay': `${(i * 0.25) % 3.5}s`, '--anim-duration': `${2.8 + (i % 2) * 0.4}s` }} />
+                ))}
+              </div>
+            </Link>
+          ))}
           </div>
         </div>
       </section>

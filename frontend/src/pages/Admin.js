@@ -17,6 +17,20 @@ import {
 } from 'react-icons/hi2';
 import './Admin.css';
 
+// Brand options for product form (must match backend BRAND_CHOICES)
+const PRODUCT_BRAND_OPTIONS = [
+  { value: 'ralph_lauren', label: 'Ralph Lauren' },
+  { value: 'costa', label: 'Costa' },
+  { value: 'champion', label: 'Champion' },
+  { value: 'blueberry', label: 'Blueberry' },
+  { value: 'polo', label: 'Polo' },
+  { value: 'tnf', label: 'TNF' },
+  { value: 'levis', label: 'Levis' },
+  { value: 'tommy', label: 'Tommy' },
+  { value: 'wrangler', label: 'Wrangler' },
+  { value: 'other', label: 'Other' },
+];
+
 // Default structure when fashion KB API fails so admin panel still renders
 const DEFAULT_FASHION_KB = {
   color_matching: { basics: '', by_color: {} },
@@ -79,6 +93,8 @@ const Admin = () => {
     age_group: '',
     season: 'all_season',
     clothing_category: 'other',
+    brand: 'other',
+    brand_other: '',
     image_url: '',
     stock_quantity: 0,
     is_active: true,
@@ -185,6 +201,8 @@ const Admin = () => {
         age_group: prefill.age_group ?? '',
         season: prefill.season ?? 'all_season',
         clothing_category: prefill.clothing_category ?? 'other',
+        brand: prefill.brand ?? 'other',
+        brand_other: prefill.brand_other ?? '',
         image_url: prefill.image_url ?? '',
         stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
         is_active: prefill.is_active !== undefined ? prefill.is_active : true,
@@ -213,6 +231,8 @@ const Admin = () => {
         age_group: prefill.age_group ?? '',
         season: prefill.season ?? 'all_season',
         clothing_category: prefill.clothing_category ?? 'other',
+        brand: prefill.brand ?? 'other',
+        brand_other: prefill.brand_other ?? '',
         image_url: prefill.image_url ?? '',
         stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
         is_active: prefill.is_active !== undefined ? prefill.is_active : true,
@@ -924,6 +944,8 @@ const Admin = () => {
           age_group: '',
           season: 'all_season',
           clothing_category: 'other',
+          brand: 'other',
+          brand_other: '',
           image_url: '',
           stock_quantity: 0,
           is_active: true,
@@ -1113,6 +1135,8 @@ const Admin = () => {
       age_group: product.age_group || '',
       season: product.season || 'all_season',
       clothing_category: product.clothing_category || 'other',
+      brand: product.brand || 'other',
+      brand_other: product.brand_other || '',
       image_url: product.image_url || '',
       stock_quantity: product.stock_quantity || 0,
       is_active: product.is_active !== undefined ? product.is_active : true,
@@ -2096,6 +2120,8 @@ const Admin = () => {
                       age_group: '',
                       season: 'all_season',
                       clothing_category: 'other',
+                      brand: 'other',
+                      brand_other: '',
                       image_url: '',
                       stock_quantity: 0,
                       is_active: true
@@ -2212,6 +2238,33 @@ const Admin = () => {
                         <option value="all_season">All season</option>
                       </select>
                     </div>
+                  </div>
+                  {/* Brand */}
+                  <div style={{ display: 'grid', gridTemplateColumns: (newProduct.brand || 'other') === 'other' ? '1fr 1fr' : '1fr', gap: '15px', marginTop: '15px' }}>
+                    <div>
+                      <label>Brand</label>
+                      <select
+                        value={newProduct.brand || 'other'}
+                        onChange={(e) => { setNewProduct({ ...newProduct, brand: e.target.value || 'other', brand_other: e.target.value === 'other' ? newProduct.brand_other : '' }); if (productValidationErrors.length) setProductValidationErrors([]); }}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      >
+                        {PRODUCT_BRAND_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {(newProduct.brand || 'other') === 'other' && (
+                      <div>
+                        <label>Other brand name</label>
+                        <input
+                          type="text"
+                          value={newProduct.brand_other || ''}
+                          onChange={(e) => { setNewProduct({ ...newProduct, brand_other: e.target.value }); if (productValidationErrors.length) setProductValidationErrors([]); }}
+                          placeholder="e.g., Custom Brand"
+                          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <div>
@@ -2467,6 +2520,8 @@ const Admin = () => {
                           age_group: '',
                           season: 'all_season',
                           clothing_category: 'other',
+                          brand: 'other',
+                          brand_other: '',
                           image_url: '',
                           stock_quantity: 0,
                           is_active: true,
@@ -2495,6 +2550,7 @@ const Admin = () => {
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Name</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Category</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Gender</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Brand</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Season</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Price</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Colors</th>
@@ -2507,7 +2563,7 @@ const Admin = () => {
                   <tbody>
                     {products.length === 0 ? (
                       <tr>
-                        <td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                        <td colSpan="11" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
                           No products found. Create your first product above!
                         </td>
                       </tr>
@@ -2517,6 +2573,7 @@ const Admin = () => {
                           <td style={{ padding: '12px' }}>{product.name}</td>
                           <td style={{ padding: '12px', textTransform: 'capitalize' }}>{(product.clothing_category || product.category || '-').replace(/_/g, ' ')}</td>
                           <td style={{ padding: '12px', textTransform: 'capitalize' }}>{product.category || '-'}</td>
+                          <td style={{ padding: '12px' }}>{product.display_brand || (product.brand_other || (product.brand || 'Other').replace(/_/g, ' '))}</td>
                           <td style={{ padding: '12px', textTransform: 'capitalize' }}>{(product.season || 'all_season').replace(/_/g, ' ')}</td>
                           <td style={{ padding: '12px' }}>${parseFloat(product.price).toFixed(2)}</td>
                           <td style={{ padding: '12px' }}>

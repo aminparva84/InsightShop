@@ -5,7 +5,7 @@ from models.user import User
 from models.payment_log import PaymentLog
 from models.order import Order
 from models.sale import Sale
-from models.product import Product
+from models.product import Product, BRAND_CHOICES
 from models.review import Review
 from models.ai_assistant_config import AiAssistantConfig
 from routes.auth import require_auth
@@ -476,6 +476,14 @@ def create_product():
         elif category not in ('men', 'women', 'kids'):
             errors.append('Category must be Men, Women, or Kids.')
 
+        # Optional: brand (must be in BRAND_CHOICES)
+        brand = (data.get('brand') or 'other').strip().lower()
+        if brand not in BRAND_CHOICES:
+            brand = 'other'
+        brand_other = (data.get('brand_other') or '').strip() or None
+        if brand != 'other':
+            brand_other = None  # Only store custom name when brand is 'other'
+
         # Optional: stock_quantity (must be int >= 0)
         try:
             sq = data.get('stock_quantity', 0)
@@ -532,6 +540,8 @@ def create_product():
             occasion=data.get('occasion'),
             age_group=data.get('age_group'),
             season=data.get('season') or 'all_season',
+            brand=brand,
+            brand_other=brand_other,
             image_url=data.get('image_url') or None,
             stock_quantity=stock_quantity,
             is_active=data.get('is_active', True),
@@ -644,6 +654,14 @@ def update_product(product_id):
             product.age_group = data.get('age_group')
         if 'season' in data:
             product.season = data.get('season') or 'all_season'
+        if 'brand' in data:
+            b = (data.get('brand') or 'other').strip().lower()
+            product.brand = b if b in BRAND_CHOICES else 'other'
+            product.brand_other = (data.get('brand_other') or '').strip() or None
+            if product.brand != 'other':
+                product.brand_other = None
+        if 'brand_other' in data and product.brand == 'other':
+            product.brand_other = (data.get('brand_other') or '').strip() or None
         if 'image_url' in data:
             product.image_url = data.get('image_url')
         if 'stock_quantity' in data:

@@ -172,6 +172,24 @@ def init_db(app):
         except Exception as e:
             print(f"[WARNING] Could not add/backfill products.clothing_category column: {e}")
 
+        # Add Product.brand and Product.brand_other columns if missing; backfill existing to 'other'
+        try:
+            from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
+            with db.engine.connect() as conn:
+                if not _table_has_column(conn, 'products', 'brand', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN brand VARCHAR(50) DEFAULT 'other'"))
+                    conn.commit()
+                    print("[OK] Added column products.brand for existing database")
+                if not _table_has_column(conn, 'products', 'brand_other', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN brand_other VARCHAR(255)"))
+                    conn.commit()
+                    print("[OK] Added column products.brand_other for existing database")
+                conn.execute(text("UPDATE products SET brand = 'other' WHERE brand IS NULL OR brand = ''"))
+                conn.commit()
+        except Exception as e:
+            print(f"[WARNING] Could not add/backfill products.brand columns: {e}")
+
         # Add Product per-product sale columns if missing (sale_enabled, sale_start, sale_end, sale_percentage)
         try:
             from sqlalchemy import text
@@ -248,13 +266,8 @@ def init_db(app):
             except Exception as e:
                 print(f"Warning: Could not seed products: {e}")
 
-        # Seed special-offer products (idempotent; skip in test mode)
-        if not app.config.get('TESTING'):
-            try:
-                from scripts.seed_special_offer_products import seed_special_offer_products
-                seed_special_offer_products()
-            except Exception as e:
-                print(f"Warning: Could not seed special-offer products: {e}")
+        # Legacy special-offer product seeding disabled: main seed (seed_products) now includes
+        # products with sale_percentage; no separate 5 products that overwrote images.
 
         # Seed superadmin and demo users so admin can manage the app (production / App Runner)
         if not app.config.get('TESTING'):

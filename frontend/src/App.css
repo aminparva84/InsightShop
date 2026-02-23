@@ -28,6 +28,7 @@ body {
   overflow-x: hidden;
   max-width: 100%;
   min-width: 0;
+  padding-top: 96px; /* match navbar-wrapper height so content is not hidden under fixed navbar */
 }
 
 /* Utility classes */

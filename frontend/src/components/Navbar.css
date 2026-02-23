@@ -1,7 +1,9 @@
-/* Wrapper reserves only bar height so expanded menu overlays content */
+/* Fixed so navbar always stays visible when scrolling; reserves bar height, expanded menu overlays content */
 .navbar-wrapper {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   padding: 16px 24px 0;
   height: 96px; /* 16px top padding + 80px bar – menu overlays instead of pushing */
   flex-shrink: 0;

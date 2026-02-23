@@ -73,13 +73,15 @@ def _product_to_document_and_metadata(product_id, product_data):
     color = _safe_utf8(product_data.get("color", ""))
     size = _safe_utf8(product_data.get("size", ""))
     price = product_data.get("price", 0)
-    text = f"{name} {desc} Category: {category} Color: {color} Size: {size} Price: ${price}"
+    display_brand = _safe_utf8(product_data.get("display_brand", "") or product_data.get("brand", ""))
+    text = f"{name} {desc} Category: {category} Color: {color} Size: {size} Price: ${price} Brand: {display_brand}"
     meta = {
         "product_id": product_id,
         "name": name[:255],
         "category": category[:50],
         "color": (color or "")[:50],
         "price": str(price),
+        "brand": (display_brand or "")[:100],
     }
     return text, meta
 

@@ -11,7 +11,7 @@
   min-width: 0; /* allow shrinking so inner horizontal scroll (Special offers) can overflow */
   box-sizing: border-box;
   background: var(--site-bg, #C3B0A1); /* explicit so transparent PNGs (e.g. mid-banner) show site bg, not black */
-  /* Do not use overflow-x: hidden - it prevents the Special offers horizontal scroll from working */
+  /* Root (html/body) uses overflow-x: hidden; horizontal scroll for Special offers is inside .special-offers-scroll-wrap only */
 }
 
 /* Top Banner: background, main image (right), text */

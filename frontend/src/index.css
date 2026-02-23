@@ -12,6 +12,8 @@
 html {
   scroll-behavior: smooth;
   background: var(--site-bg);
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
@@ -23,6 +25,9 @@ body {
   background: var(--site-bg);
   color: #36454f;
   min-height: 100vh;
+  overflow-x: hidden;
+  width: 100%;
+  position: relative;
 }
 
 code {

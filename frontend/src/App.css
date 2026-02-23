@@ -3,11 +3,21 @@ body {
   background: var(--site-bg);
 }
 
+/* Prevent horizontal overflow on mobile (no unwanted right-side margin) */
+#root {
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+}
+
 .App {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--site-bg);
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
 }
 
 .main-content {
@@ -15,6 +25,9 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--site-bg);
+  overflow-x: hidden;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Utility classes */

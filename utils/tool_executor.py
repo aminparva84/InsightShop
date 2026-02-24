@@ -208,6 +208,82 @@ def _tool_order_track(args: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Wishlist tools (require authenticated user)
+# ---------------------------------------------------------------------------
+
+def _tool_wishlist_view(args: Dict[str, Any]) -> Dict[str, Any]:
+    from models.wishlist import WishlistItem
+    user = _context_user()
+    if not user:
+        return {'success': False, 'message': 'You must be logged in to view your wishlist.'}
+    items = WishlistItem.query.filter_by(user_id=user.id).order_by(WishlistItem.created_at.desc()).all()
+    return {
+        'success': True,
+        'count': len(items),
+        'items': [item.to_dict(include_notifications=True) for item in items],
+    }
+
+
+def _tool_wishlist_add(args: Dict[str, Any]) -> Dict[str, Any]:
+    from models.wishlist import WishlistItem
+    from models.database import db
+    user = _context_user()
+    if not user:
+        return {'success': False, 'message': 'You must be logged in to add items to your wishlist.'}
+    product_id = args.get('product_id')
+    if not product_id:
+        return {'success': False, 'message': 'product_id is required.'}
+    try:
+        product_id = int(product_id)
+    except (TypeError, ValueError):
+        return {'success': False, 'message': 'product_id must be an integer.'}
+    product = Product.query.get(product_id)
+    if not product or not product.is_active:
+        return {'success': False, 'message': 'Product not found.'}
+    existing = WishlistItem.query.filter_by(user_id=user.id, product_id=product_id).first()
+    if existing:
+        return {'success': True, 'message': 'Product is already in your wishlist.', 'item': existing.to_dict(include_notifications=True)}
+    price_when_added = float(product.price) if product.price else None
+    try:
+        sale = product.get_sale_price()
+        if sale:
+            price_when_added = sale.get('sale_price') or price_when_added
+    except Exception:
+        pass
+    was_out_of_stock = (product.stock_quantity or 0) <= 0
+    item = WishlistItem(
+        user_id=user.id,
+        product_id=product_id,
+        price_when_added=price_when_added,
+        was_out_of_stock=was_out_of_stock,
+    )
+    db.session.add(item)
+    db.session.commit()
+    return {'success': True, 'message': f'Added "{product.name}" to your wishlist.', 'item': item.to_dict(include_notifications=True)}
+
+
+def _tool_wishlist_remove(args: Dict[str, Any]) -> Dict[str, Any]:
+    from models.wishlist import WishlistItem
+    user = _context_user()
+    if not user:
+        return {'success': False, 'message': 'You must be logged in to remove items from your wishlist.'}
+    product_id = args.get('product_id')
+    if not product_id:
+        return {'success': False, 'message': 'product_id is required.'}
+    try:
+        product_id = int(product_id)
+    except (TypeError, ValueError):
+        return {'success': False, 'message': 'product_id must be an integer.'}
+    item = WishlistItem.query.filter_by(user_id=user.id, product_id=product_id).first()
+    if not item:
+        return {'success': False, 'message': 'Product is not in your wishlist.'}
+    product_name = item.product.name if item.product else f'Product #{product_id}'
+    db.session.delete(item)
+    db.session.commit()
+    return {'success': True, 'message': f'Removed "{product_name}" from your wishlist.'}
+
+
+# ---------------------------------------------------------------------------
 # Admin tools (authorization checked by route; we only execute)
 # ---------------------------------------------------------------------------
 
@@ -597,6 +673,9 @@ _TOOL_HANDLERS = {
     'checkout_proceed': _tool_checkout_proceed,
     'order_status': _tool_order_status,
     'order_track': _tool_order_track,
+    'wishlist_view': _tool_wishlist_view,
+    'wishlist_add': _tool_wishlist_add,
+    'wishlist_remove': _tool_wishlist_remove,
     'admin_product_create': _tool_admin_product_create,
     'admin_product_prepare_create': _tool_admin_product_prepare_create,
     'admin_product_prepare_edit': _tool_admin_product_prepare_edit,

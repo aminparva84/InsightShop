@@ -196,6 +196,45 @@
   box-sizing: border-box;
 }
 
+.nav-wishlist-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  min-width: 48px;
+}
+
+.nav-wishlist-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F5F5DC;
+}
+
+.nav-wishlist-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.wishlist-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #c41e3a;
+  color: #fff;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
 .user-menu {
   display: flex;
   align-items: center;
@@ -285,6 +324,16 @@
   -ms-overflow-style: none; /* IE/Edge */
 }
 
+/* When dropdown is open, show nav links (Home, Products, Wishlist) in the menu */
+.navbar-dropdown--open .navbar-slider-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid rgba(232, 228, 220, 0.2);
+}
+
 .navbar-dropdown--open::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
 }
@@ -309,6 +358,35 @@
 }
 
 .navbar-slider-nav-link:hover {
+  color: #FFFEF5;
+}
+
+/* Wishlist icon in navbar menu (dropdown) – same row as Home, Products */
+.navbar-slider-wishlist {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  min-width: 48px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #E8E4DC;
+  text-decoration: none;
+  border-radius: 24px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.navbar-slider-wishlist:hover {
+  background: rgba(232, 228, 220, 0.12);
+  color: #FFFEF5;
+}
+
+.navbar-slider-wishlist .nav-wishlist-icon {
+  color: #E8E4DC;
+}
+
+.navbar-slider-wishlist:hover .nav-wishlist-icon {
   color: #FFFEF5;
 }
 

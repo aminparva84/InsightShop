@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useCart } from '../contexts/CartContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useWishlist } from '../contexts/WishlistContext';
 import ProductRating from '../components/ProductRating';
 import ColorSwatches from '../components/ColorSwatches';
 import SizeSelector from '../components/SizeSelector';
@@ -15,6 +16,7 @@ const ProductDetail = () => {
   const { addToCart } = useCart();
   const { showSuccess, showError, showWarning } = useNotification();
   const { user, token } = useAuth();
+  const { isAuthenticated, isInWishlist, toggleWishlist } = useWishlist();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -87,6 +89,19 @@ const ProductDetail = () => {
       }
     } else {
       showError(result.error || 'Failed to add to cart');
+    }
+  };
+
+  const handleWishlistToggle = async () => {
+    if (!isAuthenticated) {
+      showError('Please log in to save items to your wishlist.');
+      return;
+    }
+    const result = await toggleWishlist(product.id);
+    if (result.success) {
+      showSuccess(isInWishlist(product.id) ? 'Removed from wishlist' : 'Added to wishlist');
+    } else if (result.error) {
+      showError(result.error);
     }
   };
 
@@ -169,6 +184,26 @@ const ProductDetail = () => {
                 <span>${product.price.toFixed(2)}</span>
               )}
             </div>
+
+            <button
+              type="button"
+              className={`btn btn-wishlist-toggle ${isInWishlist(product.id) ? 'btn-wishlist-toggle--active' : ''}`}
+              onClick={handleWishlistToggle}
+              aria-label={isInWishlist(product.id) ? 'Remove from wishlist' : 'Add to wishlist'}
+            >
+              <span className="btn-wishlist-icon" aria-hidden="true">
+                {isInWishlist(product.id) ? (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
+                ) : (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                )}
+              </span>
+              {isInWishlist(product.id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
+            </button>
             
             {/* Color Selection - Only show if multiple colors available */}
             {product.available_colors && product.available_colors.length > 1 && (
@@ -203,7 +238,7 @@ const ProductDetail = () => {
               )}
             </div>
 
-            <div className="product-actions">
+            <div className="product-actions product-actions--wrap">
               <div className="quantity-selector">
                 <label>Quantity:</label>
                 <input

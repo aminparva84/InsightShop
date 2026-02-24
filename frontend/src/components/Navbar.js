@@ -20,6 +20,7 @@ import {
 } from 'react-icons/gi';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { useWishlist } from '../contexts/WishlistContext';
 import SpotlightCard from './SpotlightCard';
 import './Navbar.css';
 
@@ -71,9 +72,16 @@ const CartIcon = () => (
   </svg>
 );
 
+const WishlistIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+  </svg>
+);
+
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const { cartCount } = useCart();
+  const { wishlistCount } = useWishlist();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -123,7 +131,7 @@ const Navbar = () => {
     }
   };
 
-  /* Top bar: Home, Products, and Cart (icon only); Account, Log in, Sign up live in the menu */
+  /* Top bar: Home, Products, Cart; Wishlist and Account/Login in menu only */
   const navLinks = (
     <>
       <Link to="/" className="nav-link" onClick={closeMenu}>Home</Link>
@@ -135,15 +143,21 @@ const Navbar = () => {
     </>
   );
 
-  /* Mobile menu: Home and Products (shown in expanded dropdown on small screens) */
+  /* Navbar menu (dropdown): Home, Products, Wishlist icon (when logged in) */
   const sliderNavLinks = (
     <div className="navbar-slider-nav">
       <Link to="/" className="navbar-slider-link navbar-slider-nav-link" onClick={closeMenu}>Home</Link>
       <Link to="/products" className="navbar-slider-link navbar-slider-nav-link" onClick={closeMenu}>Products</Link>
+      {isAuthenticated && (
+        <Link to="/wishlist" className="nav-link nav-wishlist-link navbar-slider-wishlist" title="Wishlist" onClick={closeMenu} aria-label={wishlistCount > 0 ? `${wishlistCount} items in wishlist` : 'Wishlist'}>
+          <span className="nav-wishlist-icon" aria-hidden="true"><WishlistIcon /></span>
+          {wishlistCount > 0 && <span className="wishlist-badge" aria-label={`${wishlistCount} items in wishlist`}>{wishlistCount}</span>}
+        </Link>
+      )}
     </div>
   );
 
-  /* Slider top: Account, Login/Logout only (Cart is in navbar) – standout auth links */
+  /* Slider top: Account, Login/Logout (Cart is in navbar) – standout auth links */
   const sliderTopLinks = (
     <div className="navbar-slider-top">
       {isAuthenticated ? (

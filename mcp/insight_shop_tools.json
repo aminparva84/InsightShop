@@ -178,6 +178,42 @@
       }
     },
     {
+      "name": "wishlist_view",
+      "description": "View the current user's wishlist (saved products). Use when the user asks to see their wishlist, saved items, or what they have saved for later.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "name": "wishlist_add",
+      "description": "Add a product to the current user's wishlist by product_id. Use when the user says to add an item to their wishlist or save a product for later.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["product_id"],
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    {
+      "name": "wishlist_remove",
+      "description": "Remove a product from the current user's wishlist by product_id. Use when the user says to remove an item from their wishlist.",
+      "permission": "user",
+      "input_schema": {
+        "type": "object",
+        "required": ["product_id"],
+        "additionalProperties": false,
+        "properties": {
+          "product_id": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    {
       "name": "admin_product_create",
       "description": "Create a new product (name, price, category, optional fields). Admin only. Prefer admin_product_prepare_create when collecting fields step-by-step from the admin.",
       "permission": "admin",

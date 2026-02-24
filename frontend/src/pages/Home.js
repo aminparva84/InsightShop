@@ -28,12 +28,12 @@ import midBannerMain from '../assets/mid-banner-main.webp';
 import midBannerMobile from '../assets/mid-banner-mobile.webp';
 import './Home.css';
 
-/* Season banners: image + glass overlay + label, link to filtered products */
+/* Season banners: vintage-style imagery (softer, film-like) + sepia/vignette in CSS */
 const SEASON_BANNERS = [
-  { name: 'Spring', link: '/products?season=spring', image: 'https://images.unsplash.com/photo-1522383225653-ed111181a951?w=600&q=80' },
-  { name: 'Summer', link: '/products?season=summer', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80' },
+  { name: 'Spring', link: '/products?season=spring', image: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=600&q=80' },
+  { name: 'Summer', link: '/products?season=summer', image: 'https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?w=600&q=80' },
   { name: 'Fall', link: '/products?season=fall', image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&q=80' },
-  { name: 'Winter', link: '/products?season=winter', image: 'https://images.unsplash.com/photo-1706893684108-fa7ca5718c3a?w=600&q=80' },
+  { name: 'Winter', link: '/products?season=winter', image: 'https://images.unsplash.com/photo-1548777123-e216012df7d8?w=600&q=80' },
 ];
 
 const CATEGORIES = [
@@ -69,11 +69,9 @@ const BANNER_TEXT_FADEOUT_MS = 5000;
 const BANNER_TEXT_FADEOUT_DURATION_S = 2;
 
 const MOBILE_BREAKPOINT = 640;
-const MOBILE_PRODUCTS_LIMIT = 4; // 2 rows × 2 columns on mobile
-
-/** Featured products: 3 rows × N columns. Columns: 3 (<640px), 4 (640–1024), 5 (≥1024). */
+/** Featured products: responsive count so no empty grid cell on mobile. */
 const getFeaturedCount = (width) => {
-  if (width < 640) return 9;   // 3 cols × 3 rows
+  if (width < 640) return 8;   // 2 cols × 4 rows (no empty slot)
   if (width < 1024) return 12;  // 4 cols × 3 rows
   return 15;                    // 5 cols × 3 rows
 };
@@ -93,7 +91,13 @@ const Home = () => {
     typeof window !== 'undefined' ? getFeaturedCount(window.innerWidth) : 15
   );
   const specialOffersScrollRef = useRef(null);
-  const specialOffersDragRef = useRef({ isDragging: false, startX: 0, startScrollLeft: 0 });
+  const specialOffersDragRef = useRef({
+    isDragging: false,
+    startX: 0,
+    startScrollLeft: 0,
+    pointerDown: false,
+  });
+  const SPECIAL_OFFERS_DRAG_THRESHOLD = 5; // px – only treat as drag after moving this much, so clicks still work
   const [specialOffersDragging, setSpecialOffersDragging] = useState(false);
 
   useEffect(() => {
@@ -131,18 +135,28 @@ const Home = () => {
 
   const handleSpecialOffersMouseDown = (e) => {
     if (!specialOffersScrollRef.current) return;
-    specialOffersDragRef.current.isDragging = true;
-    specialOffersDragRef.current.startX = e.pageX;
-    specialOffersDragRef.current.startScrollLeft = specialOffersScrollRef.current.scrollLeft;
-    setSpecialOffersDragging(true);
+    const ref = specialOffersDragRef.current;
+    ref.pointerDown = true;
+    ref.startX = e.pageX;
+    ref.startScrollLeft = specialOffersScrollRef.current.scrollLeft;
+    ref.isDragging = false;
+    setSpecialOffersDragging(false);
   };
   const handleSpecialOffersMouseMove = (e) => {
-    if (!specialOffersDragRef.current.isDragging || !specialOffersScrollRef.current) return;
+    const ref = specialOffersDragRef.current;
+    if (!ref.pointerDown || !specialOffersScrollRef.current) return;
+    const dx = e.pageX - ref.startX;
+    if (!ref.isDragging && Math.abs(dx) > SPECIAL_OFFERS_DRAG_THRESHOLD) {
+      ref.isDragging = true;
+      setSpecialOffersDragging(true);
+    }
+    if (!ref.isDragging) return;
     e.preventDefault();
     const walk = (e.pageX - specialOffersDragRef.current.startX) * 1.2;
     specialOffersScrollRef.current.scrollLeft = specialOffersDragRef.current.startScrollLeft - walk;
   };
   const handleSpecialOffersMouseUpOrLeave = () => {
+    specialOffersDragRef.current.pointerDown = false;
     specialOffersDragRef.current.isDragging = false;
     setSpecialOffersDragging(false);
   };
@@ -334,7 +348,6 @@ const Home = () => {
                   <div className="featured-products-view-all">
                     <Link to="/products?on_sale=1" className="featured-products-view-all-link">View all deals</Link>
                   </div>
-                  <div className="featured-products-line" aria-hidden="true" />
                 </>
               )}
             </div>
@@ -360,26 +373,37 @@ const Home = () => {
       {/* Mid banner: image inside centered container, below featured products */}
       <section id="mid-asset-1" className="mid-banner" aria-label="Mid banner">
         <div className="mid-banner-container">
-          <picture>
-            <source
-              media="(max-width: 768px)"
-              srcSet={midBannerMobile}
-              src={midBannerMobile}
-            />
-            <img
-              src={midBannerMain}
-              alt="Hard to find what you need? It's ok!"
-              className="mid-banner-image"
-            />
-          </picture>
+          <div className="mid-banner-image-wrap">
+            <picture>
+              <source
+                media="(max-width: 768px)"
+                srcSet={midBannerMobile}
+                src={midBannerMobile}
+              />
+              <img
+                src={midBannerMain}
+                alt="Hard to find what you need? It's ok!"
+                className="mid-banner-image"
+              />
+            </picture>
+            <button
+              type="button"
+              className="mid-banner-ask-ai-btn"
+              onClick={openAIChatPopup}
+              aria-label="Ask AI assistant"
+            >
+              ASK AI
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* Season banners: 4 side by side, glass overlay, season-specific hover effects */}
+      {/* Season banners: vintage frame-style cards, warm overlay, season hover effects */}
       <section className="season-banners" aria-label="Shop by season">
         <div className="season-banners-inner">
           <div className="section-title-wrap">
             <SectionTitleWithWavy title="Seasonal Shopping" />
+            <p className="season-banners-subtitle">Choose your wardrobe based on the time of the year</p>
           </div>
           <div className="season-banners-container">
           {SEASON_BANNERS.map((season) => (
@@ -387,7 +411,7 @@ const Home = () => {
               key={season.name}
               to={season.link}
               className="season-banner-card"
-              style={{ backgroundImage: `url(${season.image})` }}
+              style={{ '--season-bg': `url(${season.image})` }}
               aria-label={`Shop ${season.name} collection`}
             >
               <span className="season-banner-glass" aria-hidden="true" />

@@ -19,7 +19,7 @@
   position: relative;
   overflow: hidden;
   min-height: 120vh;
-  padding: 80px 48px 56px 48px;
+  padding: 16px 48px 36px 48px;
   box-sizing: border-box;
 }
 
@@ -198,7 +198,7 @@
 .hero-chat-inline-wrap {
   position: relative;
   flex-shrink: 0;
-  width: 520px;
+  width: 560px;
   height: 360px;
   background: #3A4036;
   border-radius: 22px;
@@ -259,7 +259,7 @@
 
 @media (max-width: 900px) {
   .hero-chat-inline-wrap {
-    width: 440px;
+    width: 460px;
     height: 320px;
     border-radius: 18px;
   }
@@ -294,8 +294,17 @@
   width: 100%;
   max-width: min(1280px, 95vw);
   margin: 0 auto;
+  padding: 0;
+  box-sizing: border-box;
   background: var(--site-bg, #C3B0A1); /* surface behind transparent PNG so alpha=0 shows site color, not black */
   border-radius: 0;
+}
+
+.mid-banner-image-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  line-height: 0;
 }
 
 .mid-banner-container picture {
@@ -314,23 +323,76 @@
   border-radius: 0;
 }
 
-/* Season banners: 4 side by side under mid-banner, dark glass overlay, season name */
+@keyframes mid-banner-ask-ai-jiggle {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  25% { transform: translate(-50%, -50%) rotate(-1.5deg); }
+  75% { transform: translate(-50%, -50%) rotate(1.5deg); }
+}
+
+.mid-banner-ask-ai-btn {
+  position: absolute;
+  top: 75%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  padding: 0;
+  font-family: 'Saint Timothy', 'Dancing Script', cursive;
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #E8E4DC;
+  background: none;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease, text-decoration-color 0.2s ease;
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 228, 220, 0.4);
+  text-underline-offset: 0.2em;
+  animation: mid-banner-ask-ai-jiggle 2.5s ease-in-out infinite;
+}
+
+.mid-banner-ask-ai-btn:hover {
+  color: #fff;
+  text-decoration-color: rgba(255, 255, 255, 0.9);
+  opacity: 1;
+  animation-duration: 1.2s;
+}
+
+.mid-banner-ask-ai-btn:focus-visible {
+  outline: 2px solid #B09B8B;
+  outline-offset: 2px;
+}
+
+@media (min-width: 969px) {
+  .mid-banner-ask-ai-btn {
+    top: 60%;
+  }
+}
+
+/* Season banners: vintage classic – warm overlay, frame-style cards, sage/cream palette */
 .season-banners {
-  padding: 48px 24px 64px;
+  padding: 56px 24px 72px;
   background: var(--site-bg, #C3B0A1);
 }
 
 .season-banners-inner {
   max-width: min(1280px, 95vw);
   margin: 0 auto;
+  padding: 32px 28px 40px;
+  background: rgba(232, 228, 220, 0.25);
+  border-radius: 6%;
+  border: 1px solid rgba(79, 87, 71, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 4px 20px rgba(55, 63, 46, 0.08);
 }
 
-/* Section title above season cards – same style as Featured Products */
+/* Section title – Bebas + script subtitle for vintage feel */
 .season-banners .section-title-wrap {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   width: 100%;
 }
 
@@ -350,11 +412,14 @@
   text-align: left;
   margin-bottom: 0;
   padding-bottom: 0;
-  line-height: 1;
+  line-height: 1.05;
   color: #373F2E;
   position: relative;
   display: inline-block;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .season-banners .section-title-wrap .section-title::after {
@@ -366,79 +431,131 @@
   margin-top: -14px;
 }
 
+.season-banners .season-banners-subtitle {
+  font-family: 'Saint Timothy', 'Dancing Script', cursive;
+  font-size: clamp(18px, 2.2vw, 26px);
+  color: #4F5747;
+  margin-top: 4px;
+  margin-bottom: 0;
+  letter-spacing: 0.02em;
+}
+
 .season-banners-container {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: 24px;
 }
 
+/* Vintage frame-style cards: image on ::before with sepia/film filter, frame border */
 .season-banner-card {
   position: relative;
   display: block;
   aspect-ratio: 4 / 5;
-  border-radius: 12px;
+  border-radius: 6px;
   overflow: hidden;
-  background-size: cover;
-  background-position: center;
-  background-color: #8a7a6a;
+  background-color: #8a7d6e;
   text-decoration: none;
   color: inherit;
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+  border: 3px solid rgba(79, 87, 71, 0.35);
+  box-shadow: 0 4px 20px rgba(55, 63, 46, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* Image layer with vintage filter: sepia, reduced saturation, soft contrast */
+.season-banner-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: var(--season-bg);
+  background-size: cover;
+  background-position: center;
+  filter: sepia(0.45) saturate(0.75) contrast(1.05) brightness(0.88);
+  transition: filter 0.35s ease;
+}
+
+.season-banner-card:hover::before {
+  filter: sepia(0.35) saturate(0.8) contrast(1.06) brightness(0.9);
 }
 
 .season-banner-card:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(55, 63, 46, 0.2), 0 0 0 1px rgba(79, 87, 71, 0.2);
+  border-color: rgba(79, 87, 71, 0.4);
 }
 
+/* Warm overlay + vignette (darker edges like old prints) */
 .season-banner-glass {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 85% 90% at 50% 50%, transparent 35%, rgba(45, 40, 35, 0.5) 100%),
+    linear-gradient(
+      180deg,
+      rgba(55, 48, 42, 0.2) 0%,
+      rgba(55, 48, 42, 0.45) 50%,
+      rgba(50, 44, 38, 0.65) 100%
+    );
   pointer-events: none;
-  transition: background 0.35s ease, backdrop-filter 0.35s ease, border-color 0.35s ease;
+  transition: background 0.3s ease, opacity 0.3s ease;
 }
 
 .season-banner-card:hover .season-banner-glass {
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-color: rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(ellipse 80% 85% at 50% 50%, transparent 30%, rgba(40, 35, 30, 0.55) 100%),
+    linear-gradient(
+      180deg,
+      rgba(50, 44, 38, 0.25) 0%,
+      rgba(50, 44, 38, 0.5) 50%,
+      rgba(45, 39, 33, 0.7) 100%
+    );
+}
+
+/* Subtle film-grain texture overlay (vintage photo feel) */
+.season-banner-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  pointer-events: none;
+  mix-blend-mode: overlay;
 }
 
 .season-banner-label {
   position: absolute;
   inset: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: clamp(26px, 3.6vw, 38px);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #fff;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  color: #F5F5DC;
+  text-shadow: 0 1px 4px rgba(55, 63, 46, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   pointer-events: none;
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), text-shadow 0.35s ease, letter-spacing 0.35s ease;
+  transition: letter-spacing 0.3s ease, text-shadow 0.3s ease, color 0.3s ease;
 }
 
 .season-banner-card:hover .season-banner-label {
-  transform: scale(1.08);
-  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 255, 255, 0.15);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
+  text-shadow: 0 2px 8px rgba(55, 63, 46, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  color: #FFFEF5;
 }
 
-/* Season hover effects: overlay only visible on card hover */
+/* Season hover effects: subtle vintage particles (softer, warmer) */
 .season-banner-effect {
   position: absolute;
   inset: 0;
+  z-index: 3;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.4s ease;
   overflow: hidden;
 }
 
@@ -446,84 +563,84 @@
   opacity: 1;
 }
 
-/* Falling animation for snow, petals, leaves */
+/* Gentle falling animation – vintage feel (slower, softer) */
 @keyframes season-fall {
   0% {
     transform: translateY(-15%) translateX(0) rotate(0deg);
-    opacity: 0.9;
+    opacity: 0.5;
   }
   100% {
-    transform: translateY(115%) translateX(8px) rotate(360deg);
-    opacity: 0.5;
+    transform: translateY(115%) translateX(6px) rotate(360deg);
+    opacity: 0.2;
   }
 }
 
 @keyframes season-fall-leaf {
   0% {
     transform: translateY(-15%) translateX(0) rotate(0deg);
-    opacity: 0.85;
+    opacity: 0.5;
   }
   100% {
-    transform: translateY(115%) translateX(-12px) rotate(720deg);
-    opacity: 0.4;
+    transform: translateY(115%) translateX(-8px) rotate(540deg);
+    opacity: 0.15;
   }
 }
 
 @keyframes season-shimmer {
   0%, 100% {
-    opacity: 0.15;
+    opacity: 0.06;
     transform: translateX(-100%) scale(1);
   }
   50% {
-    opacity: 0.35;
-    transform: translateX(100%) scale(1.02);
+    opacity: 0.14;
+    transform: translateX(100%) scale(1);
   }
 }
 
-/* Winter: snowfall */
+/* Winter: soft snow (muted, cream-tinted) */
 .season-particle--snow {
   position: absolute;
   top: -5%;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+  background: rgba(245, 245, 230, 0.75);
+  box-shadow: 0 0 4px rgba(232, 228, 220, 0.4);
   opacity: 0;
 }
 .season-banner-card:hover .season-particle--snow {
-  opacity: 1;
-  animation: season-fall var(--anim-duration, 2.5s) linear infinite;
-  animation-delay: var(--anim-delay, 0s);
-}
-
-/* Spring: falling petals */
-.season-particle--petal {
-  position: absolute;
-  top: -5%;
-  width: 8px;
-  height: 10px;
-  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-  background: rgba(255, 220, 230, 0.85);
-  box-shadow: 0 0 8px rgba(255, 200, 210, 0.4);
-  opacity: 0;
-}
-.season-banner-card:hover .season-particle--petal {
   opacity: 1;
   animation: season-fall var(--anim-duration, 3s) linear infinite;
   animation-delay: var(--anim-delay, 0s);
 }
 
-/* Summer: heat shimmer */
+/* Spring: soft petals (dusty rose) */
+.season-particle--petal {
+  position: absolute;
+  top: -5%;
+  width: 7px;
+  height: 9px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: rgba(200, 170, 160, 0.6);
+  box-shadow: 0 0 6px rgba(180, 150, 140, 0.25);
+  opacity: 0;
+}
+.season-banner-card:hover .season-particle--petal {
+  opacity: 1;
+  animation: season-fall var(--anim-duration, 3.2s) linear infinite;
+  animation-delay: var(--anim-delay, 0s);
+}
+
+/* Summer: very subtle heat shimmer */
 .season-particle--shimmer {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     105deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.08) 25%,
-    rgba(255, 255, 255, 0.2) 50%,
-    rgba(255, 255, 255, 0.08) 75%,
+    rgba(245, 242, 235, 0.05) 25%,
+    rgba(245, 242, 235, 0.12) 50%,
+    rgba(245, 242, 235, 0.05) 75%,
     transparent 100%
   );
   background-size: 200% 100%;
@@ -531,41 +648,51 @@
 }
 .season-banner-card:hover .season-particle--shimmer {
   opacity: 1;
-  animation: season-shimmer 2.5s ease-in-out infinite;
+  animation: season-shimmer 3s ease-in-out infinite;
 }
 
-/* Fall: falling leaves */
+/* Fall: muted autumn leaves */
 .season-particle--leaf {
   position: absolute;
   top: -5%;
-  width: 10px;
-  height: 12px;
+  width: 9px;
+  height: 11px;
   border-radius: 50% 0 50% 50%;
-  background: rgba(180, 100, 50, 0.8);
-  box-shadow: 0 0 6px rgba(140, 70, 30, 0.4);
+  background: rgba(140, 100, 70, 0.55);
+  box-shadow: 0 0 4px rgba(100, 70, 50, 0.25);
   opacity: 0;
 }
 .season-banner-card:hover .season-particle--leaf {
   opacity: 1;
-  animation: season-fall-leaf var(--anim-duration, 2.8s) linear infinite;
+  animation: season-fall-leaf var(--anim-duration, 3s) linear infinite;
   animation-delay: var(--anim-delay, 0s);
 }
 
 @media (max-width: 900px) {
+  .season-banners-inner {
+    padding: 24px 20px 32px;
+  }
   .season-banners-container {
     grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
   }
   .season-banners .section-title-wrap .section-title {
     font-size: clamp(64px, 10vw, 88px);
   }
   .season-banners .section-title-wrap {
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
 }
 
 @media (max-width: 480px) {
   .season-banners {
-    padding: 32px 16px 48px;
+    padding: 32px 12px 48px;
+  }
+  .season-banners-inner {
+    max-width: 100%;
+    padding: 20px 14px 28px;
+    border-radius: 4%;
+    box-sizing: border-box;
   }
   .season-banners-container {
     grid-template-columns: 1fr;
@@ -576,19 +703,27 @@
   }
 }
 
-/* Special offers CTA banner – below featured products container, classy vintage feel */
+/* Special offers CTA banner – site theme: olive #4A5844 / #373F2E, cream #E8E4DC */
 .special-offers-cta-banner {
   position: relative;
-  padding: 64px 32px 72px;
-  border-top: 2px solid rgba(55, 63, 46, 0.2);
-  border-bottom: 2px solid rgba(55, 63, 46, 0.2);
+  padding: 72px 40px 80px;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  border-radius: 0;
+  border: 3px solid rgba(55, 63, 46, 0.5);
+  box-shadow:
+    inset 0 0 0 1px rgba(74, 88, 68, 0.2),
+    0 8px 32px rgba(55, 63, 46, 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-/* Background image (vintage closet) */
+/* Background image with fallback */
 .special-offers-cta-banner::after {
   content: '';
   position: absolute;
@@ -597,18 +732,23 @@
   background-image: var(--special-offers-banner-bg);
   background-size: cover;
   background-position: center;
+  background-color: #3d4a38;
+  background-blend-mode: overlay;
 }
 
-/* Softer, more transparent overlay; inner frame */
+/* Dark olive overlay – ensures text is readable, matches site theme */
 .special-offers-cta-banner::before {
   content: '';
   position: absolute;
-  inset: 12px;
+  inset: 0;
   z-index: 1;
-  background: linear-gradient(165deg, rgba(195, 176, 161, 0.38) 0%, rgba(195, 176, 161, 0.48) 50%, rgba(212, 196, 176, 0.42) 100%);
-  border: 1px solid rgba(55, 63, 46, 0.12);
-  border-radius: 4px;
-  box-sizing: border-box;
+  background: linear-gradient(
+    160deg,
+    rgba(55, 63, 46, 0.82) 0%,
+    rgba(61, 74, 56, 0.88) 40%,
+    rgba(48, 58, 42, 0.9) 100%
+  );
+  border-radius: 0;
   pointer-events: none;
 }
 
@@ -616,104 +756,123 @@
   position: relative;
   z-index: 2;
   text-align: center;
-  max-width: 800px;
+  max-width: 720px;
 }
 
 .special-offers-cta-banner-accent {
   display: block;
   font-family: 'Saint Timothy', 'Dancing Script', cursive;
-  font-size: clamp(22px, 2.6vw, 32px);
+  font-size: clamp(22px, 2.6vw, 30px);
   font-weight: 600;
-  color: #373F2E;
-  letter-spacing: 0.2em;
-  margin-bottom: 14px;
-  opacity: 0.98;
+  color: #E8E4DC;
+  letter-spacing: 0.28em;
+  margin-bottom: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  opacity: 0.95;
 }
 
 .special-offers-cta-banner-title {
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: clamp(44px, 6.5vw, 80px);
+  font-size: clamp(42px, 6vw, 76px);
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #373F2E;
-  margin: 0 0 16px;
+  color: #F5F0E6;
+  margin: 0 0 18px;
   line-height: 1.05;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 1px rgba(0, 0, 0, 0.3);
 }
 
 .special-offers-cta-banner-subtitle {
   font-family: 'Cormorant Garamond', 'Lora', Georgia, serif;
-  font-size: clamp(20px, 2.4vw, 28px);
+  font-size: clamp(19px, 2.2vw, 26px);
   font-weight: 600;
-  color: #373F2E;
-  margin: 0 0 32px;
+  color: #E8E4DC;
+  margin: 0 0 36px;
   letter-spacing: 0.02em;
-  line-height: 1.4;
+  line-height: 1.45;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
 .special-offers-cta-banner-percent {
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: 1.15em;
+  font-size: 1.2em;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: #2d3428;
+  color: #C5D4BC;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .special-offers-cta-banner-btn {
   display: inline-block;
-  padding: 16px 40px;
-  background: #4A5844;
-  color: #F5F5DC;
+  padding: 16px 44px;
+  background: transparent;
+  color: #F5F0E6;
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   text-decoration: none;
-  border-radius: 6px;
-  transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
-  box-shadow: 0 4px 16px rgba(74, 88, 68, 0.35);
+  border: 2px solid rgba(74, 88, 68, 0.9);
+  border-radius: 4px;
+  transition: background 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow:
+    0 2px 12px rgba(55, 63, 46, 0.3),
+    inset 0 0 0 0 rgba(74, 88, 68, 0.2);
 }
 
 .special-offers-cta-banner-btn:hover {
-  background: #3d4a38;
-  color: #F5F5DC;
+  background: rgba(74, 88, 68, 0.35);
+  color: #FFFBF0;
+  border-color: #4A5844;
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(74, 88, 68, 0.4);
+  box-shadow:
+    0 4px 20px rgba(55, 63, 46, 0.35),
+    inset 0 0 0 1px rgba(74, 88, 68, 0.2);
 }
 
-/* Subtle corner ornament (vintage frame feel) */
+/* Ornament line – site olive accent */
 .special-offers-cta-banner-ornament {
   position: absolute;
-  bottom: 20px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  width: 80px;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, rgba(55, 63, 46, 0.25), transparent);
-  border-radius: 2px;
+  width: 120px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(197, 212, 188, 0.5),
+    rgba(197, 212, 188, 0.75),
+    rgba(197, 212, 188, 0.5),
+    transparent
+  );
+  border-radius: 1px;
+  z-index: 2;
 }
 
 @media (max-width: 640px) {
   .special-offers-cta-banner {
-    padding: 48px 24px 56px;
-  }
-  .special-offers-cta-banner::before {
-    inset: 8px;
+    padding: 52px 24px 60px;
+    margin: 0;
   }
   .special-offers-cta-banner-btn {
-    padding: 12px 28px;
+    padding: 14px 32px;
     font-size: 16px;
+    letter-spacing: 0.08em;
   }
 }
 
 @media (max-width: 480px) {
   .special-offers-cta-banner {
-    padding: 40px 20px 48px;
+    padding: 44px 20px 52px;
+    margin: 0;
   }
   .special-offers-cta-banner-accent {
-    letter-spacing: 0.15em;
+    letter-spacing: 0.18em;
   }
 }
 
@@ -770,8 +929,11 @@
 .featured-products .section-title-wrap .section-title {
   margin-bottom: 0;
   padding-bottom: 0;
-  line-height: 1;
+  line-height: 1.05;
   display: inline-block; /* so parent .section-title-and-wavy shrinks to title width */
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .featured-products .section-title-wrap .section-title:last-of-type {
   margin-bottom: 0;
@@ -906,7 +1068,7 @@
 
 @media (max-width: 640px) {
   .featured-products {
-    padding: 48px 20px 64px;
+    padding: 48px 16px 64px;
     width: 100%;
     box-sizing: border-box;
   }
@@ -915,6 +1077,14 @@
     border-radius: 6%;
     margin-left: auto;
     margin-right: auto;
+    padding: 0 4px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .featured-products .container > .product-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 
   .featured-products .product-grid {
@@ -949,14 +1119,44 @@
   .featured-products .product-price .original-price {
     font-size: 10px;
   }
+  .featured-products .product-card-actions {
+    margin: 0 8px 4px;
+    gap: 6px;
+  }
+
+  .featured-products .product-card-wishlist-btn {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  .featured-products .product-card-wishlist-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
   .featured-products .btn-add-cart {
-    margin: 0 8px 8px;
-    padding: 5px 10px;
+    padding: 3px 8px;
     font-size: 11px;
+    min-height: 24px;
   }
 }
 
 @media (max-width: 480px) {
+  .featured-products {
+    padding: 40px 12px 56px;
+  }
+
+  .featured-products .container {
+    padding: 0 2px;
+  }
+
+  .featured-products .container > .product-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
   .featured-products .product-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
@@ -989,10 +1189,27 @@
   .featured-products .product-price .original-price {
     font-size: 9px;
   }
+  .featured-products .product-card-actions {
+    margin: 0 6px 4px;
+    gap: 5px;
+  }
+
+  .featured-products .product-card-wishlist-btn {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+  }
+
+  .featured-products .product-card-wishlist-btn svg {
+    width: 11px;
+    height: 11px;
+  }
+
   .featured-products .btn-add-cart {
-    margin: 0 6px 6px;
-    padding: 5px 8px;
-    font-size: 11px;
+    padding: 3px 6px;
+    font-size: 10px;
+    min-height: 22px;
   }
 }
 
@@ -1060,12 +1277,13 @@
   min-width: 0;
 }
 
-/* Main featured products: exactly 3 rows, responsive columns (3 / 4 / 5) */
+/* Main featured products: responsive columns; rows auto so no overflow */
 .featured-products .container > .product-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, auto);
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: auto;
   gap: 14px;
+  min-width: 0; /* allow grid to shrink inside flex/constrained container */
 }
 
 @media (min-width: 640px) {
@@ -1084,6 +1302,7 @@
 
 .featured-products .product-grid-item-wrapper {
   display: flex;
+  min-width: 0; /* allow shrinking so grid doesn't overflow on small screens */
 }
 
 .featured-products .product-grid-item-wrapper .product-card {
@@ -1112,10 +1331,43 @@
 .featured-products .product-price .original-price {
   font-size: 12px;
 }
+.featured-products .product-card-actions {
+  margin: 0 12px 6px;
+  gap: 6px;
+  min-height: 0;
+}
+
+.featured-products .product-card-wishlist-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  background: #8f7359;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.featured-products .product-card-wishlist-btn:hover {
+  background: #9d8266;
+  color: #fff;
+  filter: brightness(1.1);
+}
+
+.featured-products .product-card-wishlist-btn--active {
+  background: #A88C6F;
+  color: #fff;
+}
+
+.featured-products .product-card-wishlist-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .featured-products .btn-add-cart {
-  margin: 0 12px 12px;
-  padding: 8px 16px;
-  font-size: 14px;
+  padding: 4px 14px;
+  font-size: 13px;
+  min-height: 28px;
 }
 
 /* Product cards use ProductCard.css (dark #373F2E, one rounded corner). No overrides here. */
@@ -1172,26 +1424,6 @@
 .featured-products .no-products-message p {
   font-family: 'Cormorant Garamond', 'Lora', Georgia, serif;
   color: #373F2E;
-}
-
-.featured-products-line {
-  width: 100%;
-  height: 1px;
-  background: #373F2E;
-  margin: 14px 0;
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .featured-products-line {
-    margin: 12px 0;
-  }
-}
-
-@media (max-width: 480px) {
-  .featured-products-line {
-    margin: 10px 0;
-  }
 }
 
 .featured-products-view-all {
@@ -1603,7 +1835,7 @@
 @media (max-width: 968px) {
   .hero.banner-four-layers {
     min-height: 115vh;
-    padding: 0 32px 80px;
+    padding: 0 32px 48px;
   }
 
   .hero-banner-content {
@@ -1632,6 +1864,8 @@
 /* Desktop: text+chat and hero image closer together, with padding from edges (viewport >= 969px) */
 @media (min-width: 969px) {
   .hero.banner-four-layers {
+    padding-top: 16px;
+    padding-bottom: 36px;
     padding-left: 72px;
     padding-right: 72px;
   }
@@ -1659,21 +1893,96 @@
 
 @media (max-width: 768px) {
   .hero.banner-four-layers {
-    min-height: 95vh;
-    padding: 0 24px 40px;
+    min-height: 100vh;
+    padding: 4px 20px 24px;
   }
 
   .hero-banner-content {
-    gap: 20px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 0;
   }
 
+  /* banner-asset-4 below image on mobile (order: 2), minimal gap */
+  .hero-banner-text-and-chat {
+    max-width: 100%;
+    width: 100%;
+    align-items: center;
+    text-align: center;
+    z-index: 3;
+    order: 2;
+    position: relative;
+    margin-top: -8px;
+  }
+
+  .hero-banner-content .hero-layer-text {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .hero-title-line {
+    align-items: center;
+  }
+
+  /* banner-asset-4 (text block): larger presence on mobile – % width so it stays responsive */
+  #banner-asset-4,
+  .hero-banner-text-and-chat .hero-layer-text {
+    width: 92%;
+    max-width: 92%;
+  }
+
+  #banner-asset-4 {
+    margin-top: 0;
+  }
+
+  /* Top banner image: first on mobile (order: 1), layer under text for tap */
   #banner-main.hero-layer-banner-main {
-    max-width: min(58%, 560px);
-    z-index: 1;
+    max-width: 100%;
+    width: 100%;
+    order: 1;
+    z-index: 0;
+    justify-content: center;
+    position: relative;
+    margin-bottom: -4px;
   }
 
+  /* Top banner image: larger on mobile, responsive */
   .hero-layer-banner-main-img {
-    height: 90vh;
+    height: auto;
+    max-height: 88vh;
+    min-height: min(400px, 52vh);
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    object-fit: contain;
+  }
+
+  .hero-title {
+    font-size: clamp(56px, 18vw, 110px);
+    letter-spacing: 0.06em;
+    text-align: center;
+  }
+
+  #banner-asset-4-title {
+    font-size: clamp(52px, 16vw, 100px);
+    margin: -0.5em 0 0 -16px;
+    letter-spacing: 0.02em;
+  }
+
+  #banner-asset-4-subtitle,
+  .hero-subtitle-script {
+    font-size: clamp(26px, 7.5vw, 44px);
+    margin: 0.5em 0 -0.15em 0;
+    letter-spacing: 0.01em;
+    white-space: normal;
+  }
+
+  .hero-banner-content {
+    gap: 0;
   }
 
   /* Mid banner: no padding, centered on mobile */
@@ -1692,37 +2001,11 @@
     justify-content: center;
   }
 
+  .mid-banner-container .mid-banner-image-wrap,
   .mid-banner-container picture,
   .mid-banner-container .mid-banner-image {
     margin-left: auto;
     margin-right: auto;
-  }
-
-  .hero-banner-text-and-chat {
-    max-width: 42%;
-    z-index: 3;
-  }
-
-  #banner-asset-4 {
-    margin-top: 250px;
-  }
-
-  .hero-title {
-    font-size: clamp(64px, 16vw, 120px);
-    letter-spacing: 0.08em;
-  }
-
-  #banner-asset-4-title {
-    font-size: clamp(62px, 13vw, 110px);
-    margin: -0.65em 0 0 -28px;
-    letter-spacing: 0.02em;
-  }
-
-  #banner-asset-4-subtitle,
-  .hero-subtitle-script {
-    font-size: clamp(24px, 4.5vw, 40px);
-    margin: 0.65em 0 -0.2em -8px;
-    letter-spacing: 0.01em;
   }
 
   .hero-cta {
@@ -1734,6 +2017,24 @@
 
   .section-title {
     font-size: 32px;
+  }
+
+  /* Section titles: scale down for mobile */
+  .featured-products .section-title-wrap .section-title {
+    font-size: clamp(36px, 10vw, 56px);
+  }
+
+  .season-banners .section-title-wrap .section-title {
+    font-size: clamp(36px, 10vw, 56px);
+  }
+
+  .season-banners .season-banners-subtitle {
+    font-size: clamp(16px, 4vw, 22px);
+  }
+
+  .featured-products .section-title-wavy,
+  .season-banners .section-title-wavy {
+    margin-top: -8px;
   }
 
   .floating-ai-button {
@@ -1760,44 +2061,50 @@
 
 @media (max-width: 480px) {
   .hero.banner-four-layers {
-    min-height: 90vh;
-    padding: 0 16px 56px;
+    min-height: 98vh;
+    padding: 0 14px 28px;
   }
 
   .hero-banner-content {
-    gap: 16px;
+    gap: 0;
   }
 
-  #banner-main.hero-layer-banner-main {
-    max-width: min(54%, 460px);
-    z-index: 1;
-  }
-
+  /* Top banner image: larger on small mobile, responsive */
   .hero-layer-banner-main-img {
-    height: 85vh;
+    max-height: 85vh;
+    min-height: min(340px, 50vh);
+    width: 100%;
+    max-width: 100%;
+    object-fit: contain;
   }
 
+  /* banner-asset-4: minimal gap below image on small mobile */
   .hero-banner-text-and-chat {
-    max-width: 44%;
-    z-index: 3;
+    margin-top: -6px;
+  }
+
+  /* banner-asset-4 text block: larger % width on small mobile */
+  #banner-asset-4,
+  .hero-banner-text-and-chat .hero-layer-text {
+    width: 94%;
+    max-width: 94%;
   }
 
   .hero-title {
-    font-size: clamp(56px, 15vw, 92px);
-    letter-spacing: 0.06em;
+    font-size: clamp(44px, 16vw, 72px);
+    letter-spacing: 0.05em;
   }
 
   #banner-asset-4-title {
-    font-size: clamp(52px, 12vw, 80px);
-    margin: -0.55em 0 0 -20px;
+    font-size: clamp(40px, 15vw, 64px);
+    margin: -0.45em 0 0 -12px;
     letter-spacing: 0.02em;
   }
 
   #banner-asset-4-subtitle,
   .hero-subtitle-script {
-    font-size: clamp(22px, 4.5vw, 34px);
-    margin: 0.55em 0 -0.15em -6px;
-    letter-spacing: 0.01em;
+    font-size: clamp(22px, 6.5vw, 36px);
+    margin: 0.4em 0 -0.1em 0;
   }
 
   .hero-cta {
@@ -1809,6 +2116,50 @@
 
   .section-title {
     font-size: 24px;
+  }
+
+  /* Section titles: smaller on small phones */
+  .featured-products .section-title-wrap .section-title {
+    font-size: clamp(28px, 9vw, 42px);
+  }
+
+  .featured-products .section-title-wrap {
+    margin-bottom: 14px;
+  }
+
+  .season-banners .section-title-wrap .section-title {
+    font-size: clamp(28px, 9vw, 42px);
+  }
+
+  .season-banners .section-title-wrap {
+    margin-bottom: 14px;
+  }
+
+  .season-banners .season-banners-subtitle {
+    font-size: clamp(14px, 4vw, 18px);
+  }
+
+  .special-offers-cta-banner-title {
+    font-size: clamp(28px, 8vw, 38px);
+  }
+
+  .special-offers-cta-banner-subtitle {
+    font-size: clamp(16px, 4vw, 20px);
+    margin-bottom: 28px;
+  }
+
+  .special-offers-cta-banner-accent {
+    font-size: clamp(18px, 4vw, 22px);
+  }
+
+  .featured-products .section-title-wavy,
+  .season-banners .section-title-wavy {
+    margin-top: -6px;
+  }
+
+  .mid-banner-container {
+    max-width: 100%;
+    padding: 0 8px;
   }
 
   .floating-ai-button {

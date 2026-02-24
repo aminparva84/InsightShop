@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { WishlistProvider } from './contexts/WishlistContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import FloatingAIAssistant from './components/FloatingAIAssistant';
@@ -17,6 +18,7 @@ import Activation from './pages/Activation';
 import Members from './pages/Members';
 import OrderConfirmation from './pages/OrderConfirmation';
 import Compare from './pages/Compare';
+import Wishlist from './pages/Wishlist';
 import Admin from './pages/Admin';
 import RequireAuth from './components/RequireAuth';
 import './App.css';
@@ -38,6 +40,7 @@ function AppContent() {
           <Route path="/register" element={<Register />} />
           <Route path="/activation" element={<Activation />} />
           <Route path="/members" element={<RequireAuth path="/members"><Members /></RequireAuth>} />
+          <Route path="/wishlist" element={<RequireAuth path="/wishlist"><Wishlist /></RequireAuth>} />
           <Route path="/order-confirmation" element={<OrderConfirmation />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/admin" element={<RequireAuth path="/admin" requireSuperadmin><Admin /></RequireAuth>} />
@@ -54,9 +57,11 @@ function App() {
     <AuthProvider>
       <CartProvider>
         <NotificationProvider>
+          <WishlistProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppContent />
           </Router>
+          </WishlistProvider>
         </NotificationProvider>
       </CartProvider>
     </AuthProvider>

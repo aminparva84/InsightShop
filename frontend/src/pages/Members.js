@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useWishlist } from '../contexts/WishlistContext';
 import ProductCard from '../components/ProductCard';
 import './Members.css';
 
@@ -71,6 +73,12 @@ const Members = () => {
             Dashboard
           </button>
           <button
+            className={activeTab === 'wishlist' ? 'active' : ''}
+            onClick={() => setActiveTab('wishlist')}
+          >
+            Wishlist
+          </button>
+          <button
             className={activeTab === 'orders' ? 'active' : ''}
             onClick={() => setActiveTab('orders')}
           >
@@ -83,6 +91,10 @@ const Members = () => {
             Payments
           </button>
         </div>
+
+        {activeTab === 'wishlist' && (
+          <WishlistTab />
+        )}
 
         {activeTab === 'dashboard' && dashboard && (
           <div className="dashboard-content">
@@ -156,6 +168,34 @@ const Members = () => {
           <PaymentsTab />
         )}
       </div>
+    </div>
+  );
+};
+
+const WishlistTab = () => {
+  const { items, loading, fetchWishlist } = useWishlist();
+
+  useEffect(() => {
+    fetchWishlist();
+  }, [fetchWishlist]);
+
+  if (loading) return <div className="spinner"></div>;
+
+  return (
+    <div className="wishlist-tab">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h2 style={{ margin: 0 }}>Saved for later</h2>
+        <Link to="/wishlist" className="btn btn-primary" style={{ padding: '8px 16px' }}>
+          View full wishlist
+        </Link>
+      </div>
+      {items.length === 0 ? (
+        <p style={{ color: '#6b7280' }}>No items in your wishlist. Save products from the store to see them here.</p>
+      ) : (
+        <div className="suggestions-grid" style={{ marginTop: 0 }}>
+          {items.slice(0, 8).map((entry) => entry.product && <ProductCard key={entry.id} product={entry.product} />)}
+        </div>
+      )}
     </div>
   );
 };

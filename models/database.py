@@ -72,6 +72,7 @@ def init_db(app):
         from models.user import User
         from models.product import Product
         from models.cart import CartItem
+        from models.wishlist import WishlistItem
         from models.order import Order, OrderItem
         from models.payment import Payment
         from models.payment_log import PaymentLog

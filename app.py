@@ -112,6 +112,7 @@ from routes.sale_automation import sale_automation_bp
 from routes.reviews import reviews_bp
 from routes.shipping import shipping_bp
 from routes.returns import returns_bp
+from routes.wishlist import wishlist_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(products_bp, url_prefix='/api/products')
@@ -127,6 +128,7 @@ app.register_blueprint(sale_automation_bp, url_prefix='/api/sale-automation')
 app.register_blueprint(reviews_bp, url_prefix='/api')
 app.register_blueprint(shipping_bp, url_prefix='/api/shipping')
 app.register_blueprint(returns_bp, url_prefix='/api/returns')
+app.register_blueprint(wishlist_bp, url_prefix='/api/wishlist')
 
 # LLMO: serve robots.txt and ai-info.txt for AI crawlers (before SPA catch-all)
 _llmo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'llmo')

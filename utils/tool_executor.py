@@ -77,8 +77,9 @@ def _tool_search_products(args: Dict[str, Any]) -> Dict[str, Any]:
     size = (args.get('size') or '').strip() or None
     max_price = args.get('max_price')
     sort_by = (args.get('sort_by') or 'relevance').strip() or 'relevance'
+    on_sale_only = args.get('on_sale') is True
 
-    if query:
+    if query and not on_sale_only:
         product_ids = search_products_vector(query, n_results=20)
         if product_ids:
             q = Product.query.filter(Product.id.in_(product_ids), Product.is_active == True)
@@ -111,7 +112,25 @@ def _tool_search_products(args: Dict[str, Any]) -> Dict[str, Any]:
         q = q.order_by(Product.price.desc())
     elif sort_by == 'rating':
         q = q.order_by(Product.rating.desc().nullslast())
-    products = q.limit(20).all()
+
+    if on_sale_only:
+        # Filter to products that are currently on sale (product-level or global sale)
+        candidates = q.limit(200).all()
+        products = []
+        q_lower = (query or '').lower()
+        for p in candidates:
+            if len(products) >= 20:
+                break
+            try:
+                if p.get_sale_price() is None:
+                    continue
+                if q_lower and q_lower not in (p.name or '').lower() and q_lower not in (p.description or '').lower():
+                    continue
+                products.append(p)
+            except Exception:
+                continue
+    else:
+        products = q.limit(20).all()
 
     return {
         'success': True,

@@ -5,13 +5,15 @@ from config import Config
 vector_client = None
 collection = None
 chromadb = None
+chromadb_import_error = None  # Reason chromadb is unavailable (for diagnostics)
 
 try:
     import chromadb
     from chromadb.config import Settings
-except ImportError:
+except Exception as e:
     chromadb = None
     Settings = None
+    chromadb_import_error = str(e)
 
 def _get_vector_db_path():
     """Resolve vector DB path to absolute so it is stable regardless of cwd."""
@@ -66,7 +68,7 @@ def _safe_utf8(s):
 
 
 def _product_to_document_and_metadata(product_id, product_data):
-    """Build document text and metadata dict for one product (for add/upsert)."""
+    """Build document text and metadata dict for one product (for add/upsert). Include sale info so 'sale' queries match."""
     name = _safe_utf8(product_data.get("name", ""))
     desc = _safe_utf8(product_data.get("description", ""))
     category = _safe_utf8(product_data.get("category", ""))
@@ -74,7 +76,15 @@ def _product_to_document_and_metadata(product_id, product_data):
     size = _safe_utf8(product_data.get("size", ""))
     price = product_data.get("price", 0)
     display_brand = _safe_utf8(product_data.get("display_brand", "") or product_data.get("brand", ""))
-    text = f"{name} {desc} Category: {category} Color: {color} Size: {size} Price: ${price} Brand: {display_brand}"
+    fabric = _safe_utf8(product_data.get("fabric", ""))
+    clothing_type = _safe_utf8(product_data.get("clothing_type", ""))
+    occasion = _safe_utf8(product_data.get("occasion", ""))
+    on_sale = product_data.get("on_sale", False)
+    discount = product_data.get("discount_percentage")
+    sale_part = " On sale." if on_sale else ""
+    if on_sale and discount is not None:
+        sale_part = f" On sale. {discount}% off." + sale_part
+    text = f"{name} {desc} Category: {category} Color: {color} Size: {size} Price: ${price} Brand: {display_brand} Fabric: {fabric} Type: {clothing_type} Occasion: {occasion}{sale_part}"
     meta = {
         "product_id": product_id,
         "name": name[:255],
@@ -82,6 +92,7 @@ def _product_to_document_and_metadata(product_id, product_data):
         "color": (color or "")[:50],
         "price": str(price),
         "brand": (display_brand or "")[:100],
+        "on_sale": "true" if on_sale else "false",
     }
     return text, meta
 
@@ -180,25 +191,36 @@ def is_vector_db_available():
         return False
 
 
-def sync_all_products_from_sql(app, batch_size=50):
+def get_chromadb_status():
+    """Return (available: bool, message: str) for ChromaDB. Use for admin/API messages."""
+    if chromadb is not None:
+        return True, ""
+    if chromadb_import_error:
+        return False, chromadb_import_error
+    return False, "ChromaDB not installed"
+
+
+def sync_all_products_from_sql(app=None, batch_size=50):
     """
     Sync all active products from SQLite to ChromaDB so AI search is up to date.
-    Call at startup or when you need to reconcile vector DB with SQL.
+    Call at startup with app, or from a request (no args) to use current app context.
+    Returns (synced_count, chromadb_available). When ChromaDB is not installed or
+    init fails, returns (0, False) so the app can keep working with keyword search.
     """
     if chromadb is None:
-        print("Vector DB not available (chromadb not installed), skipping sync.")
-        return 0
+        msg = chromadb_import_error or "chromadb not installed"
+        print(f"Vector DB not available ({msg}). AI search uses keyword/direct search.")
+        return 0, False
 
     if not init_vector_db() or not collection:
-        print("Vector DB init failed, skipping sync.")
-        return 0
+        print("Vector DB init failed. AI search uses keyword/direct search.")
+        return 0, False
 
-    with app.app_context():
+    def _run_sync():
         from models.product import Product
         products = Product.query.filter_by(is_active=True).order_by(Product.id).all()
         total = len(products)
         if total == 0:
-            print("No active products to sync to vector DB.")
             return 0
 
         synced = 0
@@ -226,4 +248,16 @@ def sync_all_products_from_sql(app, batch_size=50):
 
         print(f"Vector DB sync: {synced}/{total} active products indexed.")
         return synced
+
+    try:
+        if app is not None:
+            with app.app_context():
+                return _run_sync(), True
+        from flask import current_app
+        app = current_app._get_current_object()
+        with app.app_context():
+            return _run_sync(), True
+    except Exception as e:
+        print(f"Vector DB sync error: {e}")
+        return 0, False
 

@@ -399,6 +399,21 @@ def get_product_sample_for_ai(limit=20):
         for p in products
     ]
 
+
+def get_products_on_sale(limit=20):
+    """Return products that are currently on sale (product-level or global sale), for AI and search."""
+    products = Product.query.filter_by(is_active=True).order_by(Product.id).all()
+    on_sale = []
+    for p in products:
+        if len(on_sale) >= limit:
+            break
+        try:
+            if p.get_sale_price() is not None:
+                on_sale.append(p)
+        except Exception:
+            continue
+    return [p.to_dict() for p in on_sale], [p.id for p in on_sale]
+
 def search_products_by_criteria(criteria):
     """Search products by various criteria."""
     query = Product.query.filter_by(is_active=True)
@@ -1116,11 +1131,62 @@ def tools_definitions():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-TOOLS_SYSTEM_PROMPT = """You are a professional shopping assistant for InsightShop. You can help with search, cart, orders, and reviews. When the user asks you to perform an action, use the appropriate tool and then write a short, clear response for the user to read. Always respond in natural language after using a tool; do not return raw JSON. Be concise and polite.
+# Context for the assistant: website policies and pages (for accurate answers)
+ASSISTANT_WEBSITE_CONTEXT = """
+Website information (use for accurate answers; do not invent):
+- Shipping: Orders placed before 12:00 PM EST ship same business day; after 12:00 PM or weekends ship next business day. Standard shipping 5–7 business days; expedited and express options available. Domestic (USA) and international shipping.
+- Returns: 30 days from delivery date to start a return. Items must be unworn, unwashed, original condition with tags. Refund after inspection. Exchanges subject to availability. Log in → Order History → select order → choose items and reason to start a return.
+- About: InsightShop offers timeless, quality clothing (men, women, kids). Mission: quality first, transparency, customer focus, timeless style.
+- Contact: Users can send a message at /contact with name, email, optional order number, and message.
+- Policies and pages: /about (Our Story), /shipping (Shipping Information), /returns (Returns & Refunds), /contact (Contact Us).
+"""
 
-CRITICAL - MEMORY: Use the full conversation history. The user's previous messages in this chat tell you what they have ALREADY provided. Do NOT ask again for something they already said. For example, if the user already told you the product name, do not ask for the name again—ask for the NEXT piece of information (e.g. price or category). Track what you have collected and only ask for what is still missing.
 
-For ADMIN product flows, follow these rules:
+def get_assistant_user_context(user):
+    """Build a short context string about the current user (wishlist, cart, recent orders) for the AI. Returns None if no user."""
+    if not user:
+        return None
+    try:
+        from models.wishlist import WishlistItem
+        from models.cart import CartItem
+        from models.order import Order
+        parts = []
+        wishlist_count = WishlistItem.query.filter_by(user_id=user.id).count()
+        if wishlist_count > 0:
+            parts.append(f"{wishlist_count} item(s) in wishlist")
+        cart_count = CartItem.query.filter_by(user_id=user.id).count()
+        if cart_count > 0:
+            parts.append(f"{cart_count} item(s) in cart")
+        orders = Order.query.filter_by(user_id=user.id).order_by(Order.created_at.desc()).limit(5).all()
+        if orders:
+            last = orders[0]
+            parts.append(f"recent orders: {len(orders)} (last: #{getattr(last, 'order_number', last.id)} {last.status})")
+        if not parts:
+            return None
+        return "Current user context: " + "; ".join(parts) + "."
+    except Exception:
+        return None
+
+
+TOOLS_SYSTEM_PROMPT = """You are a professional, friendly shopping assistant for InsightShop. Respond naturally and conversationally. Be helpful, accurate, and aligned with the brand (quality, transparency, customer focus).
+
+Context awareness:
+- Use the provided website information to answer questions about shipping, returns, policies, and pages. Do not invent policy details.
+- Use the provided user context (when present) to personalize: reference their wishlist, cart, or order history when relevant.
+- When suggesting products, you can reference what they have saved or in cart to make relevant recommendations.
+
+Understanding intent:
+- If the user's request is unclear or incomplete, ask one or two short follow-up questions to clarify (e.g. which order, which product, size or style preference).
+- For critical or irreversible actions (e.g. clear cart, remove from wishlist), confirm briefly before executing (e.g. "Should I remove that from your wishlist?").
+- Use the full conversation history: do not ask again for something the user already said; only ask for what is still missing.
+
+Actions:
+- You may only perform user-level actions (search, cart, wishlist, order status, track, compare, review, checkout). Do not perform or claim admin-only actions.
+- When the user asks you to do something, use the appropriate tool, then reply in natural language with a clear, concise outcome (e.g. "I've added that to your wishlist.").
+- If you cannot do something or information is unavailable, say so clearly and suggest alternatives when appropriate.
+- Never invent capabilities or make up product or order details; if you don't have the data, say so.
+
+For ADMIN product flows (only when you have admin tools), follow these rules:
 
 1) CREATE A NEW PRODUCT: Do not call admin_product_create with one message. Instead, ask the admin for the required information step by step, like a form. Use the conversation history to see what they have already given you.
    - Required: product name, then price, then category (Men, Women, or Kids). Ask for ONLY the next missing required field—if they gave name already, ask for price; if they gave price already, ask for category.
@@ -1137,8 +1203,8 @@ For all other admin tasks (orders, sales, carts, reviews), use the corresponding
 @ai_agent_bp.route('/chat-with-tools', methods=['POST'])
 def chat_with_tools():
     """
-    Chat with the AI assistant with tool-calling support. When the user is an admin,
-    the assistant can use admin tools (create products, manage orders, sales, carts, reviews).
+    Chat with the AI assistant with tool-calling support. Logged-in users get user-level tools
+    (search, cart, wishlist, orders, compare, review); admins additionally get admin tools.
     Authorization is enforced by the backend on every tool execution.
     Uses OpenAI provider for tool calling; other providers fall back to regular chat.
     """
@@ -1166,6 +1232,12 @@ def chat_with_tools():
         internal = config if isinstance(config, dict) else getattr(config, 'to_internal_dict', lambda: config)()
         provider = (internal.get('provider') or 'openai').strip().lower()
 
+        # Build system prompt with website and user context for accurate, personalized responses
+        system_prompt = TOOLS_SYSTEM_PROMPT + ASSISTANT_WEBSITE_CONTEXT
+        user_ctx = get_assistant_user_context(user)
+        if user_ctx:
+            system_prompt = system_prompt.rstrip() + "\n\n" + user_ctx + "\n"
+
         # Build messages from history + current (use more history so multi-turn flows like create-product don't forget)
         history = data.get('history') or data.get('conversation_history') or []
         max_history_messages = 50
@@ -1186,7 +1258,7 @@ def chat_with_tools():
                 prompt = '\n\n'.join(
                     (m.get('content', '') for m in messages if m.get('role') == 'user')
                 ) + '\n\nLatest: ' + message
-            result = call_llm(prompt, system_prompt=TOOLS_SYSTEM_PROMPT, config=config, temperature=0.2)
+            result = call_llm(prompt, system_prompt=system_prompt, config=config, temperature=0.2)
             content = (result.get('content') or '').strip()
             if not content or content.lower() == 'no response from ai':
                 content = "I couldn't generate a response this time. Please try again or rephrase your question."
@@ -1199,9 +1271,10 @@ def chat_with_tools():
 
         max_tool_rounds = 5
         last_redirect_prefill = None
+        last_search_products = None  # so frontend can show/navigate to product results
         for _ in range(max_tool_rounds):
             content, tool_calls = _call_openai_with_tools(
-                internal, messages, tools_openai, TOOLS_SYSTEM_PROMPT, timeout=90, temperature=0.2
+                internal, messages, tools_openai, system_prompt, timeout=90, temperature=0.2
             )
             if not tool_calls:
                 final = (content or '').strip() or "I couldn't complete that. Please try again or use the Admin panel."
@@ -1213,6 +1286,10 @@ def chat_with_tools():
                 }
                 if last_redirect_prefill is not None:
                     out['redirect_prefill'] = last_redirect_prefill
+                if last_search_products:
+                    out['suggested_products'] = last_search_products.get('products', [])
+                    out['suggested_product_ids'] = [p.get('id') for p in (last_search_products.get('products') or []) if p.get('id')]
+                    out['action'] = 'search_results' if out['suggested_product_ids'] else None
                 return jsonify(out), 200
 
             # Append assistant message with tool_calls
@@ -1241,6 +1318,8 @@ def chat_with_tools():
                 messages.append({'role': 'tool', 'tool_call_id': tid, 'content': json.dumps(result)})
                 if isinstance(result, dict) and result.get('action') == 'redirect_prefill':
                     last_redirect_prefill = {k: result.get(k) for k in ('path', 'tab', 'openProductForm', 'prefill', 'editProductId') if k in result}
+                if name == 'search_products' and isinstance(result, dict) and result.get('success') and result.get('products'):
+                    last_search_products = result
             # Next iteration will call LLM again with tool results
         # Max rounds reached
         final = (content or '').strip() if content else "I hit a limit on steps. Please try a simpler request or use the Admin panel."
@@ -1252,6 +1331,10 @@ def chat_with_tools():
         }
         if last_redirect_prefill is not None:
             out['redirect_prefill'] = last_redirect_prefill
+        if last_search_products:
+            out['suggested_products'] = last_search_products.get('products', [])
+            out['suggested_product_ids'] = [p.get('id') for p in (last_search_products.get('products') or []) if p.get('id')]
+            out['action'] = 'search_results' if out.get('suggested_product_ids') else None
         return jsonify(out), 200
 
     except Exception as e:
@@ -1560,11 +1643,13 @@ def chat():
             'show', 'find', 'search', 'look', 'need', 'want',
             'looking for', 'show me', 'find me', 'i need', 'i want',
             'display', 'list', 'get', 'bring', 'give me', 'see',
+            'sale', 'on sale', 'discount', 'discounts', 'deals', 'promotion', 'what\'s on sale', 'whats on sale',
         ]
         product_type_keywords = [
             'shirt', 'pants', 'dress', 'shoes', 'jacket', 'sweater',
             'men', 'women', 'kids', 'blue', 'red', 'black', 'white',
             'wedding', 'party', 'business', 'casual', 'formal', 'occasion',
+            'sale', 'discount', 'deals',
         ]
         explicit_find_show_intent = any(k in message for k in product_request_keywords)
         has_product_type = any(k in message for k in product_type_keywords)
@@ -1640,7 +1725,16 @@ def chat():
                     vector_products = [id_to_product[pid].to_dict() for pid in extracted_ids if pid in id_to_product]
                     vector_product_ids = [pid for pid in extracted_ids if pid in id_to_product]
         
-        # If we didn't fetch by product ID, use filters or vector search
+        # When user asks what's on sale / discounts / deals, return products currently on sale
+        sale_keywords = ['sale', 'on sale', 'discount', 'discounts', 'discounted', 'deals', 'promotion', 'promotions', 'special offer', 'what\'s on sale', 'whats on sale']
+        if not vector_products and any(k in message for k in sale_keywords):
+            sale_products_list, sale_ids_list = get_products_on_sale(20)
+            if sale_products_list:
+                vector_products = sale_products_list
+                vector_product_ids = sale_ids_list
+                print(f"Sale search: found {len(vector_products)} product(s) on sale.")
+        
+        # If we didn't fetch by product ID or sale, use filters or vector search
         if not vector_products and (detected_occasion or detected_age_group or detected_category or detected_clothing_type or detected_color or detected_dress_style):
             query = Product.query.filter_by(is_active=True)
             
@@ -1867,6 +1961,9 @@ Use this only when the customer explicitly asked for advice (e.g. what goes with
 PRODUCT DATABASE (sample):
 {json.dumps(product_sample, indent=2)}
 Use only to answer the specific question. When listing products, use format: Product #ID: Name - $Price.
+
+WEBSITE INFORMATION (use for policy/shipping/returns/about/contact questions; do not invent):
+{ASSISTANT_WEBSITE_CONTEXT.strip()}
 
 Keep each reply focused on the customer's actual question. No unsolicited recommendations or extra products."""
         

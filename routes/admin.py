@@ -11,7 +11,7 @@ from models.ai_assistant_config import AiAssistantConfig
 from routes.auth import require_auth
 from utils.fashion_kb import FASHION_KNOWLEDGE_BASE
 from utils.seasonal_events import get_upcoming_holidays, get_current_holidays_and_events
-from utils.vector_db import add_product_to_vector_db, update_product_in_vector_db, delete_product_from_vector_db
+from utils.vector_db import add_product_to_vector_db, update_product_in_vector_db, delete_product_from_vector_db, get_chromadb_status
 from functools import wraps
 from datetime import date, datetime, timedelta
 import json
@@ -582,17 +582,40 @@ def create_product():
         return jsonify({'error': str(e)}), 500
 
 
+def _chromadb_unavailable_message():
+    """Build user-facing message when ChromaDB is not available."""
+    available, reason = get_chromadb_status()
+    if available:
+        return None
+    base = "ChromaDB is not available. AI search uses keyword and filter search (categories, sale, etc.)."
+    if reason and "No module named" in reason:
+        fix = "Install with: pip install numpy==1.26.4 chromadb==0.4.18 (requires C++ Build Tools on Windows)."
+    elif reason:
+        fix = f"Import error: {reason}. Ensure C++ Build Tools are installed, then: pip install numpy==1.26.4 chromadb==0.4.18"
+    else:
+        fix = "For semantic search, install: pip install numpy==1.26.4 chromadb==0.4.18 (requires C++ Build Tools on Windows)."
+    return f"{base} {fix}"
+
+
 @admin_bp.route('/products/sync-vector-db', methods=['POST'])
 @require_admin
 def sync_products_to_vector_db():
-    """Sync all active products from SQL to ChromaDB so they appear in AI search."""
+    """Sync all active products from SQL to ChromaDB so they appear in AI search. Works without ChromaDB (reports status)."""
     try:
         from utils.vector_db import sync_all_products_from_sql
-        synced = sync_all_products_from_sql(current_app._get_current_object())
+        synced, chromadb_available = sync_all_products_from_sql()
+        if chromadb_available:
+            return jsonify({
+                'success': True,
+                'message': f'Synced {synced} product(s) to AI search.',
+                'synced': synced
+            }), 200
+        msg = _chromadb_unavailable_message()
         return jsonify({
             'success': True,
-            'message': f'Synced {synced} product(s) to AI search.',
-            'synced': synced
+            'message': msg,
+            'chromadb_error': get_chromadb_status()[1] or None,
+            'synced': 0
         }), 200
     except Exception as e:
         import traceback
@@ -600,8 +623,41 @@ def sync_products_to_vector_db():
         return jsonify({
             'success': False,
             'error': str(e),
-            'message': 'Failed to sync products to vector database.'
+            'message': getattr(e, 'message', None) or 'Failed to sync products to vector database.'
         }), 500
+
+
+@admin_bp.route('/install-chromadb', methods=['POST'])
+@require_admin
+def install_chromadb():
+    """Try to install ChromaDB in the current Python environment. Restart backend after success."""
+    import subprocess
+    import sys
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "numpy==1.26.4", "chromadb==0.4.18"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+        out = (result.stdout or "").strip() + "\n" + (result.stderr or "").strip()
+        if result.returncode != 0:
+            return jsonify({
+                'success': False,
+                'message': 'ChromaDB install failed. Install C++ Build Tools (see scripts/install-cpp-build-tools.md), then run in terminal: pip install numpy==1.26.4 chromadb==0.4.18',
+                'detail': out,
+                'returncode': result.returncode
+            }), 200
+        return jsonify({
+            'success': True,
+            'message': 'ChromaDB installed. Restart the backend server to enable semantic search, then use "Sync to AI Search" in Admin → Products.',
+            'detail': out
+        }), 200
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'message': 'Install timed out. Run in terminal: pip install numpy==1.26.4 chromadb==0.4.18'}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 200
 
 
 @admin_bp.route('/products/<int:product_id>', methods=['PUT'])

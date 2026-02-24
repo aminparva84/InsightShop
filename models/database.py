@@ -287,7 +287,9 @@ def init_db(app):
                 time.sleep(8)  # Let gunicorn bind and first health check succeed before heavy vector sync
                 try:
                     from utils.vector_db import sync_all_products_from_sql
-                    sync_all_products_from_sql(app)
+                    synced, _ = sync_all_products_from_sql(app)
+                    if synced > 0:
+                        print(f"Vector DB: synced {synced} products.")
                 except Exception as e:
                     print(f"Warning: Could not sync products to vector DB: {e}")
             threading.Thread(target=_deferred_sync, daemon=True).start()

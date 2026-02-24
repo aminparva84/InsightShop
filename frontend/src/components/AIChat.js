@@ -1000,7 +1000,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
     const wantsToSeeInChat = showInChatKeywords.some(keyword => userInputLower.includes(keyword));
 
     try {
-      const chatUrl = isAdmin ? '/api/ai/chat-with-tools' : '/api/ai/chat';
+      // Logged-in users get tool-capable chat (wishlist, cart, order status, etc.); guests get standard chat
+      const chatUrl = user ? '/api/ai/chat-with-tools' : '/api/ai/chat';
       const payload = {
         message: userText,
         history: historyForRequest,

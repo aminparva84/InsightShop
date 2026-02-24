@@ -1109,6 +1109,11 @@
     box-sizing: border-box;
   }
 
+  /* More space between "View all products" and Special offers title on mobile */
+  .featured-products .special-offers .section-title-wrap {
+    margin-top: 2rem;
+  }
+
   .featured-products .container {
     border-radius: 6%;
     margin-left: auto;
@@ -1128,7 +1133,10 @@
     gap: 10px;
   }
   /* Scroll row: fixed width so 2 cards visible by default */
-  .featured-products .special-offers .special-offers-scroll-wrap .product-grid {
+  .featured-products .special-offers .special-offers-scroll-wrap .special-offers-carousel-track .product-grid {
+    gap: 10px;
+  }
+  .featured-products .special-offers .special-offers-scroll-wrap .special-offers-carousel-track {
     gap: 10px;
   }
   .featured-products .special-offers .product-grid-item-wrapper {
@@ -1198,7 +1206,10 @@
     gap: 8px;
   }
   /* Scroll row: fixed width so 2 cards visible by default */
-  .featured-products .special-offers .special-offers-scroll-wrap .product-grid {
+  .featured-products .special-offers .special-offers-scroll-wrap .special-offers-carousel-track .product-grid {
+    gap: 8px;
+  }
+  .featured-products .special-offers .special-offers-scroll-wrap .special-offers-carousel-track {
     gap: 8px;
   }
   .featured-products .special-offers .product-grid-item-wrapper {
@@ -1260,12 +1271,12 @@
   align-items: stretch;
 }
 
-/* Special offers: single row, horizontal scroll (scrollbar hidden), drag to scroll */
+/* Special offers: single row, auto carousel (overflow hidden so only animation moves content) */
 .special-offers-scroll-wrap {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  overflow-x: scroll; /* always allow horizontal scroll when content overflows */
+  overflow-x: hidden; /* carousel is driven by CSS animation only */
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;
@@ -1300,8 +1311,33 @@
   margin-top: 24px;
 }
 
-/* Horizontal scroll: grid is one row, wider than viewport; scroll-wrap is the scroll container */
-.featured-products .special-offers .special-offers-scroll-wrap .product-grid {
+/* Horizontal scroll: track holds two copies of the grid for seamless loop; scroll-wrap is the scroll container */
+/* Slow auto carousel: track moves by 50% then loops (55s full cycle) */
+@keyframes special-offers-carousel {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+.featured-products .special-offers .special-offers-scroll-wrap .special-offers-carousel-track {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 20px;
+  width: max-content;
+  min-width: max-content;
+  animation: special-offers-carousel 55s linear infinite;
+  will-change: transform;
+}
+/* Pause auto carousel on hover so user can read or click */
+.featured-products .special-offers .special-offers-scroll-wrap:hover .special-offers-carousel-track {
+  animation-play-state: paused;
+}
+.featured-products .special-offers .special-offers-scroll-wrap--dragging .special-offers-carousel-track {
+  animation-play-state: paused;
+}
+.featured-products .special-offers .special-offers-scroll-wrap .special-offers-carousel-track .product-grid {
   display: flex;
   flex-wrap: nowrap;
   gap: 20px;

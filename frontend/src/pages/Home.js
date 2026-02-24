@@ -344,7 +344,10 @@ const Home = () => {
                     role="region"
                     aria-label="Special offers carousel"
                   >
-                    <ProductGrid products={specialOffers} />
+                    <div className="special-offers-carousel-track">
+                      <ProductGrid products={specialOffers} />
+                      <ProductGrid products={specialOffers} />
+                    </div>
                   </div>
                   <div className="featured-products-view-all">
                     <Link to="/products?on_sale=1" className="featured-products-view-all-link">View all deals</Link>

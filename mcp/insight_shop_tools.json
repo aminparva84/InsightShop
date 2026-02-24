@@ -29,7 +29,7 @@
     },
     {
       "name": "search_products",
-      "description": "Search for products by query and optional filters (category, size, max price, sort). Use when the user wants to find, search, or browse items.",
+      "description": "Search for products by query and optional filters (category, size, max price, sort, on_sale). Use when the user wants to find, search, or browse items. Set on_sale to true when they ask what's on sale, discounts, or deals.",
       "permission": "user",
       "input_schema": {
         "type": "object",
@@ -39,7 +39,8 @@
           "category": { "type": "string", "enum": ["", "men", "women", "kids"] },
           "size": { "type": "string", "maxLength": 20 },
           "max_price": { "type": "number", "minimum": 0, "maximum": 100000 },
-          "sort_by": { "type": "string", "enum": ["relevance", "rating", "price_low", "price_high"] }
+          "sort_by": { "type": "string", "enum": ["relevance", "rating", "price_low", "price_high"] },
+          "on_sale": { "type": "boolean", "description": "If true, return only products that are currently on sale." }
         }
       }
     },

@@ -688,8 +688,8 @@
     border-bottom: 1px solid rgba(232, 228, 220, 0.2);
   }
 
-  /* Keep cart and wishlist visible in top bar; hide only Home/Products (they're in the menu) */
-  .navbar-links .nav-link:not(.nav-cart-link):not(.nav-wishlist-link) {
+  /* Keep cart visible in top bar; hide Home/Products (they're in the sandwich menu) */
+  .navbar-links .nav-link:not(.nav-cart-link) {
     display: none;
   }
 

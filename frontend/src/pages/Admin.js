@@ -63,6 +63,7 @@ const Admin = () => {
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [syncVectorLoading, setSyncVectorLoading] = useState(false);
+  const [installChromadbLoading, setInstallChromadbLoading] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -1068,7 +1069,7 @@ const Admin = () => {
       const data = await runSyncVectorDbApi();
       if (data.success) {
         setMessage({
-          type: 'success',
+          type: data.synced !== undefined && data.synced > 0 ? 'success' : 'info',
           text: data.message || `Synced ${data.synced ?? 0} product(s) to AI search.`
         });
       } else {
@@ -1079,6 +1080,32 @@ const Admin = () => {
       setMessage({ type: 'error', text: errMsg });
     } finally {
       setSyncVectorLoading(false);
+    }
+  };
+
+  /** Install ChromaDB in the backend Python env (requires C++ Build Tools on Windows). Restart backend after success. */
+  const handleInstallChromadb = async () => {
+    if (!window.confirm('Install ChromaDB in the backend environment? This may take a few minutes. Restart the backend server after success to enable semantic search.')) return;
+    setInstallChromadbLoading(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const response = await axios.post('/api/admin/install-chromadb', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = response.data || {};
+      if (data.success) {
+        setMessage({ type: 'success', text: data.message || 'ChromaDB installed. Restart the backend, then use Sync to AI Search.' });
+      } else {
+        setMessage({
+          type: 'error',
+          text: [data.message, data.detail].filter(Boolean).join(' ') || 'Install failed.'
+        });
+      }
+    } catch (error) {
+      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to run install.';
+      setMessage({ type: 'error', text: errMsg });
+    } finally {
+      setInstallChromadbLoading(false);
     }
   };
 
@@ -2098,6 +2125,16 @@ const Admin = () => {
                   style={{ background: syncVectorLoading ? '#94a3b8' : '#64748b', color: '#fff' }}
                 >
                   {syncVectorLoading ? 'Syncing…' : 'Sync to AI Search'}
+                </button>
+                <button
+                  type="button"
+                  className="save-btn"
+                  onClick={handleInstallChromadb}
+                  disabled={installChromadbLoading}
+                  title="Install ChromaDB in the backend (requires C++ Build Tools on Windows). Restart backend after install."
+                  style={{ background: installChromadbLoading ? '#94a3b8' : '#475569', color: '#fff' }}
+                >
+                  {installChromadbLoading ? 'Installing…' : 'Install ChromaDB'}
                 </button>
                 <button className="save-btn" onClick={() => {
                   setShowProductForm(!showProductForm);

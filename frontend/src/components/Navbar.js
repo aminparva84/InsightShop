@@ -131,15 +131,11 @@ const Navbar = () => {
     }
   };
 
-  /* Top bar: Home, Products, Wishlist, Cart – wishlist always visible (RequireAuth redirects to login) */
+  /* Top bar: Home, Products, Cart – wishlist only in sandwich menu */
   const navLinks = (
     <>
       <Link to="/" className="nav-link" onClick={closeMenu}>Home</Link>
       <Link to="/products" className="nav-link" onClick={closeMenu}>Products</Link>
-      <Link to="/wishlist" className="nav-link nav-wishlist-link" title="Wishlist" onClick={closeMenu} aria-label={wishlistCount > 0 ? `${wishlistCount} items in wishlist` : 'Wishlist'}>
-        <span className="nav-wishlist-icon" aria-hidden="true"><WishlistIcon /></span>
-        {wishlistCount > 0 && <span className="wishlist-badge" aria-label={`${wishlistCount} items in wishlist`}>{wishlistCount}</span>}
-      </Link>
       <Link to="/cart" className="nav-link nav-cart-link" title="Shopping Cart" onClick={closeMenu} aria-label={cartCount > 0 ? `${cartCount} items in cart` : 'Shopping Cart'}>
         <span className="nav-cart-icon" aria-hidden="true"><CartIcon /></span>
         {cartCount > 0 && <span className="cart-badge" aria-label={`${cartCount} items in cart`}>{cartCount}</span>}

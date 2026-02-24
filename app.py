@@ -113,8 +113,10 @@ from routes.reviews import reviews_bp
 from routes.shipping import shipping_bp
 from routes.returns import returns_bp
 from routes.wishlist import wishlist_bp
+from routes.contact import contact_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
+app.register_blueprint(contact_bp, url_prefix='/api/contact')
 app.register_blueprint(products_bp, url_prefix='/api/products')
 app.register_blueprint(cart_bp, url_prefix='/api/cart')
 app.register_blueprint(orders_bp, url_prefix='/api/orders')

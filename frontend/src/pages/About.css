@@ -1,0 +1,22 @@
+/* About page – no extra overrides; uses InfoPages.css */
+
+.about-page .info-section ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.about-page .info-section ul li {
+  padding-left: 24px;
+  position: relative;
+}
+
+.about-page .info-section ul li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1a2332;
+}

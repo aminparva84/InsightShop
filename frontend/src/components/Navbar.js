@@ -228,6 +228,15 @@ const Navbar = () => {
           <div className="navbar-dropdown-inner">
             {sliderNavLinks}
             {sliderTopLinks}
+            <div className="navbar-slider-support">
+              <span className="navbar-slider-support-label">Support</span>
+              <div className="navbar-slider-support-links">
+                <Link to="/about" className="navbar-slider-link" onClick={closeMenu}>About Us</Link>
+                <Link to="/contact" className="navbar-slider-link" onClick={closeMenu}>Contact</Link>
+                <Link to="/shipping" className="navbar-slider-link" onClick={closeMenu}>Shipping Info</Link>
+                <Link to="/returns" className="navbar-slider-link" onClick={closeMenu}>Returns</Link>
+              </div>
+            </div>
             <div className="navbar-slider-filters">
               <span className="navbar-slider-filters-label">Shop by</span>
               <div className="navbar-slider-genders">

@@ -40,10 +40,10 @@ const Footer = () => {
           <div className="footer-section">
             <h3 className="footer-title">Support</h3>
             <ul className="footer-links">
-              <li><a href="#about">About Us</a></li>
-              <li><a href="#contact">Contact</a></li>
-              <li><a href="#shipping">Shipping Info</a></li>
-              <li><a href="#returns">Returns</a></li>
+              <li><Link to="/about">About Us</Link></li>
+              <li><Link to="/contact">Contact</Link></li>
+              <li><Link to="/shipping">Shipping Info</Link></li>
+              <li><Link to="/returns">Returns</Link></li>
             </ul>
           </div>
         </div>

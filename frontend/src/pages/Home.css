@@ -374,17 +374,13 @@
 /* Season banners: vintage classic – warm overlay, frame-style cards, sage/cream palette */
 .season-banners {
   padding: 56px 24px 72px;
-  background: var(--site-bg, #C3B0A1);
 }
 
 .season-banners-inner {
   max-width: min(1280px, 95vw);
   margin: 0 auto;
   padding: 32px 28px 40px;
-  background: rgba(232, 228, 220, 0.25);
   border-radius: 6%;
-  border: 1px solid rgba(79, 87, 71, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 4px 20px rgba(55, 63, 46, 0.08);
 }
 
 /* Section title – Bebas + script subtitle for vintage feel */
@@ -394,6 +390,30 @@
   align-items: flex-start;
   margin-bottom: 24px;
   width: 100%;
+}
+
+/* Row: title + wavy on left, curved line fills to the right */
+.season-banners .section-title-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 0;
+  min-width: 0;
+}
+
+.season-banners .section-title-curved-line {
+  flex: 1;
+  min-width: 24px;
+  height: 22px;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.season-banners .section-title-curved-line svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .season-banners .section-title-and-wavy {
@@ -427,8 +447,7 @@
 }
 
 .season-banners .section-title-wavy {
-  flex-shrink: 0;
-  margin-top: -14px;
+  display: none; /* curve line under title removed */
 }
 
 .season-banners .season-banners-subtitle {
@@ -456,12 +475,10 @@
   background-color: #8a7d6e;
   text-decoration: none;
   color: inherit;
-  border: 3px solid rgba(79, 87, 71, 0.35);
-  box-shadow: 0 4px 20px rgba(55, 63, 46, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  transition: transform 0.3s ease;
 }
 
-/* Image layer with vintage filter: sepia, reduced saturation, soft contrast */
+/* Image layer: light touch so original colors show through */
 .season-banner-card::before {
   content: '';
   position: absolute;
@@ -470,32 +487,30 @@
   background-image: var(--season-bg);
   background-size: cover;
   background-position: center;
-  filter: sepia(0.45) saturate(0.75) contrast(1.05) brightness(0.88);
+  filter: sepia(0.08) saturate(1) contrast(1.02) brightness(0.97);
   transition: filter 0.35s ease;
 }
 
 .season-banner-card:hover::before {
-  filter: sepia(0.35) saturate(0.8) contrast(1.06) brightness(0.9);
+  filter: sepia(0.05) saturate(1.02) contrast(1.02) brightness(0.98);
 }
 
 .season-banner-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(55, 63, 46, 0.2), 0 0 0 1px rgba(79, 87, 71, 0.2);
-  border-color: rgba(79, 87, 71, 0.4);
 }
 
-/* Warm overlay + vignette (darker edges like old prints) */
+/* Light overlay so image colors remain visible; subtle vignette only */
 .season-banner-glass {
   position: absolute;
   inset: 0;
   z-index: 1;
   background:
-    radial-gradient(ellipse 85% 90% at 50% 50%, transparent 35%, rgba(45, 40, 35, 0.5) 100%),
+    radial-gradient(ellipse 90% 92% at 50% 50%, transparent 50%, rgba(45, 40, 35, 0.18) 100%),
     linear-gradient(
       180deg,
-      rgba(55, 48, 42, 0.2) 0%,
-      rgba(55, 48, 42, 0.45) 50%,
-      rgba(50, 44, 38, 0.65) 100%
+      rgba(55, 48, 42, 0.06) 0%,
+      rgba(55, 48, 42, 0.18) 50%,
+      rgba(50, 44, 38, 0.28) 100%
     );
   pointer-events: none;
   transition: background 0.3s ease, opacity 0.3s ease;
@@ -503,22 +518,22 @@
 
 .season-banner-card:hover .season-banner-glass {
   background:
-    radial-gradient(ellipse 80% 85% at 50% 50%, transparent 30%, rgba(40, 35, 30, 0.55) 100%),
+    radial-gradient(ellipse 88% 90% at 50% 50%, transparent 45%, rgba(40, 35, 30, 0.22) 100%),
     linear-gradient(
       180deg,
-      rgba(50, 44, 38, 0.25) 0%,
-      rgba(50, 44, 38, 0.5) 50%,
-      rgba(45, 39, 33, 0.7) 100%
+      rgba(50, 44, 38, 0.08) 0%,
+      rgba(50, 44, 38, 0.2) 50%,
+      rgba(45, 39, 33, 0.32) 100%
     );
 }
 
-/* Subtle film-grain texture overlay (vintage photo feel) */
+/* Very subtle film-grain texture so it doesn't wash out colors */
 .season-banner-card::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 2;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.015'/%3E%3C/svg%3E");
   background-repeat: repeat;
   pointer-events: none;
   mix-blend-mode: overlay;
@@ -544,7 +559,6 @@
 
 .season-banner-card:hover .season-banner-label {
   letter-spacing: 0.14em;
-  text-shadow: 0 2px 8px rgba(55, 63, 46, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
   color: #FFFEF5;
 }
 
@@ -878,7 +892,7 @@
 
 /* Featured Products – aligned with top banner, mid-banner, navbar (vintage theme) */
 .featured-products {
-  padding: 72px 36px 84px;
+  padding: 0 36px 0;
   background: var(--site-bg, #C3B0A1);
   display: flex;
   flex-direction: column;
@@ -918,6 +932,30 @@
   width: 100%;
 }
 
+/* Row: title + wavy on left, curved line fills to the right */
+.featured-products .section-title-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 0;
+  min-width: 0;
+}
+
+.featured-products .section-title-curved-line {
+  flex: 1;
+  min-width: 24px;
+  height: 22px;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.featured-products .section-title-curved-line svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 /* Inner wrapper so the wavy underline width matches the title (shrink-to-fit) */
 .featured-products .section-title-and-wavy {
   display: inline-flex;
@@ -944,9 +982,7 @@
 }
 
 .featured-products .section-title-wavy {
-  flex-shrink: 0;
-  /* width set by SectionTitleWithWavy to match title (offsetWidth) */
-  margin-top: -14px;
+  display: none; /* curve line under title removed */
 }
 
 /* Home search bar – vintage theme (warm tones, sage accent) */
@@ -1068,7 +1104,7 @@
 
 @media (max-width: 640px) {
   .featured-products {
-    padding: 48px 16px 64px;
+    padding: 0 16px 0;
     width: 100%;
     box-sizing: border-box;
   }
@@ -1145,7 +1181,7 @@
 
 @media (max-width: 480px) {
   .featured-products {
-    padding: 40px 12px 56px;
+    padding: 0 12px 0;
   }
 
   .featured-products .container {
@@ -2037,6 +2073,13 @@
     margin-top: -8px;
   }
 
+  .featured-products .section-title-curved-line,
+  .season-banners .section-title-curved-line {
+    min-width: 16px;
+    margin-left: 6px;
+    height: 12px;
+  }
+
   .floating-ai-button {
     bottom: 20px;
     right: 20px;
@@ -2137,6 +2180,13 @@
 
   .season-banners .season-banners-subtitle {
     font-size: clamp(14px, 4vw, 18px);
+  }
+
+  .featured-products .section-title-curved-line,
+  .season-banners .section-title-curved-line {
+    min-width: 12px;
+    margin-left: 4px;
+    height: 10px;
   }
 
   .special-offers-cta-banner-title {

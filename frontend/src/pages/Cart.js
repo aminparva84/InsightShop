@@ -7,6 +7,7 @@ import SizeSelector from '../components/SizeSelector';
 import ColorSwatches from '../components/ColorSwatches';
 import ProductCard from '../components/ProductCard';
 import ConfirmationDialog from '../components/ConfirmationDialog';
+import SectionTitleCurvedLine from '../components/SectionTitleCurvedLine';
 import axios from 'axios';
 import './Cart.css';
 
@@ -392,7 +393,12 @@ const Cart = () => {
 
         {/* Matching Pairs - AI-powered recommendations that go well with cart items */}
         <div className="cart-matching-pairs">
-          <h2 className="section-title">Matching Pairs</h2>
+          <div className="section-title-wrap">
+            <div className="section-title-row">
+              <h2 className="section-title">Matching Pairs</h2>
+              <SectionTitleCurvedLine color="#4F5747" />
+            </div>
+          </div>
           <p className="section-subtitle">Items that go well with what you have in your cart</p>
           {loadingMatchingPairs ? (
             <div className="spinner"></div>
@@ -413,7 +419,12 @@ const Cart = () => {
         {/* You Might Also Like */}
         {suggestedProducts.length > 0 && (
           <div className="cart-suggestions">
-            <h2 className="section-title">You Might Also Like</h2>
+            <div className="section-title-wrap">
+              <div className="section-title-row">
+                <h2 className="section-title">You Might Also Like</h2>
+                <SectionTitleCurvedLine color="#4F5747" />
+              </div>
+            </div>
             {loadingSuggestions ? (
               <div className="spinner"></div>
             ) : (

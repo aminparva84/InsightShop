@@ -76,17 +76,18 @@
   font-size: 0.875rem;
   line-height: 1.4;
   color: #4F5747;
-  background: #f5f0e6;
   max-width: 92%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .hero-chat-preview__bubble--user {
   align-self: flex-end;
+  background: #f5f0e6;
 }
 
 .hero-chat-preview__bubble--assistant {
   align-self: flex-start;
+  background: #e5e9e0;
 }
 
 /* Loading dots (typing indicator) – left-aligned like assistant */

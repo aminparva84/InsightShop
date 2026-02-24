@@ -1,0 +1,9 @@
+/* Shipping Info page – uses InfoPages.css; minor overrides if needed */
+
+.shipping-info-page .info-icon-row .text p {
+  margin: 0;
+}
+
+.shipping-info-page .info-icon-row:last-child .text p {
+  margin: 0;
+}

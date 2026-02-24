@@ -354,10 +354,14 @@
   border-top: 2px solid rgba(79, 87, 71, 0.35);
 }
 
-.cart-suggestions .section-title {
+.cart-suggestions .section-title-wrap {
+  margin-bottom: 32px;
+}
+
+.cart-suggestions .section-title-row .section-title {
   font-size: 28px;
   font-weight: 600;
-  margin-bottom: 32px;
+  margin-bottom: 0;
   color: #4F5747;
 }
 
@@ -375,10 +379,14 @@
   border-top: 2px solid rgba(79, 87, 71, 0.35);
 }
 
-.cart-matching-pairs .section-title {
+.cart-matching-pairs .section-title-wrap {
+  margin-bottom: 0;
+}
+
+.cart-matching-pairs .section-title-row .section-title {
   font-size: 28px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 0;
   color: #4F5747;
 }
 

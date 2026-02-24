@@ -7,19 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ScoopIcon, BowIcon, PaddingIcon, SlitIcon, getDressStyleIcon, MicrophoneIcon, SpeakerIcon, SpeakerOffIcon, StopIcon, PlayIcon } from './DressStyleIcons';
 import './AIChat.css';
 
-// Kendo-style toolbar icons (Copy, Retry, Download, More, Sparkles, Attachment)
-const CopyIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-  </svg>
-);
-const RetryIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 4v6h6"/>
-    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-  </svg>
-);
+// Kendo-style icons (Download, More, Attachment, etc.)
 const DownloadIcon = ({ size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -140,6 +128,7 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
   }, [initialMessage]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingSlow, setLoadingSlow] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [isListening, setIsListening] = useState(false);
@@ -176,15 +165,17 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
   const [findingMatches, setFindingMatches] = useState(false);
   const [matchedProducts, setMatchedProducts] = useState([]);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null); // Scroll only this container so we never scroll the window (e.g. when inline on Home)
   const recognitionRef = useRef(null);
   const audioRef = useRef(null); // For AWS Polly audio playback
   const fileInputRef = useRef(null);
   const inputRef = useRef(null); // For input focus management
 
+  /** Scroll the chat messages area to bottom. Only scrolls the messages container, never the window. */
   const scrollToBottom = () => {
-    // Only scroll if user is not typing (input is empty or not focused)
     if (!input.trim() && document.activeElement?.tagName !== 'INPUT') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const el = messagesContainerRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
   };
 
@@ -747,42 +738,6 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
     performSend(suggestion.text, messages);
   };
 
-  // Toolbar actions for AI messages (Copy, Retry, Download)
-  const handleToolbarAction = (actionId, msg, msgIndex) => {
-    switch (actionId) {
-      case 'copy':
-        if (msg.content) {
-          navigator.clipboard.writeText(msg.content).catch(() => {});
-        }
-        break;
-      case 'retry':
-        if (msgIndex > 0) {
-          const prevMsg = messages[msgIndex - 1];
-          if (prevMsg.role === 'user' && prevMsg.content) {
-            const historyForRequest = messages.slice(0, msgIndex - 1);
-            performSend(prevMsg.content, historyForRequest);
-          }
-        }
-        break;
-      case 'download':
-        if (msg.content) {
-          const blob = new Blob([msg.content], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `message_${msgIndex}.txt`;
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }
-        break;
-      default:
-        break;
-    }
-  };
-
   // Initialize speech recognition
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -1009,11 +964,22 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
     }
   };
 
+  // Show "Still thinking…" after 5s so users know the AI is working when responses are slow
+  useEffect(() => {
+    if (!loading) {
+      setLoadingSlow(false);
+      return;
+    }
+    const t = setTimeout(() => setLoadingSlow(true), 5000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   // Core send: set messages (history + user message), call API, then handle response. Used by handleSend and Retry.
   const performSend = async (userText, historyForRequest) => {
     const userInputLower = userText.toLowerCase();
     setMessages([...historyForRequest, { role: 'user', content: userText }]);
     setLoading(true);
+    setLoadingSlow(false);
 
     if (location.pathname === '/products') {
       const currentParams = new URLSearchParams(window.location.search);
@@ -1025,7 +991,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
     }
 
     setTimeout(() => {
-      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const el = messagesContainerRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
       if (inputRef.current) inputRef.current.focus();
     }, 50);
 
@@ -1039,7 +1006,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
         history: historyForRequest,
         selected_product_ids: selectedProductIds
       };
-      const response = await axios.post(chatUrl, payload);
+      // 90s timeout: AI can be slow; fail with clear message instead of hanging
+      const response = await axios.post(chatUrl, payload, { timeout: 90000 });
 
       const aiMessage = {
         role: 'assistant',
@@ -1077,9 +1045,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
       
       // Scroll chat to show new AI message and keep input focused
       setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        const el = messagesContainerRef.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
         if (inputRef.current) {
           inputRef.current.focus();
         }
@@ -1332,9 +1299,13 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
       // Don't navigate or minimize - just show the response
     } catch (error) {
       console.error('Error chatting with AI:', error);
+      const isTimeout = error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'));
+      const message = isTimeout
+        ? "The request took too long. The AI might be busy—please try again in a moment. You can still browse products!"
+        : `Sorry, I encountered an error: ${error.response?.data?.error || error.message || 'Unknown error'}. The AI service may not be configured yet, but you can still browse products!`;
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Sorry, I encountered an error: ${error.response?.data?.error || error.message || 'Unknown error'}. The AI service may not be configured yet, but you can still browse products!`
+        content: message
       }]);
     } finally {
       setLoading(false);
@@ -1434,21 +1405,12 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
           return (
           <div key={idx} className={`message ${msg.role}`} role="article" aria-label={msg.role === 'user' ? 'Your message' : 'Assistant message'}>
             <div className="message-content">
-              {/* Kendo-style toolbar for assistant messages: Copy, Retry, Download + Play (chatbox only, not inline banner) */}
+              {/* Voice playback only for assistant messages (chatbox only, not inline banner) */}
               {msg.role === 'assistant' && !isInline && (
-                <div className="kendo-message-toolbar">
-                  <button type="button" className="kendo-toolbar-btn" title="Copy" onClick={() => handleToolbarAction('copy', msg, idx)}>
-                    <CopyIcon size={14} /> Copy
-                  </button>
-                  <button type="button" className="kendo-toolbar-btn" title="Retry" onClick={() => handleToolbarAction('retry', msg, idx)} disabled={loading || idx === 0}>
-                    <RetryIcon size={14} /> Retry
-                  </button>
-                  <button type="button" className="kendo-toolbar-btn" title="Download" onClick={() => handleToolbarAction('download', msg, idx)}>
-                    <DownloadIcon size={14} /> Download
-                  </button>
+                <div className="kendo-message-voice">
                   <button
                     type="button"
-                    className="kendo-toolbar-btn kendo-toolbar-play"
+                    className="kendo-voice-btn"
                     title={isCurrentlyPlaying ? 'Stop' : 'Play voice'}
                     disabled={loading}
                     onClick={() => isCurrentlyPlaying ? stopSpeaking() : playMessage(msg.content, messageId)}
@@ -1902,6 +1864,11 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
                 <span></span>
                 <span></span>
               </div>
+              {loadingSlow && (
+                <div className="typing-slow-hint" style={{ marginTop: '6px', fontSize: '0.85rem', color: 'var(--ai-muted, #6b7280)' }}>
+                  Still thinking…
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1933,16 +1900,6 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onFocus={() => {
-              if (messagesEndRef.current) messagesEndRef.current.scrollIntoView = () => {};
-            }}
-            onBlur={() => {
-              if (messagesEndRef.current) {
-                messagesEndRef.current.scrollIntoView = function(options) {
-                  Element.prototype.scrollIntoView.call(this, options);
-                };
-              }
-            }}
             placeholder="Type a message..."
             disabled={loading || isListening}
             aria-label="Message to AI assistant"

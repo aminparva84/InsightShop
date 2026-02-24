@@ -29,11 +29,12 @@ import midBannerMobile from '../assets/mid-banner-mobile.webp';
 import './Home.css';
 
 /* Season banners: vintage-style imagery (softer, film-like) + sepia/vignette in CSS */
+const getSeasonImagePath = (filename) => `${process.env.PUBLIC_URL || ''}/images/${filename}`;
 const SEASON_BANNERS = [
-  { name: 'Spring', link: '/products?season=spring', image: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=600&q=80' },
-  { name: 'Summer', link: '/products?season=summer', image: 'https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?w=600&q=80' },
-  { name: 'Fall', link: '/products?season=fall', image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&q=80' },
-  { name: 'Winter', link: '/products?season=winter', image: 'https://images.unsplash.com/photo-1548777123-e216012df7d8?w=600&q=80' },
+  { name: 'Spring', link: '/products?season=spring', image: getSeasonImagePath('season-spring.png') },
+  { name: 'Summer', link: '/products?season=summer', image: getSeasonImagePath('season-summer.png') },
+  { name: 'Fall', link: '/products?season=fall', image: getSeasonImagePath('season-fall.png') },
+  { name: 'Winter', link: '/products?season=winter', image: getSeasonImagePath('season-winter.png') },
 ];
 
 const CATEGORIES = [
@@ -355,6 +356,43 @@ const Home = () => {
         </div>
       </section>
 
+      {/* Season banners: vintage frame-style cards, warm overlay, season hover effects – under Featured Products */}
+      <section className="season-banners" aria-label="Shop by season">
+        <div className="season-banners-inner">
+          <div className="section-title-wrap">
+            <SectionTitleWithWavy title="Seasonal Shopping" />
+            <p className="season-banners-subtitle">Choose your wardrobe based on the time of the year</p>
+          </div>
+          <div className="season-banners-container">
+          {SEASON_BANNERS.map((season) => (
+            <Link
+              key={season.name}
+              to={season.link}
+              className="season-banner-card"
+              style={{ '--season-bg': `url(${season.image})` }}
+              aria-label={`Shop ${season.name} collection`}
+            >
+              <span className="season-banner-glass" aria-hidden="true" />
+              <span className="season-banner-label">{season.name}</span>
+              {/* Season-specific hover effect: snow, petals, heat shimmer, leaves */}
+              <div className={`season-banner-effect season-banner-effect--${season.name.toLowerCase()}`} aria-hidden="true">
+                {season.name === 'Winter' && Array.from({ length: 14 }, (_, i) => (
+                  <span key={i} className="season-particle season-particle--snow" style={{ left: `${(i * 7) % 100}%`, '--anim-delay': `${(i * 0.35) % 4}s`, '--anim-duration': `${2.5 + (i % 3) * 0.5}s` }} />
+                ))}
+                {season.name === 'Spring' && Array.from({ length: 10 }, (_, i) => (
+                  <span key={i} className="season-particle season-particle--petal" style={{ left: `${10 + (i * 9)}%`, '--anim-delay': `${(i * 0.3) % 3}s`, '--anim-duration': `${3 + (i % 2) * 0.6}s` }} />
+                ))}
+                {season.name === 'Summer' && <span className="season-particle season-particle--shimmer" />}
+                {season.name === 'Fall' && Array.from({ length: 10 }, (_, i) => (
+                  <span key={i} className="season-particle season-particle--leaf" style={{ left: `${(i * 11) % 95}%`, '--anim-delay': `${(i * 0.25) % 3.5}s`, '--anim-duration': `${2.8 + (i % 2) * 0.4}s` }} />
+                ))}
+              </div>
+            </Link>
+          ))}
+          </div>
+        </div>
+      </section>
+
       {/* Special offers CTA banner – below featured products container, vintage style */}
       <section
         className="special-offers-cta-banner"
@@ -394,43 +432,6 @@ const Home = () => {
             >
               ASK AI
             </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Season banners: vintage frame-style cards, warm overlay, season hover effects */}
-      <section className="season-banners" aria-label="Shop by season">
-        <div className="season-banners-inner">
-          <div className="section-title-wrap">
-            <SectionTitleWithWavy title="Seasonal Shopping" />
-            <p className="season-banners-subtitle">Choose your wardrobe based on the time of the year</p>
-          </div>
-          <div className="season-banners-container">
-          {SEASON_BANNERS.map((season) => (
-            <Link
-              key={season.name}
-              to={season.link}
-              className="season-banner-card"
-              style={{ '--season-bg': `url(${season.image})` }}
-              aria-label={`Shop ${season.name} collection`}
-            >
-              <span className="season-banner-glass" aria-hidden="true" />
-              <span className="season-banner-label">{season.name}</span>
-              {/* Season-specific hover effect: snow, petals, heat shimmer, leaves */}
-              <div className={`season-banner-effect season-banner-effect--${season.name.toLowerCase()}`} aria-hidden="true">
-                {season.name === 'Winter' && Array.from({ length: 14 }, (_, i) => (
-                  <span key={i} className="season-particle season-particle--snow" style={{ left: `${(i * 7) % 100}%`, '--anim-delay': `${(i * 0.35) % 4}s`, '--anim-duration': `${2.5 + (i % 3) * 0.5}s` }} />
-                ))}
-                {season.name === 'Spring' && Array.from({ length: 10 }, (_, i) => (
-                  <span key={i} className="season-particle season-particle--petal" style={{ left: `${10 + (i * 9)}%`, '--anim-delay': `${(i * 0.3) % 3}s`, '--anim-duration': `${3 + (i % 2) * 0.6}s` }} />
-                ))}
-                {season.name === 'Summer' && <span className="season-particle season-particle--shimmer" />}
-                {season.name === 'Fall' && Array.from({ length: 10 }, (_, i) => (
-                  <span key={i} className="season-particle season-particle--leaf" style={{ left: `${(i * 11) % 95}%`, '--anim-delay': `${(i * 0.25) % 3.5}s`, '--anim-duration': `${2.8 + (i % 2) * 0.4}s` }} />
-                ))}
-              </div>
-            </Link>
-          ))}
           </div>
         </div>
       </section>

@@ -32,7 +32,7 @@ from sqlalchemy import or_
 ai_agent_bp = Blueprint('ai_agent', __name__)
 
 # Project-level Gemini rate limit: minimum seconds between Gemini API requests (avoids burst 429s)
-GEMINI_MIN_DELAY = 1.0
+GEMINI_MIN_DELAY = 0.3
 _gemini_last_request_time = [0.0]
 _gemini_throttle_lock = threading.Lock()
 
@@ -186,8 +186,30 @@ def _strip_search_boilerplate(text):
     return s.strip()
 
 
+def _cart_action_response_template(action, result, user_message, params=None):
+    """Return a short confirmation for cart actions without calling the LLM (faster)."""
+    params = params or {}
+    if action == 'add_item':
+        qty = params.get('quantity', 1)
+        try:
+            qty = int(qty)
+        except (TypeError, ValueError):
+            qty = 1
+        if qty > 1:
+            return f"I've added {qty} items to your cart."
+        return "I've added that to your cart."
+    if action == 'remove_item':
+        return "I've removed that from your cart."
+    if action == 'show_cart':
+        return user_message if user_message and user_message.strip() else "Here's your cart."
+    if action == 'clear_cart':
+        return "Your cart is now empty."
+    return user_message or "Done."
+
+
 def _write_action_response(action, result, fallback_message, config, is_success=True):
-    """Ask the LLM to write one short professional confirmation after an action. On failure, use result message or fallback."""
+    """Ask the LLM to write one short professional confirmation after an action. On failure, use result message or fallback.
+    Prefer _cart_action_response_template for cart actions to avoid a second LLM call."""
     summary = result.get('message', 'Done.')
     if action == 'show_cart' and result.get('items'):
         summary += ' ' + ', '.join(f"{it.get('name', 'Item')} x{it.get('quantity', 1)}" for it in result['items'][:5])
@@ -359,9 +381,23 @@ if Config.AWS_REGION:
         polly_client = None
 
 def get_all_products_for_ai():
-    """Get all products formatted for AI context."""
+    """Get all products formatted for AI context (full details + reviews). Use only when full catalog is needed."""
     products = Product.query.filter_by(is_active=True).all()
     return [p.to_dict_for_ai() for p in products]
+
+
+def get_product_count_for_ai():
+    """Lightweight: total count of active products (no loading)."""
+    return Product.query.filter_by(is_active=True).count()
+
+
+def get_product_sample_for_ai(limit=20):
+    """Lightweight sample of products for chat system prompt (id, name, price, category, color only)."""
+    products = Product.query.filter_by(is_active=True).limit(limit).all()
+    return [
+        {'id': p.id, 'name': p.name, 'price': float(p.price), 'category': p.category, 'color': (p.color or 'N/A')}
+        for p in products
+    ]
 
 def search_products_by_criteria(criteria):
     """Search products by various criteria."""
@@ -655,12 +691,20 @@ def call_llm(prompt, system_prompt=None, config=None, temperature=0.3):
     provider = (internal.get('provider') or 'openai').strip().lower()
     api_key = internal.get('api_key')
 
+    def _normalize_empty_content(text):
+        """Ensure we never return empty or generic 'No response from AI' to the user."""
+        if not text or not (text or '').strip():
+            return "The assistant didn't return a response this time. Please try again or rephrase your question."
+        if (text or '').strip().lower() == 'no response from ai':
+            return "The assistant didn't return a response this time. Please try again or rephrase your question."
+        return text
+
     if provider == 'openai':
         if not api_key:
             return {'content': 'OpenAI API key is not set for this model. Add it in Admin → AI Assistant.'}
         try:
             text = _call_openai(internal, prompt, system_prompt, temperature=temperature)
-            return {'content': text}
+            return {'content': _normalize_empty_content(text)}
         except Exception as e:
             print(f"Error calling OpenAI: {e}")
             return {'content': _normalize_llm_error(e)}
@@ -670,7 +714,7 @@ def call_llm(prompt, system_prompt=None, config=None, temperature=0.3):
             return {'content': 'Gemini API key is not set for this model. Add it in Admin → AI Assistant.'}
         try:
             text = _call_gemini(internal, prompt, system_prompt, temperature=temperature)
-            return {'content': text}
+            return {'content': _normalize_empty_content(text)}
         except Exception as e:
             print(f"Error calling Gemini: {e}")
             return {'content': _normalize_llm_error(e)}
@@ -680,7 +724,7 @@ def call_llm(prompt, system_prompt=None, config=None, temperature=0.3):
             return {'content': 'Anthropic API key is not set. Add it in Admin → AI Assistant or set ANTHROPIC_API_KEY in .env.'}
         try:
             text = _call_anthropic(internal, prompt, system_prompt, temperature=temperature)
-            return {'content': text}
+            return {'content': _normalize_empty_content(text)}
         except Exception as e:
             print(f"Error calling Anthropic: {e}")
             return {'content': _normalize_llm_error(e)}
@@ -690,7 +734,7 @@ def call_llm(prompt, system_prompt=None, config=None, temperature=0.3):
             return {'content': 'Vertex AI credentials are not set. Add a service account JSON key and region in Admin → AI Assistant.'}
         try:
             text = _call_vertex(internal, prompt, system_prompt, temperature=temperature)
-            return {'content': text}
+            return {'content': _normalize_empty_content(text)}
         except Exception as e:
             print(f"Error calling Vertex: {e}")
             return {'content': _normalize_llm_error(e)}
@@ -1144,6 +1188,8 @@ def chat_with_tools():
                 ) + '\n\nLatest: ' + message
             result = call_llm(prompt, system_prompt=TOOLS_SYSTEM_PROMPT, config=config, temperature=0.2)
             content = (result.get('content') or '').strip()
+            if not content or content.lower() == 'no response from ai':
+                content = "I couldn't generate a response this time. Please try again or rephrase your question."
             return jsonify({
                 'success': True,
                 'response': content,
@@ -1258,8 +1304,8 @@ def chat():
                             if action == 'show_cart' and result.get('items'):
                                 lines = [f"- {it.get('name', 'Item')} x{it.get('quantity', 1)} (${float(it.get('subtotal', 0)):.2f})" for it in result['items'][:15]]
                                 user_message = result.get('message', '') + '\n\n' + '\n'.join(lines) if lines else user_message
-                            # Write a short professional success confirmation (LLM)
-                            response_text = _write_action_response(action, result, user_message, ai_config)
+                            # Use template response (no second LLM call) for speed
+                            response_text = _cart_action_response_template(action, result, user_message, params)
                             redirect_to = '/cart' if action in ('add_item', 'remove_item', 'show_cart', 'clear_cart') else None
                             return jsonify({
                                 'response': response_text,
@@ -1275,16 +1321,7 @@ def chat():
                         else:
                             # Action was allowed but execution failed (e.g. no matching product)
                             failure_message = result.get('message', "The action couldn't be completed.")
-                            try:
-                                failure_response = _write_action_response(
-                                    action,
-                                    result,
-                                    failure_message,
-                                    ai_config,
-                                    is_success=False,
-                                )
-                            except Exception:
-                                failure_response = failure_message
+                            failure_response = failure_message
                             return jsonify({
                                 'response': failure_response,
                                 'action': 'agent_executed',
@@ -1356,8 +1393,9 @@ def chat():
                     'selected_provider': selected_provider,
                 }), 200
         
-        # Get all products for context
-        all_products = get_all_products_for_ai()
+        # Lightweight: count and small sample only (avoids loading full catalog + reviews)
+        product_count = get_product_count_for_ai()
+        product_sample = get_product_sample_for_ai(20)
         
         # When the user is answering a follow-up question (size, style, etc.), merge with their previous
         # product request so we build a better query and run search with the refined criteria.
@@ -1553,30 +1591,15 @@ def chat():
             and attributes_given <= 2
         )
         
-        # When the request is underspecified, ask follow-up questions instead of running search
+        # When the request is underspecified, ask follow-up questions (fixed text = no LLM call, faster)
         if is_underspecified:
-            clarification_response_text = None
-            try:
-                clarification_prompt = f"""The customer asked: "{message}". They did not specify size, style, or occasion — we need this to build a better search query.
-Your job: reply with exactly 1 or 2 short follow-up questions so we can refine the search and show more relevant results. Examples: "What size do you need?" or "Any preferred style (casual or formal)?"
-Output ONLY the questions, one per line. No greeting, no "I'd be happy to help", no other text."""
-                clarification_response = call_llm(
-                    clarification_prompt,
-                    system_prompt=CLARIFICATION_SYSTEM_PROMPT,
-                    config=ai_config,
-                    temperature=0.3,
-                )
-                content = (clarification_response.get('content') or '').strip()
-                # Accept any non-empty, reasonable-length response as follow-up (relaxed validation)
-                if content and len(content) <= 400:
-                    # If it looks like an error message from the API, don't use it
-                    if not any(x in content.lower() for x in ['api key', 'not set', 'error', 'failed', 'invalid']):
-                        clarification_response_text = content
-            except Exception as e:
-                print(f"[AI] Clarification LLM call failed: {e}")
-            # Use fallback follow-up if LLM didn't return usable questions
-            if not clarification_response_text:
-                clarification_response_text = "What size do you need? Any preferred style (e.g. casual or formal)?"
+            # Build a short follow-up from detected attributes (no LLM)
+            clarification_parts = []
+            if not size_mentioned:
+                clarification_parts.append("What size do you need?")
+            if not detected_occasion and not any(w in message for w in ['casual', 'formal', 'business', 'party']):
+                clarification_parts.append("Any preferred style (e.g. casual or formal)?")
+            clarification_response_text = " ".join(clarification_parts) if clarification_parts else "What size do you need? Any preferred style (e.g. casual or formal)?"
             if clarification_response_text:
                 return jsonify({
                     'response': clarification_response_text,
@@ -1842,7 +1865,7 @@ FASHION KNOWLEDGE BASE:
 Use this only when the customer explicitly asked for advice (e.g. what goes with X, what to wear for Y). Do not volunteer styling or pairing advice unless asked.
 
 PRODUCT DATABASE (sample):
-{json.dumps(all_products[:20], indent=2)}
+{json.dumps(product_sample, indent=2)}
 Use only to answer the specific question. When listing products, use format: Product #ID: Name - $Price.
 
 Keep each reply focused on the customer's actual question. No unsolicited recommendations or extra products."""
@@ -1857,7 +1880,7 @@ Keep each reply focused on the customer's actual question. No unsolicited recomm
         if vector_products and explicit_find_show_intent:
             actual_count = len(vector_products)
             recent_products_text = f"\nThe customer asked to find/show/list products. There are exactly {actual_count} product(s) matching their query. If you mention a count, use this number: {actual_count}.\n"
-            for p in vector_products[:10]:
+            for p in vector_products[:8]:
                 recent_products_text += f"Product #{p['id']}: {p['name']} - ${float(p['price']):.2f} ({p['category']}, {p.get('color', 'N/A')})\n"
             recent_products_text += "\nFirst write 1–2 short sentences that acknowledge their request (e.g. what they asked for and that you found options). Then list the products with Product #ID: Name - $Price. Do not reply with only a bare list — always respond in natural language first, then list. Do not add recommendations or 'complete the look' unless they asked."
         elif vector_products and not explicit_find_show_intent:
@@ -1883,8 +1906,8 @@ Keep each reply focused on the customer's actual question. No unsolicited recomm
         # Include recent conversation so the LLM has context and does not "forget" mid-talk
         conversation_block = ""
         if conversation_history:
-            # Use last 10 messages (5 exchanges) to stay within context limits
-            recent = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+            # Use last 6 messages (3 exchanges) for smaller prompt and faster response
+            recent = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
             lines = []
             for entry in recent:
                 role = (entry.get('role') or 'user').strip().lower()
@@ -1905,7 +1928,7 @@ Customer asked: {message}
 CURRENT DATE CONTEXT:
 {seasonal_context}
 
-Total products in store: {len(all_products)}.
+Total products in store: {product_count}.
 {recent_products_text}
 
 Reply in one brief, professional response. Always respond in natural language: do not reply with only a bare product list. When they asked to find/show/list products and products are listed above, first write 1–2 sentences that acknowledge what they asked (e.g. 'Here are some red shirts in medium:' or 'I found a few options.'), then list the products with Product #ID: Name - $Price. When they asked something else (policy, greeting, yes/no), answer in full sentences. If no products were found, say so in a sentence and offer to refine the search. Use RECENT CONVERSATION to stay consistent (e.g. 'medium' after you asked for size = size medium). No unsolicited recommendations."""
@@ -1969,9 +1992,12 @@ Reply in one brief, professional response. Always respond in natural language: d
         if len(vector_products) > 0 and explicit_find_show_intent and action is None:
             action = 'search_results'
         
-        final_response = response['content']
+        final_response = (response.get('content') or '').strip()
         # Strip any default boilerplate so only the model's real response is shown
         final_response = _strip_search_boilerplate(final_response)
+        # Never return empty or generic "No response from AI" to the client
+        if not final_response or final_response.lower() == 'no response from ai':
+            final_response = "I couldn't generate a response for that. Please try again or rephrase your question."
         
         # Debug logging (only in development)
         if Config.DEBUG:

@@ -21,8 +21,8 @@
   --ai-chat-button-hover-header: rgba(212, 175, 55, 0.45);
   --ai-chat-user-bubble: #f5f0e6;
   --ai-chat-user-text: #4F5747;
-  --ai-chat-assistant-bubble: #f5f0e6;
-  --ai-chat-assistant-bubble-solid: #f5f0e6;
+  --ai-chat-assistant-bubble: #e5e9e0;
+  --ai-chat-assistant-bubble-solid: #e5e9e0;
   --ai-chat-assistant-text: #4F5747;
   --ai-chat-border: rgba(255, 255, 255, 0.08);
   --ai-chat-border-strong: rgba(79, 87, 71, 0.25);
@@ -1205,17 +1205,15 @@
   transform: translateY(-1px);
 }
 
-/* AI message toolbar – Copy, Retry, Download, Play */
-.kendo-message-toolbar {
+/* AI message – voice playback only */
+.kendo-message-voice {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
   margin-bottom: 8px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.kendo-toolbar-btn {
+.kendo-voice-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1230,19 +1228,14 @@
   transition: background 0.15s, color 0.15s;
 }
 
-.kendo-toolbar-btn:hover:not(:disabled) {
+.kendo-voice-btn:hover:not(:disabled) {
   background: var(--ai-chat-button-hover-bg);
-  border-color: var(--ai-chat-button-hover-border);
   color: #2d2819;
 }
 
-.kendo-toolbar-btn:disabled {
+.kendo-voice-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.kendo-toolbar-play {
-  margin-left: auto;
 }
 
 /* Kendo: assistant message – keep glassy asset-37 bubble, adjust padding */

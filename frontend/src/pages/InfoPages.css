@@ -1,0 +1,293 @@
+/* Shared styles for About, Contact, Shipping Info, Returns – in tune with site theme (footer/navbar greens, cream, dark text) */
+
+/* Site palette: --site-bg #C3B0A1, footer #373F2E, navbar #4A5844, dark #1a2332, cream #faf0e6, body text #36454f */
+.info-page {
+  min-height: calc(100vh - 96px);
+  background: var(--site-bg, #C3B0A1);
+  padding: 0 24px 48px;
+}
+
+/* Hero – matches footer/navbar dark green; light text for strong contrast */
+.info-page-hero {
+  background: #373F2E;
+  padding: 56px 24px 48px;
+  text-align: center;
+  border-bottom: 2px solid rgba(212, 196, 160, 0.35);
+}
+
+.info-page-hero h1 {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 600;
+  color: #f0ebe0;
+  letter-spacing: 0.02em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.info-page-hero p {
+  font-size: clamp(15px, 2.5vw, 17px);
+  color: #d4c4a0;
+  margin: 12px 0 0;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.5;
+}
+
+/* Content wrapper – card panel on site bg so text is always on light background */
+.info-page-content {
+  max-width: 900px;
+  margin: 24px auto 0;
+  padding: 40px 32px 48px;
+  position: relative;
+  background: #faf0e6;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(55, 63, 46, 0.12);
+}
+
+.info-page-content.wide {
+  max-width: 1000px;
+}
+
+/* Section block – clear separation; text on light card so dark colors read well */
+.info-section {
+  margin-bottom: 48px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid rgba(26, 35, 50, 0.12);
+}
+
+.info-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 32px;
+}
+
+.info-section h2 {
+  font-size: clamp(20px, 3vw, 24px);
+  font-weight: 600;
+  color: #1a2332;
+  margin-bottom: 16px;
+  letter-spacing: 0.01em;
+}
+
+.info-section h3 {
+  font-size: clamp(16px, 2.5vw, 18px);
+  font-weight: 600;
+  color: #1a2332;
+  margin: 24px 0 12px;
+}
+
+.info-section p,
+.info-section li {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #36454f;
+  margin-bottom: 12px;
+}
+
+.info-section ul {
+  padding-left: 24px;
+  margin: 12px 0;
+}
+
+.info-section li {
+  margin-bottom: 8px;
+}
+
+/* CTA block at bottom of page */
+.info-cta-block {
+  text-align: center;
+  padding: 40px 24px;
+  background: rgba(55, 63, 46, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(55, 63, 46, 0.15);
+  margin-top: 24px;
+}
+
+.info-cta-block p {
+  font-size: 16px;
+  color: #36454f;
+  margin-bottom: 20px;
+}
+
+.info-cta-block .btn {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.info-cta-block .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(26, 35, 50, 0.2);
+}
+
+/* Reassurance / highlight text */
+.info-reassurance {
+  font-size: 15px;
+  color: #1a2332;
+  font-weight: 500;
+  padding: 16px 20px;
+  background: rgba(55, 63, 46, 0.06);
+  border-radius: 8px;
+  border-left: 4px solid #373F2E;
+  margin: 20px 0;
+}
+
+/* Simple table for shipping/returns */
+.info-table-wrap {
+  overflow-x: auto;
+  margin: 16px 0;
+  border-radius: 8px;
+  border: 1px solid rgba(55, 63, 46, 0.15);
+  background: #fff;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.info-table th,
+.info-table td {
+  padding: 14px 18px;
+  text-align: left;
+  border-bottom: 1px solid rgba(26, 35, 50, 0.1);
+}
+
+.info-table th {
+  font-weight: 600;
+  color: #1a2332;
+  background: rgba(55, 63, 46, 0.06);
+}
+
+.info-table tr:last-child td {
+  border-bottom: none;
+}
+
+.info-table td {
+  color: #36454f;
+}
+
+/* Icon + text row (e.g. shipping methods) */
+.info-icon-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.info-icon-row .icon-wrap {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(55, 63, 46, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a2332;
+}
+
+.info-icon-row .icon-wrap svg {
+  width: 20px;
+  height: 20px;
+}
+
+.info-icon-row .text h3 {
+  margin: 0 0 6px;
+  color: #1a2332;
+}
+
+.info-icon-row .text p {
+  margin: 0;
+  color: #36454f;
+}
+
+/* Step list (numbered) */
+.info-steps {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+
+.info-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(26, 35, 50, 0.1);
+}
+
+.info-steps li:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.info-steps .step-num {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #373F2E;
+  color: #faf0e6;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-steps .step-text {
+  flex: 1;
+}
+
+.info-steps .step-text strong {
+  display: block;
+  color: #1a2332;
+  margin-bottom: 4px;
+}
+
+.info-steps .step-text p {
+  margin: 0;
+  color: #36454f;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .info-page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .info-page-hero {
+    padding: 40px 16px 36px;
+  }
+
+  .info-page-content {
+    padding: 28px 20px 40px;
+  }
+
+  .info-section {
+    margin-bottom: 36px;
+    padding-bottom: 32px;
+  }
+
+  .info-table th,
+  .info-table td {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .info-page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .info-page-content {
+    padding: 24px 16px 36px;
+  }
+}

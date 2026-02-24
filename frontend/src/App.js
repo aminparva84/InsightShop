@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
@@ -19,15 +19,29 @@ import Members from './pages/Members';
 import OrderConfirmation from './pages/OrderConfirmation';
 import Compare from './pages/Compare';
 import Wishlist from './pages/Wishlist';
+import About from './pages/About';
+import Contact from './pages/Contact';
+import ShippingInfo from './pages/ShippingInfo';
+import Returns from './pages/Returns';
 import Admin from './pages/Admin';
 import RequireAuth from './components/RequireAuth';
 import './App.css';
+
+/** Scroll window to top on every route change so each page starts at the top. */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 
 function AppContent() {
   const location = useLocation();
   const isAdmin = location.pathname === '/admin';
   return (
     <div className="App">
+      <ScrollToTop />
       <Navbar />
       <main className="main-content">
         <Routes>
@@ -43,6 +57,10 @@ function AppContent() {
           <Route path="/wishlist" element={<RequireAuth path="/wishlist"><Wishlist /></RequireAuth>} />
           <Route path="/order-confirmation" element={<OrderConfirmation />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/shipping" element={<ShippingInfo />} />
+          <Route path="/returns" element={<Returns />} />
           <Route path="/admin" element={<RequireAuth path="/admin" requireSuperadmin><Admin /></RequireAuth>} />
         </Routes>
       </main>

@@ -1,0 +1,14 @@
+/* Returns page – step list uses info-steps from InfoPages.css */
+
+.returns-page .info-steps {
+  list-style: none;
+  padding: 0;
+}
+
+.returns-page .info-section ul {
+  padding-left: 24px;
+}
+
+.returns-page .info-section ul li {
+  margin-bottom: 8px;
+}

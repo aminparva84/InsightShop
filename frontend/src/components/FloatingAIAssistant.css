@@ -64,22 +64,21 @@
   flex-shrink: 0;
 }
 
-/* Hint bubble – theme: warm beige/cream, sage text */
+/* Hint bubble – theme: warm beige/cream, sage text; sits above the FAB */
 .ai-hint-bubble {
   position: absolute;
   bottom: calc(100% + 14px);
   right: 0;
-  background: rgba(232, 228, 220, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #e8e4dc;
   color: #373F2E;
-  padding: 14px 18px;
+  padding: 14px 18px 18px;
   border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(74, 88, 68, 0.15), 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 20px rgba(74, 88, 68, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
   min-width: 260px;
   max-width: 320px;
   animation: hintFadeIn 0.3s ease-out;
-  border: 1px solid rgba(161, 138, 114, 0.4);
+  border: 1px solid rgba(161, 138, 114, 0.35);
+  /* Arrow tip points down toward the FAB (button center is 26px from bubble right on desktop) */
 }
 
 @keyframes hintFadeIn {
@@ -93,29 +92,17 @@
   }
 }
 
+/* Arrow tip points DOWN toward the floating AI button (aligned with button center) */
 .hint-arrow {
   position: absolute;
-  bottom: -7px;
-  right: 50%;
-  transform: translateX(50%);
+  bottom: -8px;
+  right: 18px; /* 18px + 8px (half of 16px width) = 26px = FAB center (52px / 2) */
   width: 0;
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-top: 8px solid rgba(232, 228, 220, 0.96);
-}
-
-.hint-arrow::before {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 10px solid rgba(161, 138, 114, 0.4);
+  border-top: 8px solid #e8e4dc;
+  filter: drop-shadow(0 1px 2px rgba(161, 138, 114, 0.2));
 }
 
 .hint-text {
@@ -252,8 +239,9 @@
     max-width: min(260px, calc(100vw - 56px));
   }
 
+  /* Keep arrow pointing at FAB center: bubble right is 40px right of FAB, FAB center is 24px from FAB right → arrow at 40 - 24 = 16px from bubble right */
   .hint-arrow {
-    right: 44px;
+    right: 16px;
   }
 
   .ai-chat-fixed-container {

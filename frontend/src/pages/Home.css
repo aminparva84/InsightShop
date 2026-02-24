@@ -1292,6 +1292,14 @@
   min-width: 0; /* allow scroll-wrap to be constrained so horizontal scroll works */
 }
 
+/* Small space between Special offers title and carousel, and before View all deals button */
+.featured-products .special-offers .section-title-wrap {
+  margin-bottom: 14px;
+}
+.featured-products .special-offers .featured-products-view-all {
+  margin-top: 24px;
+}
+
 /* Horizontal scroll: grid is one row, wider than viewport; scroll-wrap is the scroll container */
 .featured-products .special-offers .special-offers-scroll-wrap .product-grid {
   display: flex;

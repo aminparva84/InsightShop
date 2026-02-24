@@ -73,7 +73,7 @@ const getColorHex = (colorName) => {
   return COLOR_MAP[key] || '#CCCCCC';
 };
 
-const ProductCard = ({ product, compact = false }) => {
+const ProductCard = ({ product, compact = false, showCompareCheckbox = false, selectedForCompare = false, onToggleCompare }) => {
   const { addToCart } = useCart();
   const { showSuccess, showError } = useNotification();
   const { isAuthenticated } = useAuth();
@@ -121,8 +121,27 @@ const ProductCard = ({ product, compact = false }) => {
   const rawSrc = product.image_url || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80';
   const imageSrc = rawSrc.startsWith('/') ? baseUrl + rawSrc : rawSrc;
 
+  const handleCompareClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   return (
     <Link to={`/products/${product.id}`} className={`product-card ${compact ? 'compact' : ''} ${product.on_sale ? 'product-card--on-sale' : ''}`}>
+      {showCompareCheckbox && (
+        <div className="compare-checkbox-wrapper" title="Compare" onClick={handleCompareClick} role="presentation">
+          <label className="compare-checkbox">
+            <input
+              type="checkbox"
+              checked={selectedForCompare}
+              onChange={() => onToggleCompare && onToggleCompare(product.id)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Compare ${product.name}`}
+            />
+            <span>Compare</span>
+          </label>
+        </div>
+      )}
       {product.on_sale && product.discount_percentage != null && (
         <span className="product-card-sale-badge">-{Number(product.discount_percentage).toFixed(0)}%</span>
       )}

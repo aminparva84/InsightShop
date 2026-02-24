@@ -10,9 +10,9 @@ const SectionTitleCurvedLine = ({ color = 'currentColor', className = 'section-t
     aria-hidden="true"
     style={{ color }}
   >
-    <svg viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
+    <svg viewBox="0 0 200 32" preserveAspectRatio="none" aria-hidden="true">
       <path
-        d="M 0 12 Q 50 0 100 12 Q 150 24 200 12"
+        d="M 0 16 Q 50 0 100 16 Q 150 32 200 16"
         fill="none"
         stroke="currentColor"
         strokeWidth="4"

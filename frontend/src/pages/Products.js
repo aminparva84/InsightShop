@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductGrid from '../components/ProductGrid';
 import FilterBar from '../components/FilterBar';
-import WavyUnderline from '../components/WavyUnderline';
+import SectionTitleWithWavy from '../components/SectionTitleWithWavy';
 import './Products.css';
 
 const PER_PAGE = 12;
@@ -474,9 +474,8 @@ const Products = () => {
   return (
     <div className="products-page">
       <div className="container">
-        <div className="products-page-title-wrap">
-          <h1 className="page-title">All Products</h1>
-          <WavyUnderline color="#373F2E" className="products-page-title-wavy" />
+        <div className="section-title-wrap">
+          <SectionTitleWithWavy title="All Products" headingLevel={1} />
         </div>
 
         {/* Tabs */}

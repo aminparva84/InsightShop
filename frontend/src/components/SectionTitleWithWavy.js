@@ -5,10 +5,12 @@ import SectionTitleCurvedLine from './SectionTitleCurvedLine';
 /**
  * Section title (e.g. "Featured Products", "Special offers") with a wavy underline
  * whose width matches the title text width. Uses ResizeObserver to keep in sync.
+ * @param {number} [headingLevel=2] - 1 for h1, 2 for h2 (e.g. use 1 on Products page for main heading).
  */
-const SectionTitleWithWavy = ({ title, wavyColor = '#373F2E' }) => {
+const SectionTitleWithWavy = ({ title, wavyColor = '#373F2E', headingLevel = 2 }) => {
   const titleRef = useRef(null);
   const [titleWidth, setTitleWidth] = useState(null);
+  const HeadingTag = headingLevel === 1 ? 'h1' : 'h2';
 
   useEffect(() => {
     const el = titleRef.current;
@@ -27,9 +29,9 @@ const SectionTitleWithWavy = ({ title, wavyColor = '#373F2E' }) => {
   return (
     <div className="section-title-row">
       <div className="section-title-and-wavy">
-        <h2 ref={titleRef} className="section-title">
+        <HeadingTag ref={titleRef} className="section-title">
           {title}
-        </h2>
+        </HeadingTag>
         <WavyUnderline
           color={wavyColor}
           className="section-title-wavy"

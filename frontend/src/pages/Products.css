@@ -3,30 +3,70 @@
   min-height: calc(100vh - 70px);
 }
 
-.products-page-title-wrap {
+/* Products page title – same as main page section titles (Bebas, curved line) */
+.products-page .section-title-wrap {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.products-page .section-title-row {
+  display: flex;
   align-items: center;
-  margin-bottom: 40px;
   width: 100%;
+  gap: 0;
+  min-width: 0;
 }
 
-.products-page .page-title {
-  font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
-  font-size: 42px;
-  font-weight: 700;
-  margin-bottom: 0;
-  color: #373F2E;
-  letter-spacing: 1.5px;
+.products-page .section-title-curved-line {
+  flex: 1;
+  min-width: 24px;
+  height: 22px;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.products-page .section-title-curved-line svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.products-page .section-title-and-wavy {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: fit-content;
+}
+
+.products-page .section-title-wrap .section-title {
+  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
+  font-size: clamp(76px, 11vw, 104px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
   text-transform: uppercase;
+  text-align: left;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  line-height: 1.05;
+  color: #373F2E;
+  position: relative;
+  display: inline-block;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
-.products-page-title-wavy {
-  flex-shrink: 0;
-  width: 100%;
-  min-width: 280px;
-  max-width: 480px;
-  margin-top: -6px;
+.products-page .section-title-wrap .section-title::after {
+  display: none;
+}
+
+.products-page .section-title-wavy {
+  display: none;
 }
 
 .products-layout {
@@ -147,6 +187,36 @@
   transform: scale(1.02);
 }
 
+/* Mobile: minimal compare footprint so it doesn't conflict with special-offers / product card */
+@media (max-width: 768px) {
+  .compare-checkbox-wrapper {
+    top: 6px;
+    left: 6px;
+    padding: 5px 6px;
+    border-radius: 0 0 20px 0;
+    min-width: 0;
+  }
+
+  .compare-checkbox {
+    gap: 0;
+    font-size: 0;
+  }
+
+  .compare-checkbox span {
+    display: none; /* "Compare" text hidden on mobile */
+  }
+
+  .compare-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+  }
+
+  .compare-checkbox input[type="checkbox"]:checked {
+    background-size: 12px 12px;
+  }
+}
+
 .compare-checkbox {
   display: flex;
   align-items: center;
@@ -163,18 +233,27 @@
   color: white;
 }
 
+/* Checkbox: filled dark green when checked (not just a simple check) */
 .compare-checkbox input[type="checkbox"] {
   cursor: pointer;
   width: 18px;
   height: 18px;
-  accent-color: rgba(255, 255, 255, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.8);
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid rgba(255, 255, 255, 0.85);
   border-radius: 4px;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .compare-checkbox input[type="checkbox"]:checked {
-  accent-color: white;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: #373F2E;
+  border-color: #373F2E;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  background-size: 14px 14px;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .products-tabs {
@@ -282,6 +361,15 @@
   }
 }
 
+@media (max-width: 840px) {
+  .products-page .section-title-wrap .section-title {
+    font-size: clamp(64px, 10vw, 88px);
+  }
+  .products-page .section-title-wrap {
+    margin-bottom: 16px;
+  }
+}
+
 @media (max-width: 968px) {
   .products-layout {
     display: block;
@@ -303,6 +391,15 @@
 }
 
 @media (max-width: 768px) {
+  .products-page .section-title-wrap .section-title {
+    font-size: clamp(36px, 10vw, 56px);
+  }
+  .products-page .section-title-curved-line {
+    min-width: 16px;
+    margin-left: 6px;
+    height: 12px;
+  }
+
   .products-tabs {
     gap: 8px;
   }
@@ -322,6 +419,18 @@
 }
 
 @media (max-width: 480px) {
+  .products-page .section-title-wrap .section-title {
+    font-size: clamp(28px, 9vw, 42px);
+  }
+  .products-page .section-title-wrap {
+    margin-bottom: 14px;
+  }
+  .products-page .section-title-curved-line {
+    min-width: 12px;
+    margin-left: 4px;
+    height: 10px;
+  }
+
   .products-tab {
     padding: 10px 12px;
     font-size: 12px;

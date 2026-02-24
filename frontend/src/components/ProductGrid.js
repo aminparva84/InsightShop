@@ -11,19 +11,12 @@ const ProductGrid = ({ products, onToggleCompare, selectedForCompare = [], showC
     <div className="product-grid">
       {products.map(product => (
         <div key={product.id} className="product-grid-item-wrapper">
-          {showCompareCheckbox && (
-            <div className="compare-checkbox-wrapper">
-              <label className="compare-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedForCompare.includes(product.id)}
-                  onChange={() => onToggleCompare && onToggleCompare(product.id)}
-                />
-                <span>Compare</span>
-              </label>
-            </div>
-          )}
-          <ProductCard product={product} />
+          <ProductCard
+            product={product}
+            showCompareCheckbox={showCompareCheckbox}
+            selectedForCompare={selectedForCompare.includes(product.id)}
+            onToggleCompare={onToggleCompare}
+          />
         </div>
       ))}
     </div>

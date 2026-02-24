@@ -688,8 +688,8 @@
     border-bottom: 1px solid rgba(232, 228, 220, 0.2);
   }
 
-  /* Keep navbar-links visible so cart icon is always shown; hide only Home/Products (they're in the menu) */
-  .navbar-links .nav-link:not(.nav-cart-link) {
+  /* Keep cart and wishlist visible in top bar; hide only Home/Products (they're in the menu) */
+  .navbar-links .nav-link:not(.nav-cart-link):not(.nav-wishlist-link) {
     display: none;
   }
 

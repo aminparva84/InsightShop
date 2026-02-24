@@ -199,17 +199,15 @@ const ProductCard = ({ product, compact = false, showCompareCheckbox = false, se
         </div>
       </div>
       <div className="product-card-actions">
-        {isAuthenticated && (
-          <button
-            type="button"
-            className={`product-card-wishlist-btn ${inWishlist ? 'product-card-wishlist-btn--active' : ''}`}
-            onClick={handleWishlistClick}
-            aria-label={inWishlist ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
-            title={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
-          >
-            {inWishlist ? <HeartFilled /> : <HeartOutline />}
-          </button>
-        )}
+        <button
+          type="button"
+          className={`product-card-wishlist-btn ${inWishlist ? 'product-card-wishlist-btn--active' : ''}`}
+          onClick={handleWishlistClick}
+          aria-label={inWishlist ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
+          title={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+        >
+          {inWishlist ? <HeartFilled /> : <HeartOutline />}
+        </button>
         <button type="button" onClick={handleAddToCart} className="btn-add-cart">
           <span className="btn-add-cart-text btn-add-cart-text-desktop">Add to cart</span>
           <span className="btn-add-cart-text btn-add-cart-text-mobile" aria-hidden="true">Add</span>

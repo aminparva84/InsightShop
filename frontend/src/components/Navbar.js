@@ -131,11 +131,15 @@ const Navbar = () => {
     }
   };
 
-  /* Top bar: Home, Products, Cart; Wishlist and Account/Login in menu only */
+  /* Top bar: Home, Products, Wishlist, Cart – wishlist always visible (RequireAuth redirects to login) */
   const navLinks = (
     <>
       <Link to="/" className="nav-link" onClick={closeMenu}>Home</Link>
       <Link to="/products" className="nav-link" onClick={closeMenu}>Products</Link>
+      <Link to="/wishlist" className="nav-link nav-wishlist-link" title="Wishlist" onClick={closeMenu} aria-label={wishlistCount > 0 ? `${wishlistCount} items in wishlist` : 'Wishlist'}>
+        <span className="nav-wishlist-icon" aria-hidden="true"><WishlistIcon /></span>
+        {wishlistCount > 0 && <span className="wishlist-badge" aria-label={`${wishlistCount} items in wishlist`}>{wishlistCount}</span>}
+      </Link>
       <Link to="/cart" className="nav-link nav-cart-link" title="Shopping Cart" onClick={closeMenu} aria-label={cartCount > 0 ? `${cartCount} items in cart` : 'Shopping Cart'}>
         <span className="nav-cart-icon" aria-hidden="true"><CartIcon /></span>
         {cartCount > 0 && <span className="cart-badge" aria-label={`${cartCount} items in cart`}>{cartCount}</span>}
@@ -143,17 +147,15 @@ const Navbar = () => {
     </>
   );
 
-  /* Navbar menu (dropdown): Home, Products, Wishlist icon (when logged in) */
+  /* Navbar menu (dropdown): Home, Products, Wishlist – always show wishlist (click goes to /wishlist, RequireAuth handles login) */
   const sliderNavLinks = (
     <div className="navbar-slider-nav">
       <Link to="/" className="navbar-slider-link navbar-slider-nav-link" onClick={closeMenu}>Home</Link>
       <Link to="/products" className="navbar-slider-link navbar-slider-nav-link" onClick={closeMenu}>Products</Link>
-      {isAuthenticated && (
-        <Link to="/wishlist" className="nav-link nav-wishlist-link navbar-slider-wishlist" title="Wishlist" onClick={closeMenu} aria-label={wishlistCount > 0 ? `${wishlistCount} items in wishlist` : 'Wishlist'}>
-          <span className="nav-wishlist-icon" aria-hidden="true"><WishlistIcon /></span>
-          {wishlistCount > 0 && <span className="wishlist-badge" aria-label={`${wishlistCount} items in wishlist`}>{wishlistCount}</span>}
-        </Link>
-      )}
+      <Link to="/wishlist" className="nav-link nav-wishlist-link navbar-slider-wishlist" title="Wishlist" onClick={closeMenu} aria-label={wishlistCount > 0 ? `${wishlistCount} items in wishlist` : 'Wishlist'}>
+        <span className="nav-wishlist-icon" aria-hidden="true"><WishlistIcon /></span>
+        {wishlistCount > 0 && <span className="wishlist-badge" aria-label={`${wishlistCount} items in wishlist`}>{wishlistCount}</span>}
+      </Link>
     </div>
   );
 

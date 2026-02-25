@@ -82,6 +82,7 @@ const Home = () => {
   const [products, setProducts] = useState([]);
   const [specialOffers, setSpecialOffers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [featuredError, setFeaturedError] = useState(null);
   const [specialOffersLoading, setSpecialOffersLoading] = useState(true);
   const [bannerPhase, setBannerPhase] = useState('idle'); // 'idle' | 'fadingOut' | 'fadedOut'
   const [bannerTextKey, setBannerTextKey] = useState(0);
@@ -213,6 +214,7 @@ const Home = () => {
 
   const fetchFeaturedProducts = async () => {
     try {
+      setFeaturedError(null);
       // Fetch more products to filter for those with images
       const response = await axios.get('/api/products?per_page=100');
       if (response.data && response.data.products) {
@@ -234,6 +236,12 @@ const Home = () => {
       }
     } catch (error) {
       console.error('Error fetching products:', error);
+      const status = error.response?.status;
+      const msg = error.response?.data?.error || error.message || 'Failed to load products';
+      const friendlyMessage = status === 502
+        ? 'Backend unavailable (502). Start the Flask server: from project root run "npm run dev" or run "python app.py" (port 5000).'
+        : msg;
+      setFeaturedError(friendlyMessage);
       setProducts([]);
     } finally {
       setLoading(false);
@@ -313,6 +321,14 @@ const Home = () => {
           </div>
           {loading ? (
             <div className="spinner"></div>
+          ) : featuredError ? (
+            <div className="no-products-message" role="alert">
+              <p><strong>Unable to load featured products</strong></p>
+              <p>{featuredError}</p>
+              <button type="button" className="btn btn-primary" onClick={() => { setLoading(true); fetchFeaturedProducts(); }}>
+                Try again
+              </button>
+            </div>
           ) : products.length > 0 ? (
             <>
               <ProductGrid products={products.slice(0, featuredCount)} />

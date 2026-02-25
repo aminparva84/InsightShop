@@ -589,11 +589,11 @@ def _chromadb_unavailable_message():
         return None
     base = "ChromaDB is not available. AI search uses keyword and filter search (categories, sale, etc.)."
     if reason and "No module named" in reason:
-        fix = "Install with: pip install numpy==1.26.4 chromadb==0.4.18 (requires C++ Build Tools on Windows)."
+        fix = "Install with: pip install numpy==1.26.4 chromadb==0.4.18 (requires C++ Build Tools on Windows). Use the same Python that runs the backend, then restart the backend."
     elif reason:
-        fix = f"Import error: {reason}. Ensure C++ Build Tools are installed, then: pip install numpy==1.26.4 chromadb==0.4.18"
+        fix = f"Import error: {reason}. Install: pip install numpy==1.26.4 chromadb==0.4.18 (C++ Build Tools on Windows if needed). Restart the backend after installing."
     else:
-        fix = "For semantic search, install: pip install numpy==1.26.4 chromadb==0.4.18 (requires C++ Build Tools on Windows)."
+        fix = "For semantic search, install: pip install numpy==1.26.4 chromadb==0.4.18 (requires C++ Build Tools on Windows). Restart the backend after installing."
     return f"{base} {fix}"
 
 

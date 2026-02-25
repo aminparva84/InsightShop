@@ -73,6 +73,18 @@
   display: block;
 }
 
+.products-error {
+  padding: 2rem;
+  text-align: center;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  color: #991b1b;
+}
+.products-error p { margin: 0 0 0.5rem; }
+.products-error p:last-of-type { margin-bottom: 1rem; }
+.products-error .btn { margin-top: 0.5rem; }
+
 .filters-sidebar {
   background: white;
   padding: 24px;

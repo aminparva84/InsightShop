@@ -164,6 +164,7 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
   const [imageSimilarProductIds, setImageSimilarProductIds] = useState([]);
   const [findingMatches, setFindingMatches] = useState(false);
   const [matchedProducts, setMatchedProducts] = useState([]);
+  const [lastSearchFilters, setLastSearchFilters] = useState(null); // Previous search filters so follow-ups (e.g. "the blue ones") can merge
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null); // Scroll only this container so we never scroll the window (e.g. when inline on Home)
   const recognitionRef = useRef(null);
@@ -700,6 +701,7 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
   // Clear chat history and reset voice settings to defaults
   const handleClearHistory = () => {
     setMessages([{ role: 'assistant', content: initialMessage }]);
+    setLastSearchFilters(null);
     sessionStorage.setItem('aiChatHistory', JSON.stringify([{ role: 'assistant', content: initialMessage }]));
     
     // Reset voice settings to defaults: Joanna, speed 1.1, volume 0.5 (middle)
@@ -1007,6 +1009,9 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
         history: historyForRequest,
         selected_product_ids: selectedProductIds
       };
+      if (user && lastSearchFilters && typeof lastSearchFilters === 'object' && Object.keys(lastSearchFilters).length > 0) {
+        payload.last_search_filters = lastSearchFilters;
+      }
       // 90s timeout: AI can be slow; fail with clear message instead of hanging
       const response = await axios.post(chatUrl, payload, { timeout: 90000 });
 
@@ -1015,11 +1020,34 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
         content: response.data.response || response.data.message || 'No response.'
       };
 
+      // Structured response: product_preview (show cards in chat) or no_results (no product IDs as text)
+      const structured = response.data.structured_response;
+      if (structured?.type === 'product_preview' && structured.products?.length > 0) {
+        aiMessage.content = response.data.response || 'Here are some options that match your search.';
+        aiMessage.product_preview = {
+          title: structured.title || 'Search Results',
+          products: structured.products,
+          preview_limit: typeof structured.preview_limit === 'number' ? structured.preview_limit : 4,
+          show_view_all: Boolean(structured.show_view_all),
+        };
+      } else if (structured?.type === 'no_results') {
+        aiMessage.content = structured.message || 'No products found.';
+      }
+
+      // Track last search filters so follow-ups ("show me the blue ones") can merge with previous filters
+      const mj = response.data.message_json;
+      const isSearchResponse = response.data.action === 'search_results' || mj?.action === 'search_products';
+      if (isSearchResponse && mj?.filters && typeof mj.filters === 'object') {
+        setLastSearchFilters(mj.filters);
+      } else {
+        setLastSearchFilters(null);
+      }
+
       setMessages(prev => [...prev, aiMessage]);
 
-      // When agent executed a cart action: refresh cart, redirect if requested, then close chat
+      // When agent executed a cart action: refresh cart, then redirect if requested
       if (response.data.action === 'agent_executed') {
-        if (fetchCart) fetchCart();
+        if (fetchCart) await fetchCart();
         const redirectTo = response.data.redirect_to;
         if (redirectTo) {
           navigate(redirectTo);
@@ -1120,8 +1148,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
       
       // Process AI response
       
-      // If user wants to see products in chat, format them as text list
-      if (wantsToSeeInChat && hasSuggestedProducts && response.data.suggested_products.length > 0) {
+      // If user wants to see products in chat, format them as text list (only when NOT using structured product_preview)
+      if (wantsToSeeInChat && hasSuggestedProducts && response.data.suggested_products.length > 0 && structured?.type !== 'product_preview') {
         const productsList = response.data.suggested_products.map(p => 
           `Product #${p.id}: ${p.name} - $${parseFloat(p.price).toFixed(2)} (${p.category}, ${p.color || 'N/A'})`
         ).join('\n');
@@ -1227,6 +1255,14 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
               role: 'assistant',
               content: response.data.response
             };
+            if (structured?.type === 'product_preview' && structured.products?.length) {
+              updatedMessage.product_preview = {
+                title: structured.title || 'Search Results',
+                products: structured.products,
+                preview_limit: typeof structured.preview_limit === 'number' ? structured.preview_limit : 4,
+                show_view_all: Boolean(structured.show_view_all),
+              };
+            }
             setMessages(prev => {
               const newMessages = [...prev];
               newMessages[newMessages.length - 1] = updatedMessage;
@@ -1263,6 +1299,14 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
             role: 'assistant',
             content: response.data.response
           };
+          if (structured?.type === 'product_preview' && structured.products?.length) {
+            updatedMessage.product_preview = {
+              title: structured.title || 'Search Results',
+              products: structured.products,
+              preview_limit: typeof structured.preview_limit === 'number' ? structured.preview_limit : 4,
+              show_view_all: Boolean(structured.show_view_all),
+            };
+          }
           setMessages(prev => {
             const newMessages = [...prev];
             newMessages[newMessages.length - 1] = updatedMessage;
@@ -1730,6 +1774,41 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
                   </React.Fragment>
                 );
               })}
+              {/* Structured product preview: show product cards in chat, no plain product IDs */}
+              {msg.product_preview && msg.product_preview.products && msg.product_preview.products.length > 0 && (
+                <div className="ai-chat-product-response">
+                  {msg.product_preview.title && (
+                    <div className="ai-chat-product-intro">{msg.product_preview.title}</div>
+                  )}
+                  <div className="ai-chat-product-scroll">
+                    {(msg.product_preview.products.slice(0, msg.product_preview.preview_limit || 4)).map((product) => (
+                      <div key={product.id} className="product-grid-item-wrapper">
+                        <ProductCard product={product} compact />
+                      </div>
+                    ))}
+                  </div>
+                  {msg.product_preview.show_view_all && (
+                    <div className="ai-chat-view-all-wrap">
+                      <button
+                        type="button"
+                        className="ai-chat-view-all-btn"
+                        onClick={() => {
+                          const allIds = msg.product_preview.products.map((p) => p.id).filter(Boolean);
+                          if (location.pathname === '/' && onProductsUpdate) {
+                            onProductsUpdate(allIds);
+                            setTimeout(() => inputRef.current?.focus(), 100);
+                          } else {
+                            const idsParam = allIds.join(',');
+                            navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+                          }
+                        }}
+                      >
+                        View All ({msg.product_preview.products.length})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               {msg.similarProducts && msg.similarProducts.length > 0 && (
                 <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                   <p style={{ marginBottom: '10px', fontWeight: 'bold' }}>Similar Products:</p>

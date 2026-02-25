@@ -1,6 +1,7 @@
 """Seed the database with detailed clothing products from 6 + 9 outfit images (apparel, belts, jewelry, accessories)."""
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -1038,6 +1039,45 @@ PRODUCTS = [
     },
 ]
 
+# Size options by product type: different clothes have different sizes.
+SIZE_CONFIG = {
+    "T-Shirt": (["XS", "S", "M", "L", "XL"], False),
+    "Blouse": (["XS", "S", "M", "L", "XL"], False),
+    "Dress Shirt": (["XS", "S", "M", "L", "XL"], False),
+    "Sweater": (["XS", "S", "M", "L", "XL"], False),
+    "Shorts": (["26", "28", "30", "32"], False),
+    "Chinos": (["26", "28", "30", "32"], False),
+    "Belt": (["28", "30", "32"], False),
+    "Necklace": (["One Size"], True),
+    "Ring": (["One Size"], True),
+    "Bag": (["One Size"], True),
+    "Watch": (["One Size"], True),
+    "Sunglasses": (["One Size"], True),
+}
+DEFAULT_TOP_SIZES = (["XS", "S", "M", "L", "XL"], False)
+DEFAULT_PANT_SIZES = (["26", "28", "30", "32"], False)
+DEFAULT_ONE_SIZE = (["One Size"], True)
+
+
+def get_sizes_and_stock_for_product(p):
+    """Return (available_sizes list, size_stock dict, primary size) for a product seed entry."""
+    clothing_type = p.get("clothing_type") or ""
+    category = p.get("clothing_category") or "other"
+    config = SIZE_CONFIG.get(clothing_type)
+    if config is None:
+        if category in ("t_shirts", "shirts", "sweaters"):
+            config = DEFAULT_TOP_SIZES
+        elif category == "pants":
+            config = DEFAULT_PANT_SIZES
+        else:
+            config = DEFAULT_ONE_SIZE
+    size_labels, one_size = config
+    size_stock = {}
+    for s in size_labels:
+        size_stock[s] = random.randint(3, 18) if not one_size else random.randint(8, 40)
+    primary = size_labels[0]
+    return size_labels, size_stock, primary
+
 
 def generate_slug(name, index):
     """Generate a unique URL-friendly slug."""
@@ -1111,22 +1151,28 @@ def seed_products():
                     "sale_percentage": float(sale_percentage),
                 }
 
+            # Different clothes have different sizes; each size has its own quantity.
+            available_sizes_list, size_stock_dict, primary_size = get_sizes_and_stock_for_product(p)
+            total_stock = sum(size_stock_dict.values())
+
             product = Product(
                 name=p["name"],
                 description=p["description"],
                 price=p["price"],
                 category=p["category"],
                 color=p["color"],
-                size=p["size"],
+                size=primary_size,
+                available_sizes=json.dumps(available_sizes_list),
+                size_stock=json.dumps(size_stock_dict),
                 fabric=p["fabric"],
                 clothing_type=p["clothing_type"],
                 clothing_category=p["clothing_category"],
                 occasion=p["occasion"],
                 age_group=p["age_group"],
                 season=p["season"],
-                brand='other',  # Existing seeded products use "Other" brand (admin can set brand_other if needed)
+                brand='other',
                 image_url=image_url,
-                stock_quantity=random.randint(8, 40),
+                stock_quantity=total_stock,
                 is_active=True,
                 slug=slug,
                 meta_title=f"{p['name']} - InsightShop",

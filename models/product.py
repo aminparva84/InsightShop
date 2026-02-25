@@ -29,6 +29,7 @@ class Product(db.Model):
     size = db.Column(db.String(20), nullable=True)  # Primary/default size
     available_colors = db.Column(db.Text, nullable=True)  # JSON array of available colors
     available_sizes = db.Column(db.Text, nullable=True)  # JSON array of available sizes
+    size_stock = db.Column(db.Text, nullable=True)  # JSON object: {"S": 5, "M": 10, "L": 3} — quantity per size
     fabric = db.Column(db.String(100), nullable=True, index=True)  # e.g., "100% Cotton", "Polyester Blend", "Wool"
     clothing_type = db.Column(db.String(100), nullable=True, index=True)  # e.g., "T-Shirt", "Dress", "Jeans", "Suit"
     clothing_category = db.Column(db.String(50), nullable=False, default='other', index=True)  # pants, shirts, t_shirts, jackets, coats, socks, dresses, etc.
@@ -154,11 +155,15 @@ class Product(db.Model):
         # Parse available colors and sizes from JSON
         available_colors_list = []
         available_sizes_list = []
+        size_stock_dict = {}
         try:
             if self.available_colors:
                 available_colors_list = json.loads(self.available_colors) if isinstance(self.available_colors, str) else self.available_colors
             if self.available_sizes:
                 available_sizes_list = json.loads(self.available_sizes) if isinstance(self.available_sizes, str) else self.available_sizes
+            if self.size_stock:
+                raw = json.loads(self.size_stock) if isinstance(self.size_stock, str) else self.size_stock
+                size_stock_dict = raw if isinstance(raw, dict) else {}
         except:
             # Fallback to single color/size if JSON parsing fails
             if self.color:
@@ -188,6 +193,7 @@ class Product(db.Model):
             'size': self.size,
             'available_colors': available_colors_list if available_colors_list else ([self.color] if self.color else []),
             'available_sizes': available_sizes_list if available_sizes_list else ([self.size] if self.size else []),
+            'size_stock': size_stock_dict if size_stock_dict else None,
             'fabric': self.fabric,
             'clothing_type': self.clothing_type,
             'clothing_category': self.clothing_category or 'other',

@@ -30,6 +30,7 @@ const Products = () => {
   const [allProducts, setAllProducts] = useState([]);
   const [aiProducts, setAiProducts] = useState([]); // Products for AI Dashboard tab
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [categories, setCategories] = useState([]);
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
@@ -129,18 +130,14 @@ const Products = () => {
     // Always fetch products when:
     // 1. AI results exist (regardless of tab - we need to fetch them)
     // 2. We're on normal tab (for regular browsing)
-    // 3. Filters change (for filtering)
-    if (hasAiResults || activeTab === 'normal') {
+    // 3. We have AI tab but no AI results — still fetch normal list so data is ready when user switches tab
+    if (hasAiResults || activeTab === 'normal' || activeTab === 'ai') {
       console.log('Products Page: Triggering fetchProducts, hasAiResults:', hasAiResults, 'aiResultsToUse:', aiResultsToUse, 'activeTab:', activeTab, 'currentTabFromUrl:', currentTabFromUrl);
       // Use a small timeout to ensure URL params and tab state are fully processed
       const timeoutId = setTimeout(() => {
         fetchProducts();
       }, 50);
       return () => clearTimeout(timeoutId);
-    } else if (activeTab === 'ai' && !hasAiResults) {
-      // For AI Dashboard tab without AI results, just set loading to false
-      console.log('Products Page: AI Dashboard with no results, setting loading to false');
-      setLoading(false);
     }
   }, [searchParams, activeTab, filters.ai_results, filters.category, filters.color, filters.size, filters.fabric, filters.season, filters.clothing_category, filters.minPrice, filters.maxPrice, filters.search]); // Include all filter changes
 
@@ -231,6 +228,7 @@ const Products = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setFetchError(null);
       
       // Get current tab from URL to avoid race conditions with state
       const currentTab = searchParams.get('tab') === 'ai' || searchParams.get('ai_results') ? 'ai' : 'normal';
@@ -305,14 +303,8 @@ const Products = () => {
           }
         } else {
           console.warn('Products Page: AI results filter exists but no valid product IDs found');
-          // Set empty arrays when AI results are requested but no valid IDs
+          // Don't return — fall through to load normal product list so the Products tab has data
           setAiProducts([]);
-          if (currentTab === 'normal' || activeTab === 'normal') {
-            setAllProducts([]);
-            setProducts([]);
-          }
-          setLoading(false);
-          return;
         }
       }
       
@@ -345,6 +337,12 @@ const Products = () => {
     } catch (error) {
       console.error('Error fetching products:', error);
       console.error('Error details:', error.response?.data || error.message);
+      const status = error.response?.status;
+      const msg = error.response?.data?.error || error.message || 'Failed to load products';
+      const friendlyMessage = status === 502
+        ? 'Backend unavailable (502). Start the Flask server: from project root run "npm run dev" or run "python app.py" (port 5000).'
+        : msg;
+      setFetchError(friendlyMessage);
       setProducts([]);
       setAllProducts([]);
       setTotalProducts(0);
@@ -557,6 +555,14 @@ const Products = () => {
           <main className="products-main">
             {loading ? (
               <div className="spinner"></div>
+            ) : fetchError ? (
+              <div className="products-error" role="alert">
+                <p><strong>Unable to load products</strong></p>
+                <p>{fetchError}</p>
+                <button type="button" className="btn btn-primary" onClick={() => fetchProducts()}>
+                  Try again
+                </button>
+              </div>
             ) : (
               <>
                 <div className="products-header">

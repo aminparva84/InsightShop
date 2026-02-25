@@ -29,15 +29,20 @@
     },
     {
       "name": "search_products",
-      "description": "Search for products by query and optional filters (category, size, max price, sort, on_sale). Use when the user wants to find, search, or browse items. Set on_sale to true when they ask what's on sale, discounts, or deals.",
+      "description": "Search for products by query and optional filters. Always extract structured filters from the user message: category (men, women, kids), color, size, fabric, season, clothing_category, min_price, max_price, sort_by (relevance, rating, price_low, price_high), on_sale. Use when the user wants to find, search, or browse items. Set on_sale to true when they ask what's on sale. Example: 'blue women clothes under $80' → category: women, color: blue, max_price: 80.",
       "permission": "user",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "query": { "type": "string", "maxLength": 500 },
+          "query": { "type": "string", "maxLength": 500, "description": "Free-text search (product name, description)." },
           "category": { "type": "string", "enum": ["", "men", "women", "kids"] },
+          "color": { "type": "string", "maxLength": 50, "description": "Filter by color (e.g. blue, red, black)." },
           "size": { "type": "string", "maxLength": 20 },
+          "fabric": { "type": "string", "maxLength": 100, "description": "Filter by fabric (e.g. cotton, wool)." },
+          "season": { "type": "string", "maxLength": 20, "description": "Filter by season (e.g. summer, winter)." },
+          "clothing_category": { "type": "string", "maxLength": 50, "description": "Filter by clothing type (e.g. shirts, dresses, jackets)." },
+          "min_price": { "type": "number", "minimum": 0, "maximum": 100000 },
           "max_price": { "type": "number", "minimum": 0, "maximum": 100000 },
           "sort_by": { "type": "string", "enum": ["relevance", "rating", "price_low", "price_high"] },
           "on_sale": { "type": "boolean", "description": "If true, return only products that are currently on sale." }

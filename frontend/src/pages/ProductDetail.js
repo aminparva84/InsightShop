@@ -25,6 +25,7 @@ const ProductDetail = () => {
   const [reviews, setReviews] = useState([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', user_name: '' });
+  const [copyIdFeedback, setCopyIdFeedback] = useState(false);
 
   useEffect(() => {
     fetchProduct();
@@ -102,6 +103,18 @@ const ProductDetail = () => {
       showSuccess(isInWishlist(product.id) ? 'Removed from wishlist' : 'Added to wishlist');
     } else if (result.error) {
       showError(result.error);
+    }
+  };
+
+  const handleCopyProductId = async () => {
+    const idStr = String(product.id);
+    try {
+      await navigator.clipboard.writeText(idStr);
+      showSuccess('Product ID copied to clipboard');
+      setCopyIdFeedback(true);
+      setTimeout(() => setCopyIdFeedback(false), 2000);
+    } catch (err) {
+      showError('Failed to copy product ID');
     }
   };
 
@@ -197,6 +210,7 @@ const ProductDetail = () => {
               )}
             </div>
 
+            <div className="product-detail-actions-row">
             <button
               type="button"
               className={`product-detail-wishlist-btn ${isInWishlist(product.id) ? 'product-detail-wishlist-btn--active' : ''}`}
@@ -213,6 +227,15 @@ const ProductDetail = () => {
                 </svg>
               )}
             </button>
+            <button
+              type="button"
+              className="btn-copy-product-id"
+              onClick={handleCopyProductId}
+              aria-label="Copy product ID to clipboard"
+            >
+              {copyIdFeedback ? 'Copied!' : 'Copy product ID'}
+            </button>
+            </div>
             
             {/* Color Selection - Only show if multiple colors available */}
             {product.available_colors && product.available_colors.length > 1 && (

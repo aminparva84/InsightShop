@@ -74,7 +74,12 @@ def _tool_search_products(args: Dict[str, Any]) -> Dict[str, Any]:
     category = (args.get('category') or '').strip().lower() or None
     if category and category not in ('men', 'women', 'kids'):
         category = None
+    color = (args.get('color') or '').strip() or None
     size = (args.get('size') or '').strip() or None
+    fabric = (args.get('fabric') or '').strip() or None
+    season = (args.get('season') or '').strip() or None
+    clothing_category = (args.get('clothing_category') or '').strip() or None
+    min_price = args.get('min_price')
     max_price = args.get('max_price')
     sort_by = (args.get('sort_by') or 'relevance').strip() or 'relevance'
     on_sale_only = args.get('on_sale') is True
@@ -96,6 +101,15 @@ def _tool_search_products(args: Dict[str, Any]) -> Dict[str, Any]:
 
     if category:
         q = q.filter_by(category=category)
+    if color:
+        q = q.filter(
+            or_(
+                Product.color.ilike(f'%{color}%'),
+                Product.name.ilike(f'%{color}%'),
+                Product.description.ilike(f'%{color}%'),
+                Product.available_colors.ilike(f'%{color}%')
+            )
+        )
     if size:
         q = q.filter(
             or_(
@@ -103,6 +117,14 @@ def _tool_search_products(args: Dict[str, Any]) -> Dict[str, Any]:
                 Product.available_sizes.ilike(f'%{size}%')
             )
         )
+    if fabric:
+        q = q.filter(or_(Product.fabric.ilike(f'%{fabric}%'), Product.description.ilike(f'%{fabric}%')))
+    if season:
+        q = q.filter(Product.season.ilike(f'%{season}%'))
+    if clothing_category:
+        q = q.filter(or_(Product.clothing_category.ilike(f'%{clothing_category}%'), Product.clothing_type.ilike(f'%{clothing_category}%')))
+    if min_price is not None and min_price > 0:
+        q = q.filter(Product.price >= float(min_price))
     if max_price is not None and max_price > 0:
         q = q.filter(Product.price <= float(max_price))
 
@@ -132,10 +154,35 @@ def _tool_search_products(args: Dict[str, Any]) -> Dict[str, Any]:
     else:
         products = q.limit(20).all()
 
+    filters_used = {}
+    if query is not None:
+        filters_used['query'] = query
+    if category:
+        filters_used['category'] = category
+    if color:
+        filters_used['color'] = color
+    if size:
+        filters_used['size'] = size
+    if fabric:
+        filters_used['fabric'] = fabric
+    if season:
+        filters_used['season'] = season
+    if clothing_category:
+        filters_used['clothing_category'] = clothing_category
+    if min_price is not None and min_price > 0:
+        filters_used['min_price'] = min_price
+    if max_price is not None and max_price > 0:
+        filters_used['max_price'] = max_price
+    if sort_by and sort_by != 'relevance':
+        filters_used['sort_by'] = sort_by
+    if on_sale_only:
+        filters_used['on_sale'] = True
+
     return {
         'success': True,
         'count': len(products),
         'products': [p.to_dict() for p in products],
+        'filters_used': filters_used,
     }
 
 

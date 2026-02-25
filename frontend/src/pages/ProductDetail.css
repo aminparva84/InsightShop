@@ -167,6 +167,37 @@
   background: rgba(196, 30, 58, 0.22);
 }
 
+/* Copy product ID – for pasting in chat / direct reference */
+.product-detail-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.product-info-section .btn-copy-product-id {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  background: rgba(245, 245, 220, 0.12);
+  color: #F5F5DC;
+  border: 1px solid rgba(245, 245, 220, 0.4);
+  border-radius: 24px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.product-info-section .btn-copy-product-id:hover {
+  border-color: rgba(245, 245, 220, 0.7);
+  background: rgba(245, 245, 220, 0.18);
+  color: #F5F5DC;
+}
+
+.product-info-section .btn-copy-product-id:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(196, 167, 125, 0.35);
+}
+
 /* Description – cream panel on dark layout */
 .product-description {
   padding: 24px;

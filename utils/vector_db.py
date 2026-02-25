@@ -14,6 +14,9 @@ except Exception as e:
     chromadb = None
     Settings = None
     chromadb_import_error = str(e)
+    print(f"[Vector DB] ChromaDB import failed: {chromadb_import_error}")
+    print("  AI search will use keyword/filter only. Install: pip install numpy==1.26.4 chromadb==0.4.18")
+    print("  (Use the same Python that runs the backend; restart the backend after installing.)")
 
 def _get_vector_db_path():
     """Resolve vector DB path to absolute so it is stable regardless of cwd."""

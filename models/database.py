@@ -216,6 +216,18 @@ def init_db(app):
         except Exception as e:
             print(f"[WARNING] Could not add product sale columns: {e}")
 
+        # Add Product.size_stock column if missing (per-size quantity: JSON object)
+        try:
+            from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
+            with db.engine.connect() as conn:
+                if not _table_has_column(conn, 'products', 'size_stock', dialect_name):
+                    conn.execute(text("ALTER TABLE products ADD COLUMN size_stock TEXT"))
+                    conn.commit()
+                    print("[OK] Added column products.size_stock for existing database")
+        except Exception as e:
+            print(f"[WARNING] Could not add products.size_stock column: {e}")
+
         # Add User.is_superadmin column if missing (existing databases)
         try:
             from sqlalchemy import text

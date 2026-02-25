@@ -121,9 +121,10 @@ def resolve_products(color=None, clothing_type=None, category=None, product_id=N
 
 def parse_agent_response(text):
     """
-    Parse LLM output as a single JSON object.
+    Parse LLM output as a single JSON object with required fields: action, parameters, message, confidence.
     Handles raw JSON or markdown code blocks (```json ... ```).
-    Returns dict with 'action' and optionally 'params'; or None on parse failure.
+    Returns dict with 'action', 'params' (from parameters), 'message', 'confidence'; or None on parse failure.
+    Normalizes action "None"/"NONE" to canonical form. Defaults confidence to 0.5 if missing.
     """
     if not text or not isinstance(text, str):
         return None
@@ -151,8 +152,43 @@ def parse_agent_response(text):
         return None
     try:
         obj = json.loads(text[start : end + 1])
-        if isinstance(obj, dict) and 'action' in obj:
-            return obj
+        if not isinstance(obj, dict) or 'action' not in obj:
+            return None
+        action = (obj.get('action') or '').strip()
+        if not action:
+            return None
+        # Normalize: "None" / "NONE" -> "NONE"
+        if action.upper() == 'NONE':
+            action = 'NONE'
+        params = obj.get('parameters')
+        if not isinstance(params, dict):
+            params = obj.get('params')
+        if not isinstance(params, dict):
+            params = {}
+        # Parameters must contain only structured data. Strip any keys that belong at top level or are natural language.
+        params = {k: v for k, v in params.items() if k not in ('message', 'confidence', 'query')}
+        message = (obj.get('message') or '').strip()
+        # If LLM wrongly put message inside parameters, use it as fallback for message
+        if not message and isinstance(obj.get('parameters'), dict) and obj.get('parameters').get('message'):
+            message = (obj['parameters']['message'] or '').strip()
+        confidence = obj.get('confidence')
+        if confidence is None and isinstance(obj.get('parameters'), dict):
+            confidence = obj['parameters'].get('confidence')
+        if confidence is not None:
+            try:
+                confidence = float(confidence)
+                confidence = max(0.0, min(1.0, confidence))
+            except (TypeError, ValueError):
+                confidence = 0.5
+        else:
+            confidence = 0.5
+        return {
+            'action': action,
+            'params': params,
+            'parameters': params,
+            'message': message,
+            'confidence': confidence,
+        }
     except json.JSONDecodeError:
         pass
     return None

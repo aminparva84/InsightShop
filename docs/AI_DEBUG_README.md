@@ -8,7 +8,7 @@ The file `ai_debug.csv` is a reference log for testing and debugging the Insight
 |---------------|-------------|
 | **message**   | User input (what the user typed or said). |
 | **response**  | Assistant reply shown to the user. |
-| **action_json** | **Canonical JSON for every message:** `{"action": "STRING", "parameters": {}, "message": "STRING"}`. See Canonical action format below. |
+| **action_json** | **Canonical JSON for every message:** `{"action": "STRING", "parameters": {}, "message": "STRING", "confidence": NUMBER}`. See Canonical action format below. |
 | **error**     | Empty when successful; filled with error message or stack trace when the request failed. |
 
 ## Canonical action format (every message)
@@ -19,13 +19,15 @@ Every row’s **action_json** is normalized to this structure:
 {
   "action": "NONE | SEARCH_PRODUCTS | ADD_TO_CART | REMOVE_FROM_CART | UPDATE_CART_ITEM | CLEAR_CART | ADD_TO_WISHLIST | REMOVE_FROM_WISHLIST | VIEW_CART | VIEW_WISHLIST | REDIRECT | COMPARE_PRODUCTS",
   "parameters": {},
-  "message": "Natural language response shown to the user."
+  "message": "Natural language response shown to the user.",
+  "confidence": 0.95
 }
 ```
 
 - **action**: Required. One of the values above; use `NONE` when no backend action is required.
-- **parameters**: Required; can be empty `{}`. Structured data for the action (e.g. `product_id`, `quantity`, `category`, `color`, `max_price`, `destination`).
-- **message**: Required. The reply text displayed to the user.
+- **parameters**: Required; can be empty `{}`. Structured data for the action (e.g. `product_id`, `quantity`, `category`, `color`, `max_price`, `destination`). No natural language inside.
+- **message**: Required. The reply text displayed to the user (short, friendly, clear).
+- **confidence**: Required. Number between 0 and 1 indicating intent classification confidence (e.g. 0.95 = very confident, 0.45 = ambiguous; use `NONE` and ask for clarification when low).
 
 The backend always writes this canonical form to **action_json** so that every message is logged in a consistent, machine-readable way.
 
@@ -88,6 +90,7 @@ Every chat response includes a **message_json** object. It contains both legacy 
 | **action_canonical** | string | Canonical action: `NONE`, `SEARCH_PRODUCTS`, `ADD_TO_CART`, `REMOVE_FROM_CART`, `VIEW_CART`, `CLEAR_CART`, `REDIRECT`, `COMPARE_PRODUCTS`, etc. |
 | **parameters** | object | Structured data for the action (same as in **action_json** in ai_debug). |
 | **message**    | string | Natural language response (same as **respond**). |
+| **confidence** | number | Intent classification confidence 0–1 (e.g. 0.95 = very confident). |
 | **error**      | string \| null | Error message when status is `error` or `denied`; null on success. |
 | **respond**    | string  | The reply text shown to the user. |
 | **status**     | string  | `success`, `error`, or `denied`. |

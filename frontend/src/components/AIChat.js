@@ -1009,7 +1009,8 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
         history: historyForRequest,
         selected_product_ids: selectedProductIds
       };
-      if (user && lastSearchFilters && typeof lastSearchFilters === 'object' && Object.keys(lastSearchFilters).length > 0) {
+      if (lastSearchFilters && typeof lastSearchFilters === 'object' && Object.keys(lastSearchFilters).length > 0) {
+        payload.last_filters = lastSearchFilters;
         payload.last_search_filters = lastSearchFilters;
       }
       // 90s timeout: AI can be slow; fail with clear message instead of hanging

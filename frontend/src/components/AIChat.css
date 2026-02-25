@@ -488,6 +488,11 @@
   color: var(--ai-text, rgba(79, 87, 71, 0.95));
   font-weight: 500;
 }
+.ai-chat-no-results {
+  margin-top: 6px;
+  font-size: 0.875rem;
+  color: var(--ai-text, rgba(79, 87, 71, 0.8));
+}
 .ai-chat-view-all-wrap {
   margin-top: 6px;
 }

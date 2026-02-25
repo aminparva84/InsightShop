@@ -171,14 +171,22 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
   const audioRef = useRef(null); // For AWS Polly audio playback
   const fileInputRef = useRef(null);
   const inputRef = useRef(null); // For input focus management
+  const isMountedRef = useRef(true);
 
   /** Scroll the chat messages area to bottom. Only scrolls the messages container, never the window. */
   const scrollToBottom = () => {
-    if (!input.trim() && document.activeElement?.tagName !== 'INPUT') {
-      const el = messagesContainerRef.current;
-      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    }
+    // Skip scroll only when user is typing (has content in input); always scroll after send or when assistant replies
+    if (input.trim()) return;
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Delay scroll to avoid interfering with typing
@@ -1014,47 +1022,94 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
         payload.last_search_filters = lastSearchFilters;
       }
       // 90s timeout: AI can be slow; fail with clear message instead of hanging
-      const response = await axios.post(chatUrl, payload, { timeout: 90000 });
+      const response = await axios.post(chatUrl, payload, { timeout: 90000, withCredentials: true });
 
       const aiMessage = {
         role: 'assistant',
         content: response.data.response || response.data.message || 'No response.'
       };
 
-      // Structured response: product_preview (show cards in chat) or no_results (no product IDs as text)
+      // Structured response: product_preview (show cards in chat) or no_results
       const structured = response.data.structured_response;
-      if (structured?.type === 'product_preview' && structured.products?.length > 0) {
-        aiMessage.content = response.data.response || 'Here are some options that match your search.';
+      const mjAction = (response.data.message_json?.action || response.data.message_json?.action_canonical || '').toString().toUpperCase();
+      const isSearchAction = response.data.action === 'search_results' || mjAction === 'SEARCH_PRODUCTS';
+
+      // When the backend says this is a search response, ALWAYS use suggested_products (backend guarantees it's an array)
+      const suggestedProducts = Array.isArray(response.data.suggested_products) ? response.data.suggested_products : [];
+      const hasStructuredProducts = structured?.type === 'product_preview' && Array.isArray(structured.products) && structured.products.length > 0;
+      const hasSuggestedProducts = suggestedProducts.length > 0;
+
+      // SEARCH: Always attach product_preview so results show every time. Use suggested_products first (source of truth from backend).
+      if (isSearchAction) {
+        const products = hasSuggestedProducts ? suggestedProducts : (hasStructuredProducts ? structured.products : []);
+        aiMessage.content = response.data.response || response.data.message || (products.length > 0 ? 'Here are the results that match your search.' : 'No products found matching your criteria.');
         aiMessage.product_preview = {
-          title: structured.title || 'Search Results',
-          products: structured.products,
-          preview_limit: typeof structured.preview_limit === 'number' ? structured.preview_limit : 4,
-          show_view_all: Boolean(structured.show_view_all),
+          title: (hasStructuredProducts && structured.title) ? structured.title : 'Search results',
+          products,
+          preview_limit: (hasStructuredProducts && typeof structured.preview_limit === 'number') ? structured.preview_limit : 5,
+          show_view_all: hasStructuredProducts ? Boolean(structured.show_view_all) : true,
+        };
+      } else if (hasStructuredProducts || hasSuggestedProducts) {
+        const products = hasStructuredProducts ? structured.products : suggestedProducts;
+        const previewLimit = hasStructuredProducts && typeof structured.preview_limit === 'number' ? structured.preview_limit : 5;
+        aiMessage.content = response.data.response || response.data.message || 'Here are some options that match your search.';
+        aiMessage.product_preview = {
+          title: (hasStructuredProducts && structured.title) ? structured.title : 'Search results',
+          products,
+          preview_limit: previewLimit,
+          show_view_all: hasStructuredProducts ? Boolean(structured.show_view_all) : true,
         };
       } else if (structured?.type === 'no_results') {
-        aiMessage.content = structured.message || 'No products found.';
+        const apiResponse = (response.data.response || response.data.message || '').trim();
+        aiMessage.content = apiResponse || structured.message || 'No products found.';
       }
 
       // Track last search filters so follow-ups ("show me the blue ones") can merge with previous filters
       const mj = response.data.message_json;
-      const isSearchResponse = response.data.action === 'search_results' || mj?.action === 'search_products';
+      const mjActionLower = (mj?.action || mj?.action_canonical || '').toString().toLowerCase();
+      const isSearchResponse = response.data.action === 'search_results' || mjActionLower === 'search_products';
       if (isSearchResponse && mj?.filters && typeof mj.filters === 'object') {
         setLastSearchFilters(mj.filters);
       } else {
         setLastSearchFilters(null);
       }
 
+      // If user closed the chat while waiting, persist conversation so it shows when they reopen
+      if (!isMountedRef.current) {
+        try {
+          const newMessages = [...historyForRequest, { role: 'user', content: userText }, aiMessage];
+          sessionStorage.setItem('aiChatHistory', JSON.stringify(newMessages));
+        } catch (e) {
+          console.error('Error persisting chat after unmount:', e);
+        }
+        return;
+      }
+
       setMessages(prev => [...prev, aiMessage]);
 
       // When agent executed a cart action: refresh cart, then redirect if requested
+      const cartActions = ['ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART', 'ADD_WISHLIST_TO_CART'];
+      const isCartAction = response.data.action === 'agent_executed' || cartActions.includes(mjAction);
+      if (isCartAction && fetchCart) {
+        await fetchCart();
+      }
       if (response.data.action === 'agent_executed') {
-        if (fetchCart) await fetchCart();
-        const redirectTo = response.data.redirect_to;
+        const redirectTo = response.data.redirect_to || response.data.redirect_path;
         if (redirectTo) {
-          navigate(redirectTo);
-          if (onClose) onClose();
+          setTimeout(() => {
+            navigate(redirectTo);
+            if (onClose) onClose();
+          }, 500);
           return;
         }
+      }
+      // VIEW_CART, VIEW_WISHLIST, VIEW_CHECKOUT, etc.: backend sends redirect_path — show message in chat briefly, then redirect
+      if (response.data.redirect_path && !response.data.redirect_prefill) {
+        setTimeout(() => {
+          navigate(response.data.redirect_path);
+          if (onClose) onClose();
+        }, 500);
+        return;
       }
 
       // Admin: redirect to Admin page with product form prefill (create or edit from assistant)
@@ -1139,47 +1194,27 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
       
       // Detect if this is a product list response
       // Check multiple conditions to ensure we catch all product list scenarios
-      // IMPORTANT: Check if array exists AND has length > 0
+      // IMPORTANT: Check if array exists AND has length > 0 (hasSuggestedProducts already declared above from suggestedProducts)
       const hasProductIds = Array.isArray(response.data.suggested_product_ids) && response.data.suggested_product_ids.length > 0;
-      const hasSuggestedProducts = Array.isArray(response.data.suggested_products) && response.data.suggested_products.length > 0;
       const isSearchResultsAction = response.data.action === 'search_results';
-      
+      const isSearchFromMessageJson = mjAction === 'SEARCH_PRODUCTS';
+
       // Also check if action is undefined but we have products (backend might have missed setting action)
       const hasProductsButNoAction = (hasProductIds || hasSuggestedProducts) && !response.data.action;
-      
-      // Process AI response
-      
-      // If user wants to see products in chat, format them as text list (only when NOT using structured product_preview)
+
+      // Navigate if we have products AND (explicit search_results action OR message_json says SEARCH_PRODUCTS OR we have product list — show in dashboard either way)
+      const shouldNavigate = (hasProductIds || hasSuggestedProducts) &&
+                            (isSearchResultsAction || isSearchFromMessageJson || hasProductsButNoAction || hasSuggestedProducts || hasProductIds);
+      // Do NOT replace the message with text-only — product_preview is already set above when we have products; replacing would hide the cards
       if (wantsToSeeInChat && hasSuggestedProducts && response.data.suggested_products.length > 0 && structured?.type !== 'product_preview') {
-        const productsList = response.data.suggested_products.map(p => 
-          `Product #${p.id}: ${p.name} - $${parseFloat(p.price).toFixed(2)} (${p.category}, ${p.color || 'N/A'})`
-        ).join('\n');
-        
-        // Replace the last AI message with the products list
-        setMessages(prev => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = {
-            role: 'assistant',
-            content: `Here are the products you asked for:\n\n${productsList}`
-          };
-          return newMessages;
-        });
-        return; // Don't navigate, just show in chat
+        // Message already has product_preview from suggested_products; skip overwrite so cards stay visible
       }
-      
-      // CRITICAL: Only navigate if we have products AND action is search_results
-      // If no products found (especially with strict filters), stay in chat to show the "no results" message
-      // Navigate if:
-      // 1. We have product IDs AND action is search_results, OR
-      // 2. We have suggested products AND action is search_results
-      // IMPORTANT: Don't navigate if action is null/undefined (means no products found)
-      const shouldNavigate = (hasProductIds || hasSuggestedProducts) && 
-                            (response.data.action === 'search_results');
-      
+
       console.log('AI Chat: Should navigate?', shouldNavigate, {
         hasProductIds,
         hasSuggestedProducts,
         isSearchResultsAction,
+        isSearchFromMessageJson,
         action: response.data.action,
         hasProductsButNoAction,
         condition1: hasProductIds,
@@ -1263,6 +1298,13 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
                 preview_limit: typeof structured.preview_limit === 'number' ? structured.preview_limit : 4,
                 show_view_all: Boolean(structured.show_view_all),
               };
+            } else if (Array.isArray(response.data.suggested_products) && response.data.suggested_products.length > 0) {
+              updatedMessage.product_preview = {
+                title: 'Search results',
+                products: response.data.suggested_products,
+                preview_limit: 4,
+                show_view_all: true,
+              };
             }
             setMessages(prev => {
               const newMessages = [...prev];
@@ -1307,6 +1349,13 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
               preview_limit: typeof structured.preview_limit === 'number' ? structured.preview_limit : 4,
               show_view_all: Boolean(structured.show_view_all),
             };
+          } else if (Array.isArray(response.data.suggested_products) && response.data.suggested_products.length > 0) {
+            updatedMessage.product_preview = {
+              title: 'Search results',
+              products: response.data.suggested_products,
+              preview_limit: 4,
+              show_view_all: true,
+            };
           }
           setMessages(prev => {
             const newMessages = [...prev];
@@ -1349,10 +1398,17 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
       const message = isTimeout
         ? "The request took too long. The AI might be busy—please try again in a moment. You can still browse products!"
         : `Sorry, I encountered an error: ${error.response?.data?.error || error.message || 'Unknown error'}. The AI service may not be configured yet, but you can still browse products!`;
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: message
-      }]);
+      const errorAiMessage = { role: 'assistant', content: message };
+      if (!isMountedRef.current) {
+        try {
+          const newMessages = [...historyForRequest, { role: 'user', content: userText }, errorAiMessage];
+          sessionStorage.setItem('aiChatHistory', JSON.stringify(newMessages));
+        } catch (e) {
+          console.error('Error persisting chat after unmount:', e);
+        }
+        return;
+      }
+      setMessages(prev => [...prev, errorAiMessage]);
     } finally {
       setLoading(false);
     }
@@ -1775,38 +1831,44 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
                   </React.Fragment>
                 );
               })}
-              {/* Structured product preview: show product cards in chat, no plain product IDs */}
-              {msg.product_preview && msg.product_preview.products && msg.product_preview.products.length > 0 && (
+              {/* Structured product preview: show product cards in chat. For search we always have product_preview (may be empty). */}
+              {msg.product_preview && (
                 <div className="ai-chat-product-response">
                   {msg.product_preview.title && (
                     <div className="ai-chat-product-intro">{msg.product_preview.title}</div>
                   )}
-                  <div className="ai-chat-product-scroll">
-                    {(msg.product_preview.products.slice(0, msg.product_preview.preview_limit || 4)).map((product) => (
-                      <div key={product.id} className="product-grid-item-wrapper">
-                        <ProductCard product={product} compact />
+                  {msg.product_preview.products && msg.product_preview.products.length > 0 ? (
+                    <>
+                      <div className="ai-chat-product-scroll">
+                        {(msg.product_preview.products.slice(0, msg.product_preview.preview_limit || 4)).map((product) => (
+                          <div key={product.id} className="product-grid-item-wrapper">
+                            <ProductCard product={product} compact />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  {msg.product_preview.show_view_all && (
-                    <div className="ai-chat-view-all-wrap">
-                      <button
-                        type="button"
-                        className="ai-chat-view-all-btn"
-                        onClick={() => {
-                          const allIds = msg.product_preview.products.map((p) => p.id).filter(Boolean);
-                          if (location.pathname === '/' && onProductsUpdate) {
-                            onProductsUpdate(allIds);
-                            setTimeout(() => inputRef.current?.focus(), 100);
-                          } else {
-                            const idsParam = allIds.join(',');
-                            navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
-                          }
-                        }}
-                      >
-                        View All ({msg.product_preview.products.length})
-                      </button>
-                    </div>
+                      {msg.product_preview.show_view_all && (
+                        <div className="ai-chat-view-all-wrap">
+                          <button
+                            type="button"
+                            className="ai-chat-view-all-btn"
+                            onClick={() => {
+                              const allIds = msg.product_preview.products.map((p) => p.id).filter(Boolean);
+                              if (location.pathname === '/' && onProductsUpdate) {
+                                onProductsUpdate(allIds);
+                                setTimeout(() => inputRef.current?.focus(), 100);
+                              } else {
+                                const idsParam = allIds.join(',');
+                                navigate(`/products?ai_results=${encodeURIComponent(idsParam)}&tab=ai`);
+                              }
+                            }}
+                          >
+                            See all in AI Dashboard ({msg.product_preview.products.length})
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="ai-chat-no-results">No products found matching your criteria.</div>
                   )}
                 </div>
               )}

@@ -8,165 +8,8 @@ from utils.spelling_tolerance import normalize_clothing_type, normalize_category
 from utils.fashion_match_rules import find_matching_products, get_match_explanation
 from utils.seasonal_events import get_seasonal_context_text, get_current_season, get_upcoming_holidays, get_seasonal_recommendations
 from utils.product_relations import ensure_product_relations, get_related_clothing_types
-from utils.agent_executor import (
-    ALLOWED_ACTIONS,
-    parse_agent_response,
-    can_execute_action,
-    execute_action,
-)
-from utils.ai_action_dispatcher import dispatch_action
-# Actions that modify state (cart); backend executes via tools. From InsightShop User Capabilities / ai_debug.csv.
-CRUD_ACTIONS = frozenset({'add_item', 'remove_item', 'show_cart', 'clear_cart'})
-# Agent returns one of these; backend dispatches (cart → execute_action, search_products → execute_tool, compare_products → compare, wishlist → execute_tool, none → static).
-AGENT_ACTIONS = frozenset(ALLOWED_ACTIONS | {
-    'search_products', 'compare_products', 'redirect',
-    'view_wishlist', 'add_to_wishlist', 'remove_from_wishlist', 'update_cart_item',
-})
-# Non-CRUD: LLM answers using vector search, compare, or knowledge (no tool execution for cart).
-NON_CRUD_ACTIONS = frozenset({'search_products', 'compare_products', 'none'})
-
-# Canonical action names for every message (required JSON: action, parameters, message). Used in API and ai_debug.
-CANONICAL_ACTIONS = frozenset({
-    'NONE', 'SEARCH_PRODUCTS', 'ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM',
-    'CLEAR_CART', 'ADD_TO_WISHLIST', 'REMOVE_FROM_WISHLIST', 'VIEW_CART', 'VIEW_WISHLIST',
-    'REDIRECT', 'COMPARE_PRODUCTS',
-})
-INTERNAL_TO_CANONICAL = {
-    'none': 'NONE',
-    'search_products': 'SEARCH_PRODUCTS',
-    'add_item': 'ADD_TO_CART',
-    'remove_item': 'REMOVE_FROM_CART',
-    'show_cart': 'VIEW_CART',
-    'clear_cart': 'CLEAR_CART',
-    'compare_products': 'COMPARE_PRODUCTS',
-    'redirect': 'REDIRECT',
-    'view_wishlist': 'VIEW_WISHLIST',
-    'add_to_wishlist': 'ADD_TO_WISHLIST',
-    'remove_from_wishlist': 'REMOVE_FROM_WISHLIST',
-    'update_cart_item': 'UPDATE_CART_ITEM',
-}
-CANONICAL_TO_INTERNAL = {v: k for k, v in INTERNAL_TO_CANONICAL.items()}
-CANONICAL_TO_INTERNAL['REDIRECT'] = 'redirect'
-CANONICAL_TO_INTERNAL['VIEW_WISHLIST'] = 'view_wishlist'
-CANONICAL_TO_INTERNAL['ADD_TO_WISHLIST'] = 'add_to_wishlist'
-CANONICAL_TO_INTERNAL['REMOVE_FROM_WISHLIST'] = 'remove_from_wishlist'
-CANONICAL_TO_INTERNAL['UPDATE_CART_ITEM'] = 'update_cart_item'
-
-
-def build_message_json(permission, action, error, respond, status, filters=None, confidence=None):
-    """Build the standard JSON for every message: permission, action, error, respond, status, confidence.
-    When action is search_products, include filters if provided.
-    Always includes canonical form: action_canonical, parameters, message, confidence (required for every message / ai_debug)."""
-    if confidence is None:
-        confidence = 0.5
-    try:
-        confidence = max(0.0, min(1.0, float(confidence)))
-    except (TypeError, ValueError):
-        confidence = 0.5
-    out = {
-        'permission': bool(permission),
-        'action': action if action is not None else 'none',
-        'error': str(error).strip() if error else None,
-        'respond': str(respond).strip() if respond else '',
-        'status': status if status in ('success', 'error', 'denied') else ('success' if not error else 'error'),
-        'confidence': confidence,
-    }
-    if filters is not None and isinstance(filters, dict):
-        out['filters'] = {k: v for k, v in filters.items() if v is not None and v != ''}
-    action_canonical = INTERNAL_TO_CANONICAL.get((action or 'none').lower(), 'NONE')
-    params = {}
-    if filters is not None and isinstance(filters, dict):
-        params = {k: v for k, v in filters.items() if v is not None and v != ''}
-    out['action_canonical'] = action_canonical
-    out['parameters'] = params
-    out['message'] = (respond or '').strip() or (str(error).strip() if error else '')
-    return out
-
-
-def build_canonical_action_json(action_canonical, parameters, message, confidence=None):
-    """Build the minimal canonical JSON for every message: { action, parameters, message, confidence }. Use for ai_debug and API."""
-    if confidence is None:
-        confidence = 0.5
-    try:
-        confidence = max(0.0, min(1.0, float(confidence)))
-    except (TypeError, ValueError):
-        confidence = 0.5
-    return {
-        'action': action_canonical if action_canonical in CANONICAL_ACTIONS else 'NONE',
-        'parameters': dict(parameters) if isinstance(parameters, dict) else {},
-        'message': (message or '').strip(),
-        'confidence': confidence,
-    }
-
-
-def _extract_search_filters_from_message(message):
-    """
-    When the LLM returns action "none", detect if the user is asking to find/show products.
-    If yes, return a dict of filters (category, color, max_price, etc.) so we can override to search_products.
-    Returns None if the message is clearly not a product search.
-    """
-    if not message or not isinstance(message, str):
-        return None
-    import re
-    msg = message.strip().lower()
-    if msg in ('hi', 'hello', 'hey', 'thanks', 'thank you', 'bye', 'ok', 'yes', 'no'):
-        return None
-    if re.match(r'^(what is your|how do i|return policy|shipping|contact|where are)', msg):
-        return None
-    search_keywords = (
-        'clothes', 'clothing', 'women', 'men', 'kids', 'show me', 'find', 'looking for',
-        'do you have', 'any', 'browse', 'search', 'items', 'products', 'sale', 'on sale',
-        'under', 'below', 'above', 'over', 'dresses', 'shirts', 'jackets', 'pants',
-        'blue', 'red', 'black', 'white', 'green', 'yellow', 'brown', 'grey', 'gray'
-    )
-    if not any(k in msg for k in search_keywords) and '$' not in message and not re.search(r'\d+\s*\$|\$\s*\d+|\bunder\s+\d+|\bunder\s+\$\d+', message, re.I):
-        return None
-    filters = {}
-    if re.search(r"\bwomen'?s?\b|for women|female", msg):
-        filters['category'] = 'women'
-    elif re.search(r"\bmen'?s?\b|for men|male", msg):
-        filters['category'] = 'men'
-    elif re.search(r'\bkids\b|children', msg):
-        filters['category'] = 'kids'
-    colors = ['blue', 'red', 'black', 'white', 'green', 'yellow', 'brown', 'grey', 'gray', 'navy', 'pink', 'orange', 'purple', 'beige']
-    for c in colors:
-        if re.search(r'\b' + c + r's?\b', msg):
-            filters['color'] = c
-            break
-    price_under = re.search(
-        r'under\s*(?:\$?\s*)?(\d+)|'
-        r'\bbelow\s*(?:\$?\s*)?(\d+)|'
-        r'(\d+)\s*\$\s*and\s*under|under\s*(\d+)\s*\$|'
-        r'cheaper\s+than\s*(?:\$?\s*)?(\d+)|\bless\s+than\s*(?:\$?\s*)?(\d+)\s*\$?',
-        message, re.I
-    )
-    if price_under:
-        val = next((int(x) for x in price_under.groups() if x), None)
-        if val is not None:
-            filters['max_price'] = val
-    price_over = re.search(r'over\s*(?:\$?\s*)?(\d+)|\babove\s*(?:\$?\s*)?(\d+)', message, re.I)
-    if price_over:
-        val = next((int(x) for x in price_over.groups() if x), None)
-        if val is not None:
-            filters['min_price'] = val
-    if re.search(r'\bon\s+sale\b|on sale|what\'?s\s+on\s+sale|sale\s+items|discount|deals', msg):
-        filters['on_sale'] = True
-    clothing_terms = ['jackets', 'jacket', 'shirts', 'shirt', 'dresses', 'dress', 'pants', 'jeans', 'coats', 'coat', 'tops', 'sweaters', 'sweater', 'shoes', 'skirts', 'skirt']
-    for term in clothing_terms:
-        if re.search(r'\b' + term + r's?\b', msg):
-            filters['query'] = term.rstrip('s') if term.endswith('s') and term != 'dress' else term
-            break
-    return filters if filters else None
-
-
 from routes.auth import require_auth, get_current_user_optional
 from config import Config
-from mcp.tools_registry import (
-    validate_tool_call,
-    validate_and_sanitize_args,
-    get_tools_for_llm,
-)
-from utils.tool_executor import execute_tool
 import boto3
 import csv
 import json
@@ -204,8 +47,69 @@ def append_ai_debug_log(message, response=None, action_json=None, error=None):
         pass  # Do not break chat on log failure
 
 
+# Canonical action names for message_json / ai_debug (decision engine actions pass through as-is).
+INTERNAL_TO_CANONICAL = {'none': 'NONE', 'response': 'Response'}
+CANONICAL_ACTIONS = frozenset({
+    'NONE', 'Response', 'SEARCH_PRODUCTS',
+    'ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART',
+    'ADD_TO_WISHLIST', 'REMOVE_FROM_WISHLIST', 'CLEAR_WISHLIST', 'ADD_WISHLIST_TO_CART',
+    'VIEW_CART', 'VIEW_WISHLIST', 'VIEW_PRODUCTS', 'VIEW_HOME', 'VIEW_CHECKOUT',
+})
+
+
+def _action_canonical(action):
+    if not action:
+        return 'NONE'
+    a = (action or '').strip()
+    key = a.lower()
+    if key in INTERNAL_TO_CANONICAL:
+        return INTERNAL_TO_CANONICAL[key]
+    return a.upper() if a.upper() in CANONICAL_ACTIONS else a.upper()
+
+
+def build_message_json(permission, action, error, respond, status, filters=None, confidence=None):
+    """Build the standard JSON for every message. Used by chat stubs for frontend compatibility."""
+    if confidence is None:
+        confidence = 0.5
+    try:
+        confidence = max(0.0, min(1.0, float(confidence)))
+    except (TypeError, ValueError):
+        confidence = 0.5
+    action = action if action is not None else 'none'
+    out = {
+        'permission': bool(permission),
+        'action': action,
+        'error': str(error).strip() if error else None,
+        'respond': str(respond).strip() if respond else '',
+        'status': status if status in ('success', 'error', 'denied') else ('success' if not error else 'error'),
+        'confidence': confidence,
+        'action_canonical': _action_canonical(action),
+        'parameters': dict(filters) if filters and isinstance(filters, dict) else {},
+        'message': (respond or '').strip() or (str(error).strip() if error else ''),
+    }
+    if filters is not None and isinstance(filters, dict):
+        out['filters'] = {k: v for k, v in filters.items() if v is not None and v != ''}
+    return out
+
+
+def build_canonical_action_json(action_canonical, parameters, message, confidence=None):
+    """Build minimal canonical JSON for ai_debug."""
+    if confidence is None:
+        confidence = 0.5
+    try:
+        confidence = max(0.0, min(1.0, float(confidence)))
+    except (TypeError, ValueError):
+        confidence = 0.5
+    return {
+        'action': action_canonical if action_canonical in CANONICAL_ACTIONS else 'NONE',
+        'parameters': dict(parameters) if isinstance(parameters, dict) else {},
+        'message': (message or '').strip(),
+        'confidence': confidence,
+    }
+
+
 def _debug_action_from_payload(payload):
-    """Build action_json dict for append_ai_debug_log from a response payload. Uses canonical { action, parameters, message, confidence } for every message."""
+    """Build action_json dict for append_ai_debug_log from a response payload."""
     if not payload:
         return build_canonical_action_json('NONE', {}, '')
     mj = payload.get('message_json')
@@ -305,125 +209,37 @@ def _normalize_llm_error(exc):
 
 DEFAULT_SYSTEM_PROMPT = """You are a professional shopping assistant for InsightShop. Be helpful, concise, and clear. Use a polite, business-appropriate tone. Answer only what the user asked; do not recommend or suggest products unless they explicitly asked for recommendations or suggestions. When listing products they asked for, state Product #ID, name, and price. Do not use excessive exclamation points, slang, or overly casual language."""
 
+# Decision engine: AI must return ONLY valid JSON with action, parameters, message, confidence. No free text outside JSON.
+DECISION_ENGINE_SYSTEM_PROMPT = """You are the decision engine for InsightShop. You are NOT a casual chatbot. For EVERY user message you MUST respond with exactly one JSON object and nothing else. No markdown, no explanation, no text before or after the JSON.
 
-# System prompt for the action agent: user prompt → single JSON with action, parameters, message, confidence (mandatory for every message).
-# This agent is a DECISION ENGINE only. It must NEVER return free text outside the JSON.
-AGENT_SYSTEM_PROMPT = """You are a decision engine for an e-commerce site. You are NOT a casual chatbot.
-For EVERY user message you MUST output exactly ONE valid JSON object. No text before or after. No markdown. No explanation.
+Required JSON shape (use exactly these keys):
+{
+  "action": "<REQUIRED>",
+  "parameters": { },
+  "message": "<REQUIRED>",
+  "confidence": <number between 0 and 1>
+}
 
-Required JSON structure (all four fields at TOP LEVEL only):
-{"action": "STRING", "parameters": {}, "message": "STRING", "confidence": NUMBER}
+Allowed actions:
+- "Response" — Use for ANY question that does not require a backend action: advice, styling tips, explanations, store policies, product comparisons, "what should I wear", "how do I...", opinions, casual chat. Put your full helpful answer in the "message" field. parameters: {}. Do NOT use NONE for these—use Response and give a real answer in message.
+- "NONE" — Only when intent is truly unclear or ambiguous (e.g. could be cart OR wishlist). Ask one short clarification question in message. Use empty parameters {}. Do NOT use NONE for general questions—use Response.
+- "SEARCH_PRODUCTS" — User wants to search/browse products. Extract filters into parameters: category (men/women/kids), color, min_price, max_price, search (or query), clothing_type, size, fabric, occasion. Use null for unspecified filters. Keep a memory of filters from recent messages when user adds refinements (e.g. "under 50" after a search).
+- "ADD_TO_CART" — Add item to cart. parameters: product_id (required), quantity (default 1), selected_color, selected_size. NEVER invent product_id; if missing use action "NONE" and ask which product.
+- "REMOVE_FROM_CART" — parameters: product_id or item_id, selected_color, selected_size.
+- "UPDATE_CART_ITEM" — parameters: item_id or product_id, quantity, selected_color, selected_size, old_color, old_size.
+- "CLEAR_CART" — Empty the SHOPPING CART (items to buy). parameters: {}. Use only when user says "clear cart", "empty my cart", "remove all from cart".
+- "ADD_TO_WISHLIST" — parameters: product_id (required). If missing use "NONE".
+- "REMOVE_FROM_WISHLIST" — parameters: product_id.
+- "CLEAR_WISHLIST" — Empty the WISHLIST (saved/favorite items). parameters: {}. Use when user says "clear my wishlist", "empty wishlist", "remove all from wishlist". Do NOT use CLEAR_CART for wishlist.
+- "ADD_WISHLIST_TO_CART" — User wants to add ALL wishlist items to cart (e.g. "add everything in my wishlist to cart", "add all wishlist items to my cart"). parameters: {}. Use this when the user asks to add the whole wishlist or all wishlist items; do NOT use NONE or ask one-by-one.
+- "VIEW_CART", "VIEW_WISHLIST", "VIEW_PRODUCTS", "VIEW_HOME", "VIEW_CHECKOUT" — Navigation. parameters: {}.
 
-CRITICAL RULES:
-- "message" and "confidence" MUST be top-level keys. NEVER put them inside "parameters". parameters must contain ONLY structured data keys (category, color, product_id, etc.).
-- parameters: ONLY structured data. NO natural language. NO "query" field. NO copy of the user's message. For search, use only: category, color, min_price, max_price, on_sale, size, fabric, season, clothing_category. Never put a sentence or the user's words inside parameters.
+Rules:
+- parameters must contain ONLY structured data (numbers, strings, null). No natural language inside parameters.
+- message: short, friendly, user-facing sentence. No technical jargon.
+- confidence: 0.95 = very confident, 0.6 = somewhat ambiguous, 0.3 = likely misunderstood. If unclear use "NONE" and confidence < 0.5.
+- Output ONLY the JSON object. No other text."""
 
-SEARCH_PRODUCTS — you MUST extract every filter the user indicates:
-- "Show me Blue clothes for women" → {"action": "SEARCH_PRODUCTS", "parameters": {"category": "women", "color": "blue"}, "message": "Here are blue clothes for women.", "confidence": 0.95}
-- "black Adidas running shoes under $150" → {"action": "SEARCH_PRODUCTS", "parameters": {"category": "women", "color": "black", "max_price": 150}, "message": "Here are black running shoes under $150.", "confidence": 0.96}
-- NEVER do: "parameters": {"query": "Show me Blue clothes for women", ...} — that is forbidden. No "query". No natural language in parameters.
-- Always detect color when the user says a color (blue, red, black, white, green, navy, etc.). Always detect category when they say men/women/kids. Price: "under $60" → max_price: 60; "over $20" → min_price: 20. "on sale" → on_sale: true.
-
-Other rules:
-- action: One of NONE, SEARCH_PRODUCTS, ADD_TO_CART, REMOVE_FROM_CART, UPDATE_CART_ITEM, CLEAR_CART, ADD_TO_WISHLIST, REMOVE_FROM_WISHLIST, VIEW_CART, VIEW_WISHLIST, REDIRECT, COMPARE_PRODUCTS.
-- message: One short, clear, friendly sentence. Top-level only.
-- confidence: Number 0–1. Top-level only.
-
-CRUD: ADD_TO_CART / ADD_TO_WISHLIST need product_id (number) and optional quantity. Never invent product_id. If missing, use action NONE and ask in message.
-NAVIGATION: REDIRECT with parameters.destination (CART_PAGE, WISHLIST, CHECKOUT, MY_ORDERS).
-COMPARE_PRODUCTS: parameters.product_ids (array of at least 2 numbers).
-
-Output ONLY the single JSON object. No other text."""
-
-# Legacy: internal action names for backend execution (add_item, remove_item, etc.). Parsed response is mapped from canonical to these.
-AGENT_SYSTEM_PROMPT_LEGACY = """You are an AI agent that converts user requests into exactly one JSON action for a shopping site.
-- Only return valid JSON. No explanation, no markdown.
-- Allowed actions: add_item, remove_item, show_cart, clear_cart, search_products, compare_products, none.
-- Use "action" and "params" for every response. For search_products you may use "filters" instead of "params".
-- Example: {"action": "search_products", "filters": {"color": "blue", "maxPrice": 80}}
-- Example: {"action": "add_item", "params": {"product_id": 5, "quantity": 1}}
-Output exactly one JSON object. No other text."""
-
-# System prompt for writing a short confirmation after a cart action
-ACTION_RESPONSE_SYSTEM = "You write exactly one short, professional sentence confirming what was done. No greetings, no extra words. Example: 'I've added 2 items to your cart.'"
-
-# System prompt for follow-up questions that help build a better search query
-CLARIFICATION_SYSTEM_PROMPT = """You are a shopping assistant. The user asked to find or show products but did not give enough detail to run a precise search.
-Your task: output 1-2 short, natural follow-up questions so we can build a better query (e.g. size, style, occasion, fit). These answers will be used to refine the search.
-Output ONLY the questions, one per line. No greeting, no "I'd be happy to help", no product list. Example:
-What size do you need?
-Any preferred style (casual or formal)?"""
-
-
-def _strip_search_boilerplate(text):
-    """Remove default boilerplate phrases from LLM response so only the real answer is shown.
-    Removes e.g. 'I found N products for you! Check the AI Dashboard tab to see them.' and similar."""
-    if not text or not isinstance(text, str):
-        return text
-    import re
-    s = text.strip()
-    # Remove trailing boilerplate (at end)
-    patterns_trailing = [
-        r'\n*\s*I found \d+ products? for you!?\s*[.\s]*(?:Check the AI Dashboard tab to see them\.?|They\'?re displayed below\.?|See them (?:in the )?AI Dashboard(?: tab)?\.?)\s*$',
-        r'\n*\s*Check the AI Dashboard tab to see them\.?\s*$',
-        r'\n*\s*They\'?re displayed below\.?\s*$',
-        r'\n*\s*See them (?:in the )?AI Dashboard(?: tab)?\.?\s*$',
-        r'\n*\s*I found \d+ products? for you!?\s*$',
-    ]
-    for p in patterns_trailing:
-        s = re.sub(p, '', s, flags=re.IGNORECASE)
-    # Remove leading boilerplate
-    s = re.sub(r'^\s*I found \d+ products? for you!?\s*[.\s]*(?:Check the AI Dashboard tab to see them\.?)\s*\n+', '', s, flags=re.IGNORECASE)
-    # Remove boilerplate sentence anywhere in text (full sentence)
-    s = re.sub(r'\n\s*I found \d+ products? for you!?\s*Check the AI Dashboard tab to see them\.?\s*\n?', '\n', s, flags=re.IGNORECASE)
-    s = re.sub(r'\n\s*Check the AI Dashboard tab to see them\.?\s*\n?', '\n', s, flags=re.IGNORECASE)
-    s = re.sub(r'\n\s*They\'?re displayed below\.?\s*\n?', '\n', s, flags=re.IGNORECASE)
-    return s.strip()
-
-
-def _cart_action_response_template(action, result, user_message, params=None):
-    """Return a short confirmation for cart actions without calling the LLM (faster)."""
-    params = params or {}
-    if action == 'add_item':
-        # Only claim we added when we actually did (result.added is non-empty)
-        added = result.get('added') if isinstance(result, dict) else []
-        if not added:
-            return (result.get('message') if isinstance(result, dict) else None) or "Couldn't add that to your cart."
-        qty = sum(a.get('quantity', 1) for a in added)
-        if qty > 1:
-            return f"I've added {qty} items to your cart."
-        return "I've added that to your cart."
-    if action == 'remove_item':
-        return "I've removed that from your cart."
-    if action == 'show_cart':
-        return user_message if user_message and user_message.strip() else "Here's your cart."
-    if action == 'clear_cart':
-        return "Your cart is now empty."
-    return user_message or "Done."
-
-
-def _write_action_response(action, result, fallback_message, config, is_success=True):
-    """Ask the LLM to write one short professional confirmation after an action. On failure, use result message or fallback.
-    Prefer _cart_action_response_template for cart actions to avoid a second LLM call."""
-    summary = result.get('message', 'Done.')
-    if action == 'show_cart' and result.get('items'):
-        summary += ' ' + ', '.join(f"{it.get('name', 'Item')} x{it.get('quantity', 1)}" for it in result['items'][:5])
-        if len(result['items']) > 5:
-            summary += f" and {len(result['items']) - 5} more."
-    if not is_success:
-        prompt = f"""Action failed: {action}. Result: {summary}. Write one short, professional sentence to tell the user the action was not completed and why. Output only that sentence."""
-        system = "You write exactly one short, professional sentence explaining that the action could not be completed. No apologies, no extra words."
-    else:
-        prompt = f"""Action completed: {action}. Result: {summary}. Write one short, professional sentence to tell the user what was done. Output only that sentence."""
-        system = ACTION_RESPONSE_SYSTEM
-    try:
-        r = call_llm(prompt, system_prompt=system, config=config, temperature=0.2)
-        content = (r.get('content') or '').strip()
-        if content and len(content) < 400:
-            return content
-    except Exception:
-        pass
-    return fallback_message
 
 
 def _env_api_key(provider):
@@ -952,6 +768,210 @@ def call_llm(prompt, system_prompt=None, config=None, temperature=0.3):
     return {'content': f'Unknown provider: {provider}. Use openai, gemini, anthropic, or vertex in Admin → AI Assistant.'}
 
 
+def _run_decision_engine(message, config, history=None, last_filters=None):
+    """
+    Run the LLM as a decision engine. Returns (action_json_dict, raw_content).
+    action_json_dict is always a dict with action, parameters, message, confidence.
+    On parse failure returns fallback NONE dict.
+    """
+    from utils.ai_action_executor import parse_llm_json_response
+    prompt_parts = []
+    if last_filters and isinstance(last_filters, dict) and any(v is not None and v != '' for v in last_filters.values()):
+        prompt_parts.append("Previous search filters from context (use or merge with new request): " + json.dumps(last_filters))
+    if history and isinstance(history, list):
+        recent = [h for h in history[-6:] if (h.get('role') or '').lower() in ('user', 'customer') and (h.get('content') or '').strip()]
+        if recent:
+            prompt_parts.append("Recent messages:\n" + "\n".join((h.get('content') or '').strip() for h in recent))
+    prompt_parts.append("Current user message: " + (message or '').strip())
+    prompt = "\n\n".join(prompt_parts)
+    result = call_llm(prompt, system_prompt=DECISION_ENGINE_SYSTEM_PROMPT, config=config, temperature=0.2)
+    raw = (result.get('content') or '').strip()
+    parsed = parse_llm_json_response(raw)
+    if parsed and isinstance(parsed.get('action'), str):
+        if not isinstance(parsed.get('parameters'), dict):
+            parsed['parameters'] = {}
+        if 'message' not in parsed:
+            parsed['message'] = ''
+        if 'confidence' not in parsed:
+            parsed['confidence'] = 0.7
+        return parsed, raw
+    # Parse failed: LLM may have returned free-form text (e.g. styling advice). Use it as the message
+    # so the user sees the actual response instead of a generic fallback.
+    # Do NOT use raw if it contains incomplete JSON (e.g. "Sure, I can {\"action\": ") — would expose internals.
+    raw_contains_incomplete_json = (
+        raw
+        and isinstance(raw, str)
+        and (
+            '{"action"' in raw
+            or '"action":' in raw
+            or "'action':" in raw
+            or raw.strip().startswith('{')
+        )
+    )
+    if raw and not raw_contains_incomplete_json:
+        fallback_message = raw.strip()
+    else:
+        fallback_message = "I didn't quite get that. Could you rephrase or tell me what you'd like to do?"
+    fallback = {
+        'action': 'NONE',
+        'parameters': {},
+        'message': fallback_message,
+        'confidence': 0.3,
+    }
+    return fallback, raw
+
+
+def _normalize_parameters(parameters):
+    """Ensure parameters is a dict. If LLM returns a JSON string, parse it."""
+    if parameters is None:
+        return {}
+    if isinstance(parameters, dict):
+        return parameters
+    if isinstance(parameters, str):
+        try:
+            parsed = json.loads(parameters)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _sanitize_response_text(text, action=None):
+    """Never send raw JSON to the client. If the message contains JSON, return a safe short message."""
+    if not text or not isinstance(text, str):
+        return (text or '').strip()
+    s = text.strip()
+    if '"action":' in s or '"action"' in s or '{"action"' in s or "'action':" in s:
+        action_upper = (action or '').strip().upper()
+        safe = {
+            'ADD_TO_CART': "I've added the item to your cart.",
+            'REMOVE_FROM_CART': "Item removed from your cart.",
+            'UPDATE_CART_ITEM': "Cart updated.",
+            'CLEAR_CART': "Your cart is now empty.",
+        'ADD_TO_WISHLIST': "Added to your wishlist.",
+        'REMOVE_FROM_WISHLIST': "Removed from your wishlist.",
+        'CLEAR_WISHLIST': "Your wishlist is now empty.",
+        'ADD_WISHLIST_TO_CART': "I've added wishlist items to your cart.",
+        'SEARCH_PRODUCTS': "Here are the results.",
+        }
+        return safe.get(action_upper, "Done.")
+    return s
+
+
+def _infer_action_when_none(message):
+    """
+    When the LLM returns NONE or RESPONSE (e.g. rate limit), infer the correct action from the user message.
+    Checks clear/destructive intents first, then view/redirect intents. Returns (action_name, parameters) or (None, None).
+    """
+    if not message or not isinstance(message, str):
+        return None, None
+    msg = message.strip().lower()
+    if len(msg) < 2:
+        return None, None
+
+    # --- Clear / destructive intents first (must be before "view cart" etc.) ---
+    # CLEAR_CART: "clear my cart", "empty my cart", "empty cart", "clear cart", "remove all from cart"
+    if any(x in msg for x in ('clear my cart', 'clear the cart', 'empty my cart', 'empty the cart', 'empty cart',
+                               'clear cart', 'remove all from cart', 'delete all from cart', 'empty my basket')):
+        return 'CLEAR_CART', {}
+    if msg in ('clear cart', 'empty cart'):
+        return 'CLEAR_CART', {}
+    # CLEAR_WISHLIST: "clear my wishlist", "empty wishlist", "clear wishlist"
+    if any(x in msg for x in ('clear my wishlist', 'clear the wishlist', 'empty my wishlist', 'empty the wishlist',
+                              'empty wishlist', 'clear wishlist', 'remove all from wishlist')):
+        return 'CLEAR_WISHLIST', {}
+    if msg in ('clear wishlist', 'empty wishlist'):
+        return 'CLEAR_WISHLIST', {}
+
+    # --- View / redirect intents ---
+    # VIEW_CART: "show me my cart", "my cart", "view cart", etc. (not "clear")
+    if any(x in msg for x in ('my cart', 'show me my cart', 'view cart', 'see my cart', 'see cart', 'open cart', 'go to cart', 'the cart', 'show cart', 'display cart')):
+        return 'VIEW_CART', {}
+    if msg in ('cart', 'show cart', 'view my cart'):
+        return 'VIEW_CART', {}
+    # VIEW_WISHLIST
+    if any(x in msg for x in ('my wishlist', 'view wishlist', 'see wishlist', 'see my wishlist', 'open wishlist', 'saved items', 'my saved', 'favorites', 'my favorites')):
+        return 'VIEW_WISHLIST', {}
+    if msg in ('wishlist', 'show wishlist'):
+        return 'VIEW_WISHLIST', {}
+    # VIEW_CHECKOUT
+    if any(x in msg for x in ('checkout', 'go to checkout', 'place order', 'pay now', 'proceed to checkout')):
+        return 'VIEW_CHECKOUT', {}
+    # VIEW_PRODUCTS
+    if any(x in msg for x in ('view products', 'products page', 'go to products', 'show products page', 'all products')):
+        return 'VIEW_PRODUCTS', {}
+    if msg in ('products', 'show products') and 'search' not in msg and 'find' not in msg:
+        return 'VIEW_PRODUCTS', {}
+    # VIEW_HOME
+    if any(x in msg for x in ('go home', 'home page', 'main page', 'take me home', 'back to home')):
+        return 'VIEW_HOME', {}
+    if msg in ('home', 'show home'):
+        return 'VIEW_HOME', {}
+
+    return None, None
+
+
+def _infer_redirect_action(message):
+    """When the LLM returns NONE or fails (e.g. rate limit), infer a redirect action from the user message. Returns action name or None."""
+    action, _ = _infer_action_when_none(message)
+    if action and action.startswith('VIEW_'):
+        return action
+    return None
+
+
+def _redirect_friendly_message(action_name):
+    """Short user-facing message when we inferred a redirect (e.g. after rate limit)."""
+    return {
+        'VIEW_CART': "Taking you to your cart.",
+        'VIEW_WISHLIST': "Taking you to your wishlist.",
+        'VIEW_CHECKOUT': "Taking you to checkout.",
+        'VIEW_PRODUCTS': "Taking you to products.",
+        'VIEW_HOME': "Taking you to the home page.",
+    }.get((action_name or '').upper(), None)
+
+
+def _message_looks_like_product_search(message):
+    """True if the user message suggests they want to search/browse products (so we run vector search even when LLM returns Response/NONE)."""
+    if not message or not isinstance(message, str):
+        return False
+    msg = message.strip().lower()
+    if len(msg) < 2:
+        return False
+    # Never treat redirect intents as product search: cart, wishlist, checkout, home, "view products" (navigation)
+    # Also exclude clear/destructive intents (clear cart, clear wishlist) so we don't run product search for them
+    if _infer_redirect_action(message) is not None:
+        return False
+    action_only, _ = _infer_action_when_none(message)
+    if action_only is not None:
+        return False
+    # Explicit product-search phrases
+    triggers = [
+        'find me', 'find ', 'look for', 'looking for',
+        'do you have', 'do we have', 'any ', 'get me', 'i want ', 'i need ',
+        'search for', 'search ', 'browse', 'what ', 'which ', 'recommend',
+        'on sale', 'for sale', 'discount', 'under $', 'under £', 'less than',
+        'over $', 'over £', 'more than', 'between $', 'price',
+        'shirt', 'dress', 'pants', 'jeans', 'jacket', 'shoes', 'sweater',
+        't-shirt', 'blouse', 'skirt', 'coat', 'clothes', 'clothing', 'items',
+        'black ', 'blue ', 'red ', 'white ', 'green ', 'gray ', 'grey ',
+        'women', 'men', 'kids', 'women\'s', 'men\'s', 'elegant', 'casual',
+    ]
+    # "show me" / "show " only count when not followed by cart/wishlist/checkout (already excluded above)
+    for t in triggers:
+        if t in msg:
+            return True
+    if 'show me' in msg or 'show ' in msg:
+        return True
+    # Short queries that look like product keywords (e.g. "black dress", "blue shirts")
+    words = [w for w in msg.split() if len(w) > 1]
+    if 2 <= len(words) <= 8 and not msg.startswith(('how', 'why', 'when', 'where', 'who', 'can you explain', 'what is', 'what are')):
+        if any(w in msg for w in ['clothes', 'clothing', 'dress', 'shirt', 'pants', 'sale', 'item', 'product', 'women', 'men', 'kids']):
+            return True
+        if any(c in msg for c in ['black', 'blue', 'red', 'white', 'navy', 'gray', 'grey', 'green', 'yellow', 'pink', 'brown', 'beige']):
+            return True
+    return False
+
+
 def test_provider_latency(provider, config_override=None):
     """Test one provider; return (latency_ms, error_message). error_message is None on success.
     If config_override is provided (dict with api_key and optionally model_id), use it for this test only."""
@@ -1166,190 +1186,6 @@ def list_ai_models():
         return jsonify({'error': str(e)}), 500
 
 
-@ai_agent_bp.route('/agent', methods=['POST'])
-def agent():
-    """
-    AI Agent: turn user prompt → structured action (LLM) → validate & execute (backend).
-    Returns: executed (bool), action (str), result (dict), user_message (str for chat).
-    """
-    try:
-        data = request.get_json()
-        message = (data.get('message') or '').strip()
-        if not message:
-            return jsonify({'error': 'Message is required'}), 400
-
-        ai_config = get_active_ai_config()
-        selected_provider = get_selected_provider()
-        if not ai_config:
-            return jsonify({
-                'error': 'No AI provider available. Set an API key in Admin → AI Assistant.',
-                'selected_provider': get_selected_provider(),
-                'message_json': build_message_json(False, 'none', 'No AI provider available', '', 'error'),
-            }), 503
-
-        # Single LLM call: user message → one JSON action
-        user_prompt = f"User request: {message}\n\nOutput the single JSON action object (action, parameters, message, confidence):"
-        llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config, temperature=0.1)
-        content = (llm_result.get('content') or '').strip()
-        if not content:
-            return jsonify({
-                'executed': False,
-                'action': None,
-                'result': {'success': False, 'message': 'No response from AI.'},
-                'user_message': "I couldn't understand that. Try: add/remove items, show cart, or clear cart.",
-                'selected_provider': selected_provider,
-                'message_json': build_message_json(False, 'none', 'No response from AI', "I couldn't understand that. Try: add/remove items, show cart, or clear cart.", 'error', confidence=0.3),
-            }), 200
-
-        parsed = parse_agent_response(content)
-        if not parsed or 'action' not in parsed:
-            return jsonify({
-                'executed': False,
-                'action': None,
-                'result': {'success': False, 'message': 'Invalid AI response format.'},
-                'user_message': "I couldn't parse that request. Try: 'add 2 white shirts to my cart' or 'show my cart'.",
-                'selected_provider': selected_provider,
-                'message_json': build_message_json(False, 'none', 'Invalid AI response format', "I couldn't parse that request. Try: 'add 2 white shirts to my cart' or 'show my cart'.", 'error', confidence=0.3),
-            }), 200
-
-        raw_action = (parsed.get('action') or '').strip()
-        params = parsed.get('params') if isinstance(parsed.get('params'), dict) else {}
-        if not params and isinstance(parsed.get('parameters'), dict):
-            params = dict(parsed.get('parameters'))
-        parsed_confidence = max(0.0, min(1.0, float(parsed.get('confidence', 0.5))))
-        action = raw_action.lower()
-        if raw_action.upper() == raw_action and raw_action in CANONICAL_ACTIONS:
-            internal = CANONICAL_TO_INTERNAL.get(raw_action, 'none')
-            if internal in ALLOWED_ACTIONS:
-                action = internal
-
-        if action not in ALLOWED_ACTIONS:
-            return jsonify({
-                'executed': False,
-                'action': action,
-                'result': {'success': False, 'message': 'Action not allowed.'},
-                'user_message': "That action isn't supported. You can add/remove items, show cart, or clear cart.",
-                'selected_provider': selected_provider,
-                'message_json': build_message_json(False, action, 'Action not allowed', "That action isn't supported. You can add/remove items, show cart, or clear cart.", 'error', confidence=parsed_confidence),
-            }), 200
-
-        from routes.auth import get_current_user_optional
-        current_user = get_current_user_optional()
-        allowed, err_msg = can_execute_action(action, params, current_user)
-        if not allowed:
-            return jsonify({
-                'executed': False,
-                'action': action,
-                'result': {'success': False, 'message': err_msg or 'Not allowed.'},
-                'user_message': err_msg or "I can't do that.",
-                'selected_provider': selected_provider,
-                'message_json': build_message_json(False, action, err_msg or 'Not allowed.', err_msg or "I can't do that.", 'denied', confidence=parsed_confidence),
-            }), 200
-
-        result = execute_action(action, params)
-        # For add_item, only treat as success when we actually added something
-        if action == 'add_item' and not (result.get('added')):
-            result = {**result, 'success': False, 'message': result.get('message') or "Couldn't add that to your cart."}
-        executed = result.get('success', False)
-        user_message = result.get('message', 'Done.' if executed else 'Something went wrong.')
-        if executed:
-            user_message = _write_action_response(action, result, user_message, ai_config)
-        else:
-            try:
-                user_message = _write_action_response(
-                    action, result, user_message, ai_config, is_success=False
-                )
-            except Exception:
-                user_message = result.get('message', "The action couldn't be completed.")
-        # Redirections only on success
-        redirect_to = '/cart' if (executed and action in ('add_item', 'remove_item', 'show_cart', 'clear_cart')) else None
-
-        message_json = build_message_json(
-            True,
-            action,
-            None if executed else result.get('message'),
-            user_message,
-            'success' if executed else 'error',
-            confidence=parsed_confidence,
-        )
-        return jsonify({
-            'executed': executed,
-            'action': action,
-            'result': result,
-            'user_message': user_message,
-            'redirect_to': redirect_to,
-            'selected_provider': selected_provider,
-            'message_json': message_json,
-        }), 200
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'executed': False,
-            'action': None,
-            'result': {'success': False, 'message': str(e)},
-            'user_message': 'An error occurred. Please try again.',
-            'message_json': build_message_json(False, 'none', str(e), 'An error occurred. Please try again.', 'error'),
-        }), 500
-
-
-@ai_agent_bp.route('/tools/execute', methods=['POST'])
-def tools_execute():
-    """
-    Execute one AI assistant tool by name. Authorization is enforced by the backend:
-    - For admin tools: user must be authenticated and (is_admin or is_superadmin).
-    - For user tools: user must be authenticated except for auth_login.
-    The LLM does not decide permissions; validate_tool_call(tool_name, args, is_admin) is used.
-    """
-    try:
-        data = request.get_json() or {}
-        tool_name = (data.get('tool_name') or data.get('name') or '').strip()
-        arguments = data.get('arguments') or data.get('params') or {}
-        if not isinstance(arguments, dict):
-            arguments = {}
-
-        if not tool_name:
-            return jsonify({'success': False, 'error': 'tool_name is required'}), 400
-
-        # Only auth_login is allowed without authentication
-        user = get_current_user_optional()
-        if tool_name != 'auth_login' and not user:
-            return jsonify({'success': False, 'error': 'Authorization required'}), 401
-
-        is_admin = bool(user and (getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False)))
-        valid, err = validate_tool_call(tool_name, arguments, is_admin)
-        if not valid:
-            return jsonify({'success': False, 'error': err or 'Validation failed'}), 403
-
-        sanitized = validate_and_sanitize_args(tool_name, arguments)
-        result = execute_tool(tool_name, sanitized)
-        return jsonify(result), 200
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@ai_agent_bp.route('/tools/definitions', methods=['GET'])
-def tools_definitions():
-    """
-    Return tool definitions for the current user's role (user or admin).
-    Admin users get user + admin tools; regular users get only user tools.
-    Requires authentication.
-    """
-    try:
-        user = get_current_user_optional()
-        if not user:
-            return jsonify({'success': False, 'error': 'Authorization required'}), 401
-        is_admin = bool(getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False))
-        role = 'admin' if is_admin else 'user'
-        tools = get_tools_for_llm(role)
-        return jsonify({'success': True, 'role': role, 'tools': tools}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
 # Context for the assistant: website policies and pages (for accurate answers)
 ASSISTANT_WEBSITE_CONTEXT = """
 Website information (use for accurate answers; do not invent):
@@ -1424,683 +1260,317 @@ For all other admin tasks (orders, sales, carts, reviews), use the corresponding
 
 @ai_agent_bp.route('/chat-with-tools', methods=['POST'])
 def chat_with_tools():
-    """
-    Chat with the AI assistant with tool-calling support. Logged-in users get user-level tools
-    (search, cart, wishlist, orders, compare, review); admins additionally get admin tools.
-    Authorization is enforced by the backend on every tool execution.
-    Uses OpenAI provider for tool calling; other providers fall back to regular chat.
-    """
+    '''Decision-engine chat (authenticated): same as /chat but requires auth. Every message produces structured JSON; backend executes actions. Logs to docs/ai_debug.csv.'''
     try:
+        from utils.ai_action_executor import execute_action
         user = get_current_user_optional()
         data = request.get_json() or {}
         message = (data.get('message') or '').strip()
         if not user:
-            append_ai_debug_log(message, error='Authorization required')
+            append_ai_debug_log(message or '', None, None, 'Authorization required')
             return jsonify({
                 'success': False,
                 'error': 'Authorization required',
-                'message_json': build_message_json(False, 'none', 'Authorization required', '', 'denied'),
+                'message_json': build_message_json(False, 'NONE', 'Authorization required', '', 'denied', confidence=0),
             }), 401
-
         if not message:
-            append_ai_debug_log('', error='Message is required')
+            append_ai_debug_log('', None, None, 'Message is required')
             return jsonify({
                 'success': False,
                 'error': 'Message is required',
-                'message_json': build_message_json(False, 'none', 'Message is required', '', 'error'),
+                'message_json': build_message_json(False, 'NONE', 'Message is required', '', 'error', confidence=0),
             }), 400
-
-        is_admin = bool(getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False))
-        role = 'admin' if is_admin else 'user'
-        tools_specs = get_tools_for_llm(role)
-        tools_openai = [{'type': 'function', 'function': t} for t in tools_specs]
-
         config = get_effective_provider_config()
         if not config:
-            append_ai_debug_log(message, error='No AI provider available. Set an API key in Admin → AI Assistant.')
+            append_ai_debug_log(message, None, None, 'No AI provider available.')
             return jsonify({
                 'success': False,
                 'error': 'No AI provider available. Set an API key in Admin → AI Assistant.',
-                'message_json': build_message_json(False, 'none', 'No AI provider available', '', 'error'),
+                'message_json': build_message_json(False, 'NONE', 'No AI provider available', '', 'error', confidence=0),
             }), 503
         internal = config if isinstance(config, dict) else getattr(config, 'to_internal_dict', lambda: config)()
         provider = (internal.get('provider') or 'openai').strip().lower()
-
-        # Build system prompt with website and user context for accurate, personalized responses
-        system_prompt = TOOLS_SYSTEM_PROMPT + ASSISTANT_WEBSITE_CONTEXT
-        user_ctx = get_assistant_user_context(user)
-        if user_ctx:
-            system_prompt = system_prompt.rstrip() + "\n\n" + user_ctx + "\n"
-
-        # Build messages from history + current (use more history so multi-turn flows like create-product don't forget)
         history = data.get('history') or data.get('conversation_history') or []
-        max_history_messages = 50
-        messages = []
-        for h in history[-max_history_messages:]:
-            r = (h.get('role') or 'user').strip().lower()
-            c = (h.get('content') or '').strip()
-            if r in ('user', 'customer') and c:
-                messages.append({'role': 'user', 'content': c})
-            elif r == 'assistant' and c:
-                messages.append({'role': 'assistant', 'content': c})
-        messages.append({'role': 'user', 'content': message})
-
-        # When the user is refining a previous product search (e.g. "the blue ones", "show me blue"), we merge previous filters
-        last_search_filters = data.get('last_search_filters')
-        if isinstance(last_search_filters, dict) and last_search_filters:
-            import json as _json
-            _filters_str = _json.dumps(last_search_filters)
-            system_prompt = system_prompt.rstrip() + f"""
-
-REFINEMENT CONTEXT: The user's previous product search used these filters: {_filters_str}.
-- When the user refines (e.g. "the blue ones", "only blue", "show me blue", "are any of them blue", "under $50", "just large"), you MUST call search_products with the PREVIOUS filters MERGED with the new refinement: keep on_sale, category, query, etc. from the previous search, and ADD or override with what the user is asking for now (e.g. color: "blue", size: "large", max_price: 50).
-- Do NOT set on_sale to false unless the user explicitly asks to remove the sale filter or start a new search without sale.
-- Extract color from phrases like "blue ones", "the red ones", "only black", "ones that are blue" into the color parameter.
-- Extract size from "large", "medium", "size M", etc. into the size parameter.
-- Use a short query if needed; do not put the whole user message as query when they are only adding a filter (e.g. use query "" or a brief term and set color: "blue").
-"""
-
-        if provider != 'openai' or not tools_openai:
-            # Fallback: single LLM call without tools (e.g. Gemini, Anthropic, Vertex).
-            # For sale/deals intent, run sale search server-side so we still return products.
-            message_lower = message.strip().lower()
-            sale_keywords = [
-                'sale', 'on sale', 'discount', 'discounts', 'discounted', 'deals',
-                'promotion', 'promotions', 'special offer', "what's on sale", "whats on sale",
-                'items on sale', 'what is on sale', 'anything on sale',
-            ]
-            if any(k in message_lower for k in sale_keywords):
-                sale_products_list, sale_ids_list = get_products_on_sale(20)
-                if sale_products_list:
-                    prompt_for_sale = (
-                        "The customer asked what's on sale / for deals. Our store has "
-                        f"{len(sale_products_list)} product(s) currently on sale. "
-                        "Reply with ONE short, friendly sentence saying you found sale items and are showing them "
-                        "(e.g. 'Here are our current sale items!' or 'We have items on sale right now—check them out below.'). "
-                        "Do NOT say you cannot show sale items or that you don't have access. Do NOT list product names or IDs; the UI will show the product cards."
-                    )
-                    result = call_llm(prompt_for_sale, system_prompt=system_prompt, config=config, temperature=0.2)
-                    content = (result.get('content') or '').strip()
-                    if not content or content.lower() == 'no response from ai':
-                        content = f"Here are {len(sale_products_list)} item(s) currently on sale!"
-                    out = {
-                        'success': True,
-                        'response': content,
-                        'tool_calls_used': False,
-                        'selected_provider': provider,
-                        'suggested_products': sale_products_list,
-                        'suggested_product_ids': sale_ids_list,
-                        'action': 'search_results',
-                        'structured_response': {
-                            'type': 'product_preview',
-                            'title': 'Items on Sale',
-                            'products': sale_products_list,
-                            'preview_limit': 4,
-                            'show_view_all': len(sale_products_list) > 4,
-                        },
-                        'message_json': build_message_json(True, 'search_products', None, content, 'success', filters={'on_sale': True}),
-                    }
-                    append_ai_debug_log(message, response=content, action_json=_debug_action_from_payload(out))
-                    return jsonify(out), 200
-                else:
-                    # Sale intent but no products on sale
-                    result = call_llm(
-                        "The customer asked what's on sale. We currently have no items on sale. "
-                        "Reply with one short, polite sentence saying there are no sale items right now and they can browse our full collection.",
-                        system_prompt=system_prompt, config=config, temperature=0.2,
-                    )
-                    content = (result.get('content') or '').strip()
-                    if not content:
-                        content = "We don't have any items on sale right now, but you can browse our full collection!"
-                    out = {
-                        'success': True,
-                        'response': content,
-                        'tool_calls_used': False,
-                        'selected_provider': provider,
-                        'suggested_products': [],
-                        'suggested_product_ids': [],
-                        'message_json': build_message_json(True, 'none', None, content, 'success', filters={'on_sale': True}),
-                    }
-                    append_ai_debug_log(message, response=content, action_json=_debug_action_from_payload(out))
-                    return jsonify(out), 200
-            # General product search intent
-            _product_request_kw = [
-                'show', 'find', 'search', 'look', 'need', 'want',
-                'looking for', 'show me', 'find me', 'i need', 'i want',
-                'display', 'list', 'get', 'bring', 'give me', 'see',
-            ]
-            _product_type_kw = [
-                'shirt', 'pants', 'dress', 'shoes', 'jacket', 'sweater',
-                'men', 'women', 'kids', 'blue', 'red', 'black', 'white',
-                'wedding', 'party', 'business', 'casual', 'formal', 'occasion',
-                'available', 'products', 'items', 'things', 'clothes', 'clothing',
-            ]
-            _explicit_find = any(k in message_lower for k in _product_request_kw)
-            _has_type = any(k in message_lower for k in _product_type_kw)
-            if _explicit_find and _has_type:
-                _cat = ''
-                if 'women' in message_lower or 'woman' in message_lower or 'ladies' in message_lower:
-                    _cat = 'women'
-                elif 'men' in message_lower or 'man' in message_lower:
-                    _cat = 'men'
-                elif 'kids' in message_lower or 'kid' in message_lower or 'children' in message_lower:
-                    _cat = 'kids'
-                _search_result = execute_tool('search_products', {
-                    'query': message.strip(),
-                    'category': _cat,
-                    'on_sale': False,
-                })
-                if isinstance(_search_result, dict) and _search_result.get('success'):
-                    _prods = _search_result.get('products') or []
-                    _ids = [p.get('id') for p in _prods if p.get('id')]
-                    if _prods:
-                        _prompt = (
-                            f"The customer asked to find products. We have {len(_prods)} matching product(s). "
-                            "Reply with ONE short, friendly sentence saying you found options and are showing them "
-                            "(e.g. 'Here are some options that match your search!' or 'I found these for you.'). "
-                            "Do NOT say you will look it up or check inventory. Do NOT list product names or IDs; the UI will show the product cards."
-                        )
-                        _res = call_llm(_prompt, system_prompt=system_prompt, config=config, temperature=0.2)
-                        _content = (_res.get('content') or '').strip()
-                        if not _content or _content.lower() == 'no response from ai':
-                            _content = f"Here are {len(_prods)} option(s) that match your search!"
-                        out = {
-                            'success': True,
-                            'response': _content,
-                            'tool_calls_used': False,
-                            'selected_provider': provider,
-                            'suggested_products': _prods,
-                            'suggested_product_ids': _ids,
-                            'action': 'search_results',
-                            'structured_response': {
-                                'type': 'product_preview',
-                                'title': 'Search Results',
-                                'products': _prods,
-                                'preview_limit': 4,
-                                'show_view_all': len(_prods) > 4,
-                            },
-                        }
-                        _filters = {'query': message.strip()}
-                        if _cat:
-                            _filters['category'] = _cat
-                        _filters['on_sale'] = False
-                        out['message_json'] = build_message_json(True, 'search_products', None, _content, 'success', filters=_filters)
-                        append_ai_debug_log(message, response=_content, action_json=_debug_action_from_payload(out))
-                        return jsonify(out), 200
-                    else:
-                        _res = call_llm(
-                            "The customer asked to find products but we have no matches. Reply with one short, polite sentence saying we don't have matching items and they can try different filters or browse the collection.",
-                            system_prompt=system_prompt, config=config, temperature=0.2,
-                        )
-                        _content = (_res.get('content') or '').strip()
-                        if not _content:
-                            _content = "We don't have any items matching that right now. Try different filters or browse our collection!"
-                        out = {
-                            'success': True,
-                            'response': _content,
-                            'tool_calls_used': False,
-                            'selected_provider': provider,
-                            'suggested_products': [],
-                            'suggested_product_ids': [],
-                            'message_json': build_message_json(True, 'search_products', None, _content, 'success', filters={'query': message.strip(), 'category': _cat or '', 'on_sale': False}),
-                        }
-                        append_ai_debug_log(message, response=_content, action_json=_debug_action_from_payload(out))
-                        return jsonify(out), 200
-            # No sale intent: generic fallback
-            prompt = message
-            if history:
-                prompt = '\n\n'.join(
-                    (m.get('content', '') for m in messages if m.get('role') == 'user')
-                ) + '\n\nLatest: ' + message
-            result = call_llm(prompt, system_prompt=system_prompt, config=config, temperature=0.2)
-            content = (result.get('content') or '').strip()
-            if not content or content.lower() == 'no response from ai':
-                content = "I couldn't generate a response this time. Please try again or rephrase your question."
-            out = {
-                'success': True,
-                'response': content,
-                'tool_calls_used': False,
-                'selected_provider': provider,
-                'message_json': build_message_json(True, 'none', None, content, 'success', filters={'query': message}),
-            }
-            append_ai_debug_log(message, response=content, action_json=_debug_action_from_payload(out))
-            return jsonify(out), 200
-
-        max_tool_rounds = 5
-        last_redirect_prefill = None
-        last_search_products = None  # so frontend can show/navigate to product results
-        _sale_keywords = [
-            'sale', 'on sale', 'discount', 'discounts', 'discounted', 'deals',
-            'promotion', 'promotions', 'special offer', "what's on sale", "whats on sale",
-            'items on sale', 'what is on sale', 'anything on sale',
-        ]
-        for _ in range(max_tool_rounds):
-            content, tool_calls = _call_openai_with_tools(
-                internal, messages, tools_openai, system_prompt, timeout=90, temperature=0.2
+        last_filters = data.get('last_filters') or data.get('filters') or {}
+        action_json, _ = _run_decision_engine(message, config, history=history, last_filters=last_filters)
+        action = (action_json.get('action') or 'NONE').strip()
+        parameters = _normalize_parameters(action_json.get('parameters'))
+        msg_text = (action_json.get('message') or '').strip()
+        # When LLM returns NONE (e.g. rate limit) or RESPONSE, infer the correct action from the user message
+        inferred_redirect = None
+        if action.upper() in ('RESPONSE', 'NONE'):
+            inferred_action, inferred_params = _infer_action_when_none(message)
+            if inferred_action:
+                action = inferred_action
+                parameters = inferred_params if inferred_params is not None else {}
+                if action.startswith('VIEW_'):
+                    inferred_redirect = action
+        confidence = action_json.get('confidence')
+        try:
+            confidence = max(0.0, min(1.0, float(confidence)))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        response_text = _sanitize_response_text(msg_text, action)
+        suggested_products = []
+        redirect_path = None
+        exec_error = None
+        ran_fallback_search = False
+        if action.upper() not in ('RESPONSE', 'NONE'):
+            result = execute_action(
+                action,
+                parameters,
+                current_user=user,
+                flask_request=request,
             )
-            if not tool_calls:
-                final = (content or '').strip() or "I couldn't complete that. Please try again or use the Admin panel."
-                out = {
-                    'success': True,
-                    'response': final,
-                    'tool_calls_used': _ > 0,
-                    'selected_provider': provider,
-                }
-                # If model didn't call search_products but user asked for sale/deals, run sale search and return products
-                message_lower = message.strip().lower()
-                if not last_search_products and any(k in message_lower for k in _sale_keywords):
-                    sale_products_list, sale_ids_list = get_products_on_sale(20)
-                    if sale_products_list:
-                        out['response'] = f"Here are {len(sale_products_list)} item(s) currently on sale!"
-                        out['suggested_products'] = sale_products_list
-                        out['suggested_product_ids'] = sale_ids_list
-                        out['action'] = 'search_results'
-                        out['structured_response'] = {
-                            'type': 'product_preview',
-                            'title': 'Items on Sale',
-                            'products': sale_products_list,
-                            'preview_limit': 4,
-                            'show_view_all': len(sale_products_list) > 4,
-                        }
-                        out['message_json'] = build_message_json(True, 'search_products', None, out.get('response', ''), 'success', filters={'on_sale': True})
-                        append_ai_debug_log(message, response=out.get('response'), action_json=_debug_action_from_payload(out))
-                        return jsonify(out), 200
-                # If model didn't call search_products but user asked for general product search, run search and return products
-                _preq = ['show', 'find', 'search', 'look', 'need', 'want', 'looking for', 'show me', 'find me', 'i need', 'i want', 'display', 'list', 'get', 'bring', 'give me', 'see']
-                _ptype = ['shirt', 'pants', 'dress', 'shoes', 'jacket', 'sweater', 'men', 'women', 'kids', 'blue', 'red', 'black', 'white', 'wedding', 'party', 'business', 'casual', 'formal', 'occasion', 'available', 'products', 'items', 'things', 'clothes', 'clothing']
-                if not last_search_products and any(k in message_lower for k in _preq) and any(k in message_lower for k in _ptype):
-                    _cat = ''
-                    if 'women' in message_lower or 'woman' in message_lower or 'ladies' in message_lower:
-                        _cat = 'women'
-                    elif 'men' in message_lower or 'man' in message_lower:
-                        _cat = 'men'
-                    elif 'kids' in message_lower or 'kid' in message_lower or 'children' in message_lower:
-                        _cat = 'kids'
-                    _sr = execute_tool('search_products', {'query': message.strip(), 'category': _cat, 'on_sale': False})
-                    if isinstance(_sr, dict) and _sr.get('success') and (_sr.get('products') or []):
-                        _plist = _sr.get('products') or []
-                        _pids = [p.get('id') for p in _plist if p.get('id')]
-                        out['response'] = f"Here are {len(_plist)} option(s) that match your search!"
-                        out['suggested_products'] = _plist
-                        out['suggested_product_ids'] = _pids
-                        out['action'] = 'search_results'
-                        out['structured_response'] = {
-                            'type': 'product_preview',
-                            'title': 'Search Results',
-                            'products': _plist,
-                            'preview_limit': 4,
-                            'show_view_all': len(_plist) > 4,
-                        }
-                        out['message_json'] = build_message_json(True, 'search_products', None, out.get('response', ''), 'success', filters=_sr.get('filters_used', {}))
-                        append_ai_debug_log(message, response=out.get('response'), action_json=_debug_action_from_payload(out))
-                        return jsonify(out), 200
-                if last_redirect_prefill is not None:
-                    out['redirect_prefill'] = last_redirect_prefill
-                if last_search_products:
-                    out['suggested_products'] = last_search_products.get('products', [])
-                    out['suggested_product_ids'] = [p.get('id') for p in (last_search_products.get('products') or []) if p.get('id')]
-                    out['action'] = 'search_results' if out['suggested_product_ids'] else None
-                    prods = last_search_products.get('products') or []
-                    if prods:
-                        out['structured_response'] = {
-                            'type': 'product_preview',
-                            'title': 'Search Results',
-                            'products': prods,
-                            'preview_limit': 4,
-                            'show_view_all': len(prods) > 4,
-                        }
-                    else:
-                        out['structured_response'] = {'type': 'no_results', 'message': final or 'No products found.'}
-                out['message_json'] = build_message_json(
-                    True, out.get('action') or 'none', None, out.get('response', ''), 'success',
-                    filters=last_search_products.get('filters_used', {}) if last_search_products and (out.get('action') == 'search_results') else None,
+            if result.get('message_override'):
+                response_text = result['message_override']
+            if not result.get('success'):
+                exec_error = result.get('error') or 'Action failed'
+                response_text = exec_error
+            # SEARCH_PRODUCTS: always take products from result so search results are never lost
+            if action.upper() == 'SEARCH_PRODUCTS' and result.get('data') is not None:
+                raw_list = (result.get('data') or {}).get('products')
+                suggested_products = list(raw_list) if raw_list is not None else []
+            elif result.get('data') and isinstance(result['data'], dict) and result['data'].get('products'):
+                suggested_products = result['data']['products']
+            if result.get('redirect_path'):
+                redirect_path = result['redirect_path']
+        else:
+            response_text = _sanitize_response_text(response_text, action)
+            if last_filters and isinstance(last_filters, dict) and any(v is not None and v != '' for v in last_filters.values()):
+                result = execute_action(
+                    'SEARCH_PRODUCTS',
+                    last_filters,
+                    current_user=user,
+                    flask_request=request,
                 )
-                append_ai_debug_log(message, response=out.get('response'), action_json=_debug_action_from_payload(out))
-                return jsonify(out), 200
-
-            # Append assistant message with tool_calls
-            openai_tool_calls = [
-                {'id': tc['id'], 'type': 'function', 'function': {'name': tc['name'], 'arguments': tc['arguments_str']}}
-                for tc in tool_calls
-            ]
-            messages.append({
-                'role': 'assistant',
-                'content': content or None,
-                'tool_calls': openai_tool_calls,
-            })
-            # Execute each tool and append tool results
-            for tc in tool_calls:
-                tid, name, args_str = tc['id'], tc['name'], tc['arguments_str']
-                try:
-                    arguments = json.loads(args_str) if args_str else {}
-                except json.JSONDecodeError:
-                    arguments = {}
-                valid, err = validate_tool_call(name, arguments, is_admin)
-                if not valid:
-                    messages.append({'role': 'tool', 'tool_call_id': tid, 'content': json.dumps({'success': False, 'error': err or 'Permission denied'})})
-                    continue
-                sanitized = validate_and_sanitize_args(name, arguments)
-                # When user is refining a previous search (e.g. "the blue ones"), merge previous filters so on_sale/category etc. are preserved
-                if name == 'search_products' and last_search_filters and isinstance(last_search_filters, dict):
-                    allowed_keys = {'query', 'category', 'color', 'size', 'fabric', 'season', 'clothing_category', 'min_price', 'max_price', 'sort_by', 'on_sale'}
-                    prev = {k: v for k, v in last_search_filters.items() if k in allowed_keys}
-                    merged = dict(prev)
-                    for k, v in sanitized.items():
-                        # Preserve previous on_sale true when LLM wrongly sends false on a refinement (e.g. "the blue ones")
-                        if k == 'on_sale' and v is False and prev.get('on_sale') is True:
-                            continue
-                        merged[k] = v
-                    sanitized = validate_and_sanitize_args(name, merged)
-                result = execute_tool(name, sanitized)
-                messages.append({'role': 'tool', 'tool_call_id': tid, 'content': json.dumps(result)})
-                if isinstance(result, dict) and result.get('action') == 'redirect_prefill':
-                    last_redirect_prefill = {k: result.get(k) for k in ('path', 'tab', 'openProductForm', 'prefill', 'editProductId') if k in result}
-                if name == 'search_products' and isinstance(result, dict) and result.get('success') and result.get('products'):
-                    last_search_products = result
-            # Next iteration will call LLM again with tool results
-        # Max rounds reached
-        final = (content or '').strip() if content else "I hit a limit on steps. Please try a simpler request or use the Admin panel."
-        out = {
-            'success': True,
-            'response': final,
-            'tool_calls_used': True,
-            'selected_provider': provider,
-        }
-        if last_redirect_prefill is not None:
-            out['redirect_prefill'] = last_redirect_prefill
-        if last_search_products:
-            out['suggested_products'] = last_search_products.get('products', [])
-            out['suggested_product_ids'] = [p.get('id') for p in (last_search_products.get('products') or []) if p.get('id')]
-            out['action'] = 'search_results' if out.get('suggested_product_ids') else None
-            prods = last_search_products.get('products') or []
-            if prods:
-                out['structured_response'] = {
-                    'type': 'product_preview',
-                    'title': 'Search Results',
-                    'products': prods,
-                    'preview_limit': 4,
-                    'show_view_all': len(prods) > 4,
-                }
-            else:
-                out['structured_response'] = {'type': 'no_results', 'message': final or 'No products found.'}
-        out['message_json'] = build_message_json(
-            True, out.get('action') or 'none', None, out.get('response', ''), 'success',
-            filters=last_search_products.get('filters_used', {}) if last_search_products and (out.get('action') == 'search_results') else None,
+                if result.get('success') and result.get('data') and isinstance(result['data'], dict) and result['data'].get('products'):
+                    suggested_products = result['data']['products']
+            if not suggested_products and _message_looks_like_product_search(message):
+                ran_fallback_search = True
+                result = execute_action(
+                    'SEARCH_PRODUCTS',
+                    {'search': message},
+                    current_user=user,
+                    flask_request=request,
+                )
+                if result.get('success') and result.get('data') and isinstance(result['data'], dict):
+                    products_from_fallback = result['data'].get('products') or []
+                    suggested_products = products_from_fallback
+                    if not products_from_fallback:
+                        response_text = "I couldn't find any products matching that. Try different keywords or filters."
+        if inferred_redirect and redirect_path and not exec_error:
+            friendly = _redirect_friendly_message(inferred_redirect)
+            if friendly:
+                response_text = friendly
+        action_json_for_log = {'action': action, 'parameters': parameters, 'message': msg_text, 'confidence': confidence}
+        append_ai_debug_log(message, response_text, action_json_for_log, exec_error)
+        mj = build_message_json(
+            True,
+            action,
+            exec_error,
+            response_text,
+            'error' if exec_error else 'success',
+            filters=parameters,
+            confidence=confidence,
         )
-        append_ai_debug_log(message, response=out.get('response'), action_json=_debug_action_from_payload(out))
-        return jsonify(out), 200
-
+        mj['redirect_path'] = redirect_path
+        mj['suggested_product_ids'] = [p.get('id') for p in suggested_products if p.get('id')]
+        response_action = None
+        structured_response = None
+        # When executor returned products (search ran), always send product_preview and search_results
+        if suggested_products and not exec_error:
+            response_action = 'search_results'
+            structured_response = {
+                'type': 'product_preview',
+                'title': 'Search results',
+                'products': suggested_products,
+                'preview_limit': 5,
+                'show_view_all': True,
+            }
+        elif (action.upper() == 'SEARCH_PRODUCTS' or ran_fallback_search) and not exec_error:
+            response_action = 'search_results'
+            structured_response = {
+                'type': 'no_results',
+                'message': 'No products found matching your criteria.',
+            }
+        elif action.upper() in ('ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART', 'ADD_WISHLIST_TO_CART') and not exec_error:
+            response_action = 'agent_executed'
+        return jsonify({
+            'success': True,
+            'response': response_text,
+            'selected_provider': provider,
+            'action': response_action,
+            'structured_response': structured_response,
+            'suggested_products': list(suggested_products) if suggested_products else [],
+            'suggested_product_ids': mj['suggested_product_ids'],
+            'redirect_path': redirect_path,
+            'message_json': mj,
+        }), 200
     except Exception as e:
         import traceback
         traceback.print_exc()
         data = request.get_json() or {}
         message = (data.get('message') or '').strip()
-        append_ai_debug_log(message, error=str(e))
+        append_ai_debug_log(message, None, None, str(e))
         return jsonify({
             'success': False,
             'error': str(e),
-            'message_json': build_message_json(False, 'none', str(e), '', 'error'),
+            'message_json': build_message_json(False, 'NONE', str(e), '', 'error', confidence=0),
         }), 500
 
 
 @ai_agent_bp.route('/chat', methods=['POST'])
 def chat():
-    """Chat with AI agent. LLM returns JSON only; backend executes and builds response."""
+    '''Decision-engine chat: every message produces structured JSON (action, parameters, message, confidence). Backend executes actions and returns response + optional products/redirect. Logs every exchange to docs/ai_debug.csv.'''
     try:
-        data = request.get_json()
-        user_prompt_raw = (data.get('message') or '').strip()
-        message = (data.get('message') or '').lower()
-        conversation_history = data.get('history', [])
-        selected_product_ids = data.get('selected_product_ids', [])
-
-        ai_config = get_active_ai_config()
-        selected_provider = get_selected_provider()
-
+        from utils.ai_action_executor import execute_action
+        data = request.get_json() or {}
+        message = (data.get('message') or '').strip()
         if not message:
-            append_ai_debug_log(user_prompt_raw or '', error='Message is required')
+            append_ai_debug_log('', None, None, 'Message is required')
             return jsonify({
                 'error': 'Message is required',
-                'message_json': build_message_json(False, 'none', 'Message is required', '', 'error'),
+                'message_json': build_message_json(False, 'NONE', 'Message is required', '', 'error', confidence=0),
             }), 400
-
+        ai_config = get_active_ai_config()
+        selected_provider = get_selected_provider()
         if not ai_config:
-            append_ai_debug_log(user_prompt_raw, error='No AI provider is available.')
+            append_ai_debug_log(message, None, None, 'No AI provider is available.')
             return jsonify({
-                'error': "No AI provider is available. In Admin → AI Assistant, set an API key for at least one provider (e.g. Gemini) and click Test, or ensure AWS Secrets Manager (AWS_SECRETS_INSIGHTSHOP) contains the key (e.g. GEMINI_API_KEY) and select that provider.",
+                'error': "No AI provider is available. Set an API key in Admin → AI Assistant.",
                 'selected_provider': selected_provider,
-                'message_json': build_message_json(False, 'none', 'No AI provider available', '', 'error'),
+                'message_json': build_message_json(False, 'NONE', 'No AI provider available', '', 'error', confidence=0),
             }), 503
-
-        # Agent-first: every message → one LLM call (JSON only); backend dispatches all actions.
-        context_ids = (data.get('selected_product_ids') or []) if isinstance(data.get('selected_product_ids'), list) else []
-        id_hint = ""
-        if context_ids:
-            try:
-                ids_str = ", ".join(str(int(x)) for x in context_ids[:10])
-                id_hint = f"\nContext: The user has these product IDs from their recent view: [{ids_str}]. If they said 'add the first one', 'add it', or similar, use product_id: {int(context_ids[0])}."
-            except (TypeError, ValueError):
-                pass
-        last_filters = data.get('last_filters') or data.get('last_search_filters')
-        if isinstance(last_filters, dict) and last_filters:
-            filter_hint = "\nPrevious search filters (merge when user refines, e.g. 'only blue'): " + json.dumps(last_filters)
-        else:
-            filter_hint = ""
-        user_prompt = f"User request: {user_prompt_raw or message}{id_hint}{filter_hint}\n\nOutput the single JSON action object (action, parameters, message, confidence):"
-        llm_result = call_llm(user_prompt, system_prompt=AGENT_SYSTEM_PROMPT, config=ai_config, temperature=0.1)
-        content = (llm_result.get('content') or '').strip()
-        parsed = parse_agent_response(content) if content else None
-
-        # Normalize canonical format (action, parameters, message) to internal (action, params); keep llm_message for response text
-        llm_message = None
-        if parsed:
-            raw_action = (parsed.get('action') or '').strip()
-            params_canonical = parsed.get('parameters') if isinstance(parsed.get('parameters'), dict) else {}
-            if params_canonical and not parsed.get('params'):
-                parsed['params'] = dict(params_canonical)
-            llm_message = (parsed.get('message') or '').strip()
-            # Canonical format: action in UPPER (e.g. ADD_TO_CART), "parameters", "message"
-            if raw_action.upper() == raw_action and raw_action in CANONICAL_ACTIONS:
-                internal_action = CANONICAL_TO_INTERNAL.get(raw_action, 'none')
-                if internal_action in AGENT_ACTIONS:
-                    parsed['action'] = internal_action
-                elif internal_action == 'redirect':
-                    parsed['action'] = 'redirect'
-                else:
-                    parsed['action'] = 'none'
-                if parsed.get('params') and parsed.get('action') == 'search_products':
-                    p = parsed['params']
-                    if p.get('maxPrice') is not None and p.get('max_price') is None:
-                        p['max_price'] = p['maxPrice']
-                    if p.get('minPrice') is not None and p.get('min_price') is None:
-                        p['min_price'] = p['minPrice']
-                    if p.get('search') is not None and p.get('query') is None:
-                        p['query'] = p['search']
-                    if p.get('category') and p.get('category') not in ('men', 'women', 'kids'):
-                        p['category'] = None
-
-        # Fallback: "add NUMBER to cart" when LLM returned empty or unparseable
-        if not parsed and 'add' in message and ('cart' in message or 'to cart' in message):
-            import re as _re_cart
-            _pid_m = _re_cart.search(r'add\s+(?:product\s*#?\s*)?(\d+)\s*(?:to\s+my?\s*cart|to\s+cart)?', message, _re_cart.I) or _re_cart.search(r'add\s+(\d+)\s+to', message, _re_cart.I)
-            if _pid_m:
-                try:
-                    parsed = {'action': 'add_item', 'params': {'product_id': int(_pid_m.group(1)), 'quantity': 1}}
-                except (ValueError, TypeError):
-                    pass
-
-        if not parsed:
-            err_msg = "I couldn't understand that. Try: 'show me blue shirts', 'add product #5 to cart', or 'show my cart'."
-            _mj = build_message_json(False, 'none', 'Could not parse request', err_msg, 'error', confidence=0.3)
-            append_ai_debug_log(user_prompt_raw, response=err_msg, action_json=_mj, error='Could not parse request')
-            return jsonify({
-                'response': err_msg,
-                'action': None,
-                'suggested_products': [],
-                'suggested_product_ids': [],
-                'selected_provider': selected_provider,
-                'message_json': _mj,
-            }), 200
-
-        action = (parsed.get('action') or '').strip().lower()
-        params = parsed.get('params') if isinstance(parsed.get('params'), dict) else {}
-        parsed_confidence = max(0.0, min(1.0, float(parsed.get('confidence', 0.5))))
-        if parsed_confidence < 0.5 and action in ('add_item', 'add_to_wishlist', 'remove_from_wishlist', 'update_cart_item') and not params.get('product_id'):
-            action = 'none'
-            if not (parsed.get('message') or '').strip():
-                parsed['message'] = "Which product do you mean? Please give me the product number."
-            llm_message = (parsed.get('message') or '').strip()
-
-        # Override: LLM returned NONE but user clearly said "add product N to cart" -> run add_item so we actually add and show real confirmation
-        import re as _re_add_cart
-        if action == 'none' and ('add' in message and ('cart' in message or 'to cart' in message)):
-            _add_pid = _re_add_cart.search(
-                r'add\s+(?:product\s*#?\s*)?(\d+)\s*(?:to\s+my?\s*cart|to\s+cart)?',
-                user_prompt_raw or message, _re_add_cart.I
-            ) or _re_add_cart.search(r'add\s+(\d+)\s+to', user_prompt_raw or message, _re_add_cart.I)
-            if _add_pid:
-                try:
-                    action = 'add_item'
-                    params = {'product_id': int(_add_pid.group(1)), 'quantity': 1}
-                    llm_message = None  # so we use backend-generated confirmation, not LLM text
-                except (ValueError, TypeError):
-                    pass
-
-        # For search_products, accept "filters" (like search_properties) and normalize keys into params
-        if action == 'search_products':
-            filters_in = parsed.get('filters') if isinstance(parsed.get('filters'), dict) else {}
-            if filters_in:
-                for k, v in filters_in.items():
-                    if v is None or v == '':
-                        continue
-                    key = k.strip()
-                    if key in ('maxPrice', 'maxprice'):
-                        params['max_price'] = v if isinstance(v, (int, float)) else (float(v) if v else None)
-                    elif key in ('minPrice', 'minprice'):
-                        params['min_price'] = v if isinstance(v, (int, float)) else (float(v) if v else None)
-                    elif key == 'search':
-                        params['query'] = v if isinstance(v, str) else str(v)
-                    else:
-                        params[key] = v
-            # If LLM sent search_products but only raw "query", extract structured filters from message
-            has_structured = any(params.get(k) for k in ('category', 'color', 'max_price', 'min_price', 'on_sale', 'size', 'fabric', 'season', 'clothing_category'))
-            if not has_structured and (params.get('query') or params.get('search')):
-                extracted = _extract_search_filters_from_message(user_prompt_raw or message)
-                if extracted:
-                    params = dict(extracted, query=params.get('query') or params.get('search') or extracted.get('query'))
-
-        # BACKEND FALLBACK: If LLM returned "none" but user is clearly asking to find/show products, override to search_products with extracted filters
-        if action == 'none':
-            extracted = _extract_search_filters_from_message(user_prompt_raw or message)
-            if extracted:
-                action = 'search_products'
-                params = dict(params, **extracted)
-
-        if action not in AGENT_ACTIONS:
-            err_msg = "That action isn't supported. You can search for products, add/remove items, show cart, or compare products."
-            _mj = build_message_json(False, action or 'none', 'Action not allowed', err_msg, 'error', confidence=parsed_confidence)
-            append_ai_debug_log(user_prompt_raw, response=err_msg, action_json=_mj, error='Action not allowed')
-            return jsonify({
-                'response': err_msg,
-                'action': 'agent_executed',
-                'agent_success': False,
-                'message_json': _mj,
-                'selected_provider': selected_provider,
-            }), 200
-
-        # Backfill search params from user message when LLM missed them (e.g. "cheaper than 60$")
-        if action == 'search_products':
-            # No natural language in parameters: remove "query" if it is the user's sentence or long text
-            if params.get('query') and isinstance(params.get('query'), str):
-                q = params['query'].strip()
-                raw_lower = (user_prompt_raw or '').strip().lower()
-                if q.lower() == raw_lower or len(q) > 40 or q.count(' ') >= 2:
-                    params = {k: v for k, v in params.items() if k != 'query'}
-            extracted = _extract_search_filters_from_message(user_prompt_raw or '')
-            if extracted:
-                if params.get('max_price') is None and extracted.get('max_price') is not None:
-                    params['max_price'] = extracted['max_price']
-                if params.get('min_price') is None and extracted.get('min_price') is not None:
-                    params['min_price'] = extracted['min_price']
-                if not params.get('category') and extracted.get('category'):
-                    params['category'] = extracted['category']
-                if not params.get('color') and extracted.get('color'):
-                    params['color'] = extracted['color']
-                if extracted.get('on_sale') is True:
-                    params['on_sale'] = True
-            raw_lower = (user_prompt_raw or '').strip().lower()
-            q = (params.get('query') or params.get('search') or '').strip().lower()
-            if q and (q == raw_lower or len(q) > 50 or (q in raw_lower and len(q) > 30)):
-                params['query'] = extracted.get('query') if extracted else None
-            if params.get('category') and params.get('category') not in ('men', 'women', 'kids'):
-                params['category'] = None
-
-        # ——— All actions: dispatch to backend (each action triggers one handler in ai_action_dispatcher) ———
-        dispatch_context = {
-            'llm_message': llm_message,
-            'user_prompt_raw': user_prompt_raw,
-            'message': message,
-            'selected_product_ids': selected_product_ids,
-        }
-        result = dispatch_action(action, params, dispatch_context)
-
-        response_text = result.get('message', '')
-        if action in CRUD_ACTIONS and result.get('success') and result.get('agent_result'):
-            response_text = _cart_action_response_template(
-                action, result['agent_result'], result.get('message', 'Done.'), params
+        config = ai_config.to_internal_dict() if hasattr(ai_config, 'to_internal_dict') else ai_config
+        history = data.get('history') or data.get('conversation_history') or []
+        last_filters = data.get('last_filters') or data.get('filters') or {}
+        action_json, raw_content = _run_decision_engine(message, config, history=history, last_filters=last_filters)
+        action = (action_json.get('action') or 'NONE').strip()
+        parameters = _normalize_parameters(action_json.get('parameters'))
+        msg_text = (action_json.get('message') or '').strip()
+        # When LLM returns NONE (e.g. rate limit) or RESPONSE, infer the correct action from the user message
+        inferred_redirect = None
+        if action.upper() in ('RESPONSE', 'NONE'):
+            inferred_action, inferred_params = _infer_action_when_none(message)
+            if inferred_action:
+                action = inferred_action
+                parameters = inferred_params if inferred_params is not None else {}
+                if action.startswith('VIEW_'):
+                    inferred_redirect = action
+        confidence = action_json.get('confidence')
+        try:
+            confidence = max(0.0, min(1.0, float(confidence)))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        response_text = _sanitize_response_text(msg_text, action)
+        suggested_products = []
+        redirect_path = None
+        exec_error = None
+        ran_fallback_search = False
+        if action.upper() not in ('RESPONSE', 'NONE'):
+            result = execute_action(
+                action,
+                parameters,
+                current_user=get_current_user_optional(),
+                flask_request=request,
             )
-
-        filters_for_mj = result.get('filters_used')
-        if action == 'search_products' and filters_for_mj and isinstance(filters_for_mj, dict) and filters_for_mj.get('query'):
-            _raw = (user_prompt_raw or '').strip().lower()
-            _q = (filters_for_mj.get('query') or '').strip().lower()
-            if _q == _raw or len(_q) > 50:
-                filters_for_mj = {k: v for k, v in filters_for_mj.items() if k != 'query'}
-        status = 'success' if result.get('success') else ('denied' if result.get('denied') else 'error')
-        _mj = build_message_json(
-            result.get('success'),
-            action,
-            None if result.get('success') else result.get('message'),
-            response_text,
-            status,
-            filters=filters_for_mj,
-            confidence=parsed_confidence,
-        )
-        if result.get('parameters_used'):
-            _mj['parameters'] = result['parameters_used']
-
-        payload = {
-            'response': response_text,
-            'suggested_products': result.get('products', []) or [],
-            'suggested_product_ids': result.get('suggested_product_ids', []) or [],
-            'selected_provider': selected_provider,
-            'message_json': _mj,
-        }
-        if result.get('response_action') == 'agent_executed':
-            payload['action'] = 'agent_executed'
-            payload['agent_success'] = result.get('success', False)
-            payload['redirect_to'] = result.get('redirect_to')
-            payload['agent_action'] = action
-            if result.get('agent_result') is not None:
-                payload['agent_result'] = result['agent_result']
+            if result.get('message_override'):
+                response_text = result['message_override']
+            if not result.get('success'):
+                exec_error = result.get('error') or 'Action failed'
+                response_text = exec_error
+            # SEARCH_PRODUCTS: always take products from result so search results are never lost
+            if action.upper() == 'SEARCH_PRODUCTS' and result.get('data') is not None:
+                raw_list = (result.get('data') or {}).get('products')
+                suggested_products = list(raw_list) if raw_list is not None else []
+            elif result.get('data') and isinstance(result['data'], dict) and result['data'].get('products'):
+                suggested_products = result['data']['products']
+            if result.get('redirect_path'):
+                redirect_path = result['redirect_path']
         else:
-            payload['action'] = result.get('response_action')
-            if result.get('compare_ids') is not None:
-                payload['compare_ids'] = result['compare_ids']
-
-        append_ai_debug_log(
-            user_prompt_raw,
-            response=response_text,
-            action_json=_mj,
-            error=result.get('error'),
+            response_text = _sanitize_response_text(response_text, action)
+            # Fallback: LLM returned Response/NONE but we have last_filters — run search so we attach products
+            if last_filters and isinstance(last_filters, dict) and any(v is not None and v != '' for v in last_filters.values()):
+                result = execute_action(
+                    'SEARCH_PRODUCTS',
+                    last_filters,
+                    current_user=get_current_user_optional(),
+                    flask_request=request,
+                )
+                if result.get('success') and result.get('data') and isinstance(result['data'], dict) and result['data'].get('products'):
+                    suggested_products = result['data']['products']
+            # Fallback: message looks like product search but LLM didn't return SEARCH_PRODUCTS — use vector search with raw message
+            if not suggested_products and _message_looks_like_product_search(message):
+                ran_fallback_search = True
+                result = execute_action(
+                    'SEARCH_PRODUCTS',
+                    {'search': message},
+                    current_user=get_current_user_optional(),
+                    flask_request=request,
+                )
+                if result.get('success') and result.get('data') and isinstance(result['data'], dict):
+                    products_from_fallback = result['data'].get('products') or []
+                    suggested_products = products_from_fallback
+                    if not products_from_fallback:
+                        response_text = "I couldn't find any products matching that. Try different keywords or filters."
+        if inferred_redirect and redirect_path and not exec_error:
+            friendly = _redirect_friendly_message(inferred_redirect)
+            if friendly:
+                response_text = friendly
+        action_json_for_log = {'action': action, 'parameters': parameters, 'message': msg_text, 'confidence': confidence}
+        append_ai_debug_log(message, response_text, action_json_for_log, exec_error)
+        mj = build_message_json(
+            True,
+            action,
+            exec_error,
+            response_text,
+            'error' if exec_error else 'success',
+            filters=parameters,
+            confidence=confidence,
         )
-        return jsonify(payload), 200
-
+        mj['redirect_path'] = redirect_path
+        mj['suggested_product_ids'] = [p.get('id') for p in suggested_products if p.get('id')]
+        response_action = None
+        structured_response = None
+        # When executor returned products (search ran), always send product_preview and search_results
+        if suggested_products and not exec_error:
+            response_action = 'search_results'
+            structured_response = {
+                'type': 'product_preview',
+                'title': 'Search results',
+                'products': suggested_products,
+                'preview_limit': 5,
+                'show_view_all': True,
+            }
+        elif (action.upper() == 'SEARCH_PRODUCTS' or ran_fallback_search) and not exec_error:
+            response_action = 'search_results'
+            structured_response = {
+                'type': 'no_results',
+                'message': 'No products found matching your criteria.',
+            }
+        elif action.upper() in ('ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART', 'ADD_WISHLIST_TO_CART') and not exec_error:
+            response_action = 'agent_executed'
+        return jsonify({
+            'response': response_text,
+            'suggested_products': list(suggested_products) if suggested_products else [],
+            'suggested_product_ids': mj['suggested_product_ids'],
+            'redirect_path': redirect_path,
+            'selected_provider': selected_provider,
+            'action': response_action,
+            'structured_response': structured_response,
+            'message_json': mj,
+        }), 200
     except Exception as e:
-        append_ai_debug_log((request.get_json() or {}).get('message', ''), error=str(e))
+        import traceback
+        traceback.print_exc()
+        msg = (request.get_json() or {}).get('message', '')
+        append_ai_debug_log(msg, None, None, str(e))
         return jsonify({
             'error': str(e),
-            'message_json': build_message_json(False, 'none', str(e), '', 'error'),
+            'message_json': build_message_json(False, 'NONE', str(e), '', 'error', confidence=0),
         }), 500
+
 
 @ai_agent_bp.route('/search', methods=['POST'])
 def ai_search():

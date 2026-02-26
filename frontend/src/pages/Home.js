@@ -27,10 +27,13 @@ import midBannerMain from '../assets/mid-banner-main.webp';
 import midBannerMobile from '../assets/mid-banner-mobile.webp';
 import womanHeroImage from '../assets/Woman-01.webp';
 import brainArtImage from '../assets/Brainart.webp';
-import brainGridIcon2 from '../assets/brain-grid-icon2.png';
-import brainGridIcon3 from '../assets/brain-grid-icon3.png';
-import brainGridIcon4 from '../assets/brain-grid-icon4.png';
 import './Home.css';
+
+/* Brain grid icons: use public path so they are included in CI (src/assets/*.png is gitignored) */
+const getImagePath = (filename) => `${process.env.PUBLIC_URL || ''}/images/${filename}`;
+const brainGridIcon2 = getImagePath('brain-grid-icon2.png');
+const brainGridIcon3 = getImagePath('brain-grid-icon3.png');
+const brainGridIcon4 = getImagePath('brain-grid-icon4.png');
 
 /* Season banners: vintage-style imagery (softer, film-like) + sepia/vignette in CSS */
 const getSeasonImagePath = (filename) => `${process.env.PUBLIC_URL || ''}/images/${filename}`;

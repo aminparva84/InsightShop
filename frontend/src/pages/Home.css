@@ -65,6 +65,7 @@
   width: fit-content;
   max-width: min(56%, 720px);
   height: auto;
+  min-height: 0;
   z-index: 2;
   display: flex;
   align-items: flex-end;
@@ -428,7 +429,9 @@
   position: relative;
   display: block;
   width: 100%;
+  max-width: 100%;
   line-height: 0;
+  overflow: hidden;
 }
 
 .mid-banner-container picture {
@@ -2097,19 +2100,59 @@
 
 @media (max-width: 768px) {
   .hero.banner-four-layers {
-    min-height: 100vh;
-    padding: 4px 20px 24px;
+    min-height: auto;
+    padding: 18vh 20px 20px;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .hero-banner-content {
+    position: relative;
+    inset: auto;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 0;
+    gap: 28px;
     padding: 0;
   }
 
-  /* banner-asset-4 below image on mobile (order: 2), minimal gap */
+  /* Hero visual (woman + brain art) first on mobile – same stuck-together unit as desktop */
+  #hero-banner-visual.hero-banner-visual {
+    max-width: 100%;
+    width: 100%;
+    order: 1;
+    z-index: 0;
+    justify-content: center;
+    position: relative;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: auto;
+    margin-right: auto;
+    overflow: visible;
+    padding-top: 0;
+    box-sizing: border-box;
+    min-height: 0;
+  }
+  #hero-layer-brain-art.hero-layer-brain-art {
+    width: 90%;
+    height: 58%;
+    top: -32%;
+    right: 18%;
+  }
+  /* Top banner image: responsive on mobile, always contained */
+  .hero-layer-banner-main-img {
+    max-height: min(42vh, 340px);
+    max-width: 100%;
+    width: auto;
+    object-fit: contain;
+    object-position: center bottom;
+  }
+  .brain-art-grid-icon {
+    max-width: 64%;
+    max-height: 64%;
+  }
+
+  /* Banner-asset-4 (text) below hero visual – clear gap so no conflict */
   .hero-banner-text-and-chat {
     max-width: 100%;
     width: 100%;
@@ -2118,7 +2161,7 @@
     z-index: 3;
     order: 2;
     position: relative;
-    margin-top: -8px;
+    margin-top: 0;
     margin-right: 0;
   }
 
@@ -2132,7 +2175,6 @@
     align-items: center;
   }
 
-  /* banner-asset-4 (text block): larger presence on mobile – % width so it stays responsive */
   #banner-asset-4,
   .hero-banner-text-and-chat .hero-layer-text {
     width: 92%;
@@ -2141,36 +2183,6 @@
 
   #banner-asset-4 {
     margin-top: 0;
-  }
-
-  /* Top banner visual: first on mobile (order: 1) */
-  #hero-banner-visual.hero-banner-visual {
-    max-width: 100%;
-    width: fit-content;
-    order: 1;
-    z-index: 0;
-    justify-content: center;
-    position: relative;
-    margin-bottom: -4px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  #hero-layer-brain-art.hero-layer-brain-art {
-    width: 110%;
-    height: 68%;
-    top: -42%;
-    right: 20%;
-  }
-  /* Top banner image: responsive on mobile */
-  .hero-layer-banner-main-img {
-    max-height: min(48vh, 370px);
-    max-width: min(70%, 320px);
-    object-fit: contain;
-    object-position: right bottom;
-  }
-  .brain-art-grid-icon {
-    max-width: 64%;
-    max-height: 64%;
   }
 
   .hero-title {
@@ -2191,10 +2203,6 @@
     margin: 0.5em 0 -0.15em 0;
     letter-spacing: 0.01em;
     white-space: normal;
-  }
-
-  .hero-banner-content {
-    gap: 0;
   }
 
   /* Mid banner: no padding, centered on mobile */
@@ -2218,6 +2226,12 @@
   .mid-banner-container .mid-banner-image {
     margin-left: auto;
     margin-right: auto;
+  }
+
+  .mid-banner-image {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
   }
 
   .hero-cta {
@@ -2280,29 +2294,35 @@
 
 @media (max-width: 480px) {
   .hero.banner-four-layers {
-    min-height: 98vh;
-    padding: 0 14px 28px;
+    min-height: auto;
+    padding: 16vh 14px 16px;
   }
 
   .hero-banner-content {
-    gap: 0;
+    gap: 20px;
   }
 
   #banner-main.hero-layer-banner-main {
     height: auto;
   }
-  /* Top banner image: small mobile */
+  /* Top banner image: small mobile – contained */
   .hero-layer-banner-main-img {
-    max-height: min(42vh, 300px);
-    max-width: min(68%, 275px);
+    max-height: min(38vh, 280px);
+    max-width: 100%;
     object-fit: contain;
-    object-position: right bottom;
+    object-position: center bottom;
+  }
+  #hero-banner-visual.hero-banner-visual {
+    margin-top: 0;
+    overflow: visible;
+    padding-top: 0;
+    box-sizing: border-box;
   }
   #hero-layer-brain-art.hero-layer-brain-art {
-    width: 106%;
-    height: 62%;
-    top: -38%;
-    right: 16%;
+    width: 88%;
+    height: 54%;
+    top: -28%;
+    right: 14%;
   }
   .brain-art-grid-cell {
     padding: 0;
@@ -2312,9 +2332,9 @@
     max-height: 60%;
   }
 
-  /* banner-asset-4: minimal gap below image on small mobile */
+  /* banner-asset-4: clear space below hero visual on small mobile */
   .hero-banner-text-and-chat {
-    margin-top: -6px;
+    margin-top: 0;
   }
 
   /* banner-asset-4 text block: larger % width on small mobile */
@@ -2401,6 +2421,12 @@
   .mid-banner-container {
     max-width: 100%;
     padding: 0 8px;
+  }
+
+  .mid-banner-image {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
   }
 
   .floating-ai-button {

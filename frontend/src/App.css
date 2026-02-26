@@ -31,6 +31,12 @@ body {
   padding-top: 96px; /* match navbar-wrapper height so content is not hidden under fixed navbar */
 }
 
+@media (max-width: 767px) {
+  .main-content {
+    padding-top: 84px; /* match navbar-wrapper height on mobile (72px bar + 12px) */
+  }
+}
+
 /* Utility classes */
 .container {
   max-width: 1200px;

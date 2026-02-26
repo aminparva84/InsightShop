@@ -844,6 +844,109 @@
   }
 }
 
+/* New Arrivals banner – same size as special offers banner, image as background (no overlay), centered CTA button */
+.new-arrivals-banner {
+  position: relative;
+  width: 100%;
+  margin: 48px 0 48px;
+  padding: 160px 40px 168px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.new-arrivals-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: var(--new-arrivals-bg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.new-arrivals-banner-btn {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 14px 28px 18px;
+  background: rgba(74, 88, 68, 0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(74, 88, 68, 0.25);
+  border-radius: 24px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.28s ease, box-shadow 0.28s ease, background 0.28s ease, border-color 0.28s ease;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.new-arrivals-banner-btn:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  background: rgba(61, 73, 57, 0.38);
+  border-color: rgba(74, 88, 68, 0.4);
+}
+
+.new-arrivals-banner-btn:focus-visible {
+  outline: 2px solid #C3B0A1;
+  outline-offset: 4px;
+}
+
+.new-arrivals-banner-title {
+  font-family: 'The Bold Font', 'Bebas Neue', sans-serif;
+  font-size: clamp(52px, 7vw, 84px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #C3B0A1;
+  line-height: 0.95;
+  display: block;
+}
+
+.new-arrivals-banner-subtitle {
+  font-family: 'Saint Timothy', 'Dancing Script', cursive;
+  font-size: clamp(30px, 3.5vw, 42px);
+  font-weight: 600;
+  color: #C3B0A1;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  display: block;
+  margin-top: -0.25em;
+}
+
+@media (max-width: 640px) {
+  .new-arrivals-banner {
+    padding: 110px 24px 118px;
+    margin: 32px 0 32px;
+  }
+  .new-arrivals-banner-btn {
+    padding: 12px 24px 16px;
+    gap: 0;
+    border-radius: 20px;
+  }
+  .new-arrivals-banner-title {
+    font-size: clamp(42px, 9vw, 56px);
+  }
+  .new-arrivals-banner-subtitle {
+    font-size: clamp(24px, 6vw, 32px);
+  }
+}
+
+@media (max-width: 480px) {
+  .new-arrivals-banner {
+    padding: 88px 20px 96px;
+    margin: 24px 0 24px;
+  }
+}
+
 /* Special offers CTA banner – site theme: olive #4A5844 / #373F2E, cream #E8E4DC */
 .special-offers-cta-banner {
   position: relative;
@@ -2101,7 +2204,7 @@
 @media (max-width: 768px) {
   .hero.banner-four-layers {
     min-height: auto;
-    padding: 18vh 20px 20px;
+    padding: calc(18vh + 24px) 20px 20px;
     overflow-x: hidden;
     overflow-y: visible;
   }
@@ -2134,10 +2237,10 @@
     min-height: 0;
   }
   #hero-layer-brain-art.hero-layer-brain-art {
-    width: 90%;
-    height: 58%;
-    top: -32%;
-    right: 18%;
+    width: 125%;
+    height: 85%;
+    top: -52%;
+    right: 4%;
   }
   /* Top banner image: responsive on mobile, always contained */
   .hero-layer-banner-main-img {
@@ -2147,9 +2250,47 @@
     object-fit: contain;
     object-position: center bottom;
   }
-  .brain-art-grid-icon {
+  /* Brain-art grid: same placement as desktop (4x4, icons in same segments), tilt unchanged; icons a bit smaller on mobile */
+  .brain-art-grid {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+  }
+  .brain-art-grid-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .brain-art-grid-icon-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    animation: brain-art-icon-tilt 4s ease-in-out infinite;
+  }
+  .brain-art-grid-icon,
+  .brain-art-grid-icon-link .brain-art-grid-icon {
+    max-width: 56%;
+    max-height: 56%;
+  }
+  /* Mobile-only: reposition and size overrides */
+  .brain-art-grid-cell--2 {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .brain-art-grid-cell--2 .brain-art-grid-icon,
+  .brain-art-grid-cell--2 .brain-art-grid-icon-link .brain-art-grid-icon {
     max-width: 64%;
     max-height: 64%;
+  }
+  .brain-art-grid-cell--4 {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  .brain-art-grid-cell--13 {
+    grid-row: 4;
+    grid-column: 2;
   }
 
   /* Banner-asset-4 (text) below hero visual – clear gap so no conflict */
@@ -2295,7 +2436,7 @@
 @media (max-width: 480px) {
   .hero.banner-four-layers {
     min-height: auto;
-    padding: 16vh 14px 16px;
+    padding: calc(16vh + 20px) 14px 16px;
   }
 
   .hero-banner-content {
@@ -2319,17 +2460,21 @@
     box-sizing: border-box;
   }
   #hero-layer-brain-art.hero-layer-brain-art {
-    width: 88%;
-    height: 54%;
-    top: -28%;
-    right: 14%;
+    width: 120%;
+    height: 82%;
+    top: -46%;
+    right: 2%;
   }
   .brain-art-grid-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 0;
   }
-  .brain-art-grid-icon {
-    max-width: 60%;
-    max-height: 60%;
+  .brain-art-grid-icon,
+  .brain-art-grid-icon-link .brain-art-grid-icon {
+    max-width: 52%;
+    max-height: 52%;
   }
 
   /* banner-asset-4: clear space below hero visual on small mobile */

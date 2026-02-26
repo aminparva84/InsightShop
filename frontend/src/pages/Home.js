@@ -356,6 +356,18 @@ const Home = () => {
         </div>
       </section>
 
+      {/* New Arrivals banner – full-screen, image background, CTA to featured products */}
+      <section
+        className="new-arrivals-banner"
+        aria-label="New Arrivals"
+        style={{ '--new-arrivals-bg': `url(${process.env.PUBLIC_URL || ''}/images/new-arrivals-banner.png)` }}
+      >
+        <Link to="/products" className="new-arrivals-banner-btn" aria-label="Discover new arrivals – go to products">
+          <span className="new-arrivals-banner-title">NEW ARRIVALS</span>
+          <span className="new-arrivals-banner-subtitle">Discover What's New</span>
+        </Link>
+      </section>
+
       {/* Featured Products (container includes Special offers below) */}
       <section className="featured-products">
         <div className="container">

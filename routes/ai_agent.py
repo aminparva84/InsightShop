@@ -14,6 +14,7 @@ import boto3
 import csv
 import json
 import os
+import re
 import requests
 import time
 import threading
@@ -48,9 +49,9 @@ def append_ai_debug_log(message, response=None, action_json=None, error=None):
 
 
 # Canonical action names for message_json / ai_debug (decision engine actions pass through as-is).
-INTERNAL_TO_CANONICAL = {'none': 'NONE', 'response': 'Response'}
+INTERNAL_TO_CANONICAL = {'none': 'NONE', 'response': 'Response', 'clarify': 'CLARIFY'}
 CANONICAL_ACTIONS = frozenset({
-    'NONE', 'Response', 'SEARCH_PRODUCTS',
+    'NONE', 'Response', 'CLARIFY', 'SEARCH_PRODUCTS',
     'ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART',
     'ADD_TO_WISHLIST', 'REMOVE_FROM_WISHLIST', 'CLEAR_WISHLIST', 'ADD_WISHLIST_TO_CART',
     'VIEW_CART', 'VIEW_WISHLIST', 'VIEW_PRODUCTS', 'VIEW_HOME', 'VIEW_CHECKOUT',
@@ -221,14 +222,15 @@ Required JSON shape (use exactly these keys):
 }
 
 Allowed actions:
-- "Response" — Use for ANY question that does not require a backend action: advice, styling tips, explanations, store policies, product comparisons, "what should I wear", "how do I...", opinions, casual chat. Put your full helpful answer in the "message" field. parameters: {}. Do NOT use NONE for these—use Response and give a real answer in message.
+- "Response" — Use for ANY question that does not require a backend action: advice, styling tips, explanations, store policies, product comparisons, "what should I wear", "how do I...", opinions, casual chat. Put your full helpful answer in the "message" field. parameters: {}. Do NOT use NONE for these—use Response and give a real answer in message. IMPORTANT — Product attribute queries: When the user asks about product ATTRIBUTES (stock, colors, sizes, description, price)—whether for a product TYPE (e.g. "blue shirts for women") or for a specific product BY NAME (e.g. "what sizes is Brown High-Waisted Pleated Trousers available in?")—always use action "Response". Put in parameters: for a type use category, color, clothing_type; for a specific product by name use search: "[exact product name]" and attribute_type: "stock"|"colors"|"sizes"|"description"|"price". For product by ID use product_id: <id>. Use a short placeholder in message. The backend will look up the data and return a factual answer. Do NOT use SEARCH_PRODUCTS for any attribute query; the backend returns only the requested data (e.g. "Brown High-Waisted Pleated Trousers is available in sizes: 26, 28, 30, 32.").
 - "NONE" — Only when intent is truly unclear or ambiguous (e.g. could be cart OR wishlist). Ask one short clarification question in message. Use empty parameters {}. Do NOT use NONE for general questions—use Response.
-- "SEARCH_PRODUCTS" — User wants to search/browse products. Extract filters into parameters: category (men/women/kids), color, min_price, max_price, search (or query), clothing_type, size, fabric, occasion. Use null for unspecified filters. Keep a memory of filters from recent messages when user adds refinements (e.g. "under 50" after a search).
-- "ADD_TO_CART" — Add item to cart. parameters: product_id (required), quantity (default 1), selected_color, selected_size. NEVER invent product_id; if missing use action "NONE" and ask which product.
+- "CLARIFY" — Use when the user seems to want to search or browse but you need more information before running a search. Put your clarifying question in "message" (e.g. "What category are you looking for—men's, women's, or kids'?" or "What color or price range do you have in mind?"). parameters: {}. Use CLARIFY when confidence in search intent is below 0.85. Do NOT run a search until you have enough detail.
+- "SEARCH_PRODUCTS" — Use ONLY when the user clearly wants to search/browse or discover products (e.g. "show me blue shirts", "find dresses under $50", "what do you have in women's jackets?"). Do NOT use SEARCH_PRODUCTS when the user is asking for attribute information about a specific product (sizes, colors, stock, description, price for one product)—use Response for those. Extract filters into parameters: category (men/women/kids), color, min_price, max_price, search (or query), clothing_type, size, fabric, occasion, on_sale. When the user refines a previous search (e.g. "the blue ones", "under 50"), merge the previous context into parameters.
+- "ADD_TO_CART" — Add item to cart. parameters: product_id (required), quantity (default 1), selected_color, selected_size. NEVER invent product_id; if missing use action "NONE" or "CLARIFY" and ask which product.
 - "REMOVE_FROM_CART" — parameters: product_id or item_id, selected_color, selected_size.
 - "UPDATE_CART_ITEM" — parameters: item_id or product_id, quantity, selected_color, selected_size, old_color, old_size.
 - "CLEAR_CART" — Empty the SHOPPING CART (items to buy). parameters: {}. Use only when user says "clear cart", "empty my cart", "remove all from cart".
-- "ADD_TO_WISHLIST" — parameters: product_id (required). If missing use "NONE".
+- "ADD_TO_WISHLIST" — parameters: product_id (required). If missing use "NONE" or "CLARIFY".
 - "REMOVE_FROM_WISHLIST" — parameters: product_id.
 - "CLEAR_WISHLIST" — Empty the WISHLIST (saved/favorite items). parameters: {}. Use when user says "clear my wishlist", "empty wishlist", "remove all from wishlist". Do NOT use CLEAR_CART for wishlist.
 - "ADD_WISHLIST_TO_CART" — User wants to add ALL wishlist items to cart (e.g. "add everything in my wishlist to cart", "add all wishlist items to my cart"). parameters: {}. Use this when the user asks to add the whole wishlist or all wishlist items; do NOT use NONE or ask one-by-one.
@@ -237,8 +239,11 @@ Allowed actions:
 Rules:
 - parameters must contain ONLY structured data (numbers, strings, null). No natural language inside parameters.
 - message: short, friendly, user-facing sentence. No technical jargon.
-- confidence: 0.95 = very confident, 0.6 = somewhat ambiguous, 0.3 = likely misunderstood. If unclear use "NONE" and confidence < 0.5.
+- confidence: 0.95 = very confident, 0.6 = somewhat ambiguous, 0.3 = likely misunderstood. For SEARCH_PRODUCTS you MUST set confidence >= 0.85 or use CLARIFY instead. If unclear use "NONE" or "CLARIFY" and confidence < 0.85.
 - Output ONLY the JSON object. No other text."""
+
+# Minimum confidence required to execute SEARCH_PRODUCTS; below this we treat as clarification (no search).
+SEARCH_CONFIDENCE_THRESHOLD = 0.85
 
 
 
@@ -853,9 +858,205 @@ def _sanitize_response_text(text, action=None):
         'CLEAR_WISHLIST': "Your wishlist is now empty.",
         'ADD_WISHLIST_TO_CART': "I've added wishlist items to your cart.",
         'SEARCH_PRODUCTS': "Here are the results.",
+        'CLARIFY': "Could you tell me more about what you're looking for?",
         }
         return safe.get(action_upper, "Done.")
     return s
+
+
+def _build_no_results_message(parameters):
+    """Build a friendly no-results message from search parameters (e.g. 'blue shirts for women')."""
+    if not parameters or not isinstance(parameters, dict):
+        return "We couldn't find any products matching that. Would you like to try different filters or keywords?"
+    color = (parameters.get("color") or "").strip()
+    clothing_type = (parameters.get("clothing_type") or "").strip()
+    category = (parameters.get("category") or "").strip()
+    search = (parameters.get("search") or parameters.get("query") or "").strip()
+    parts = []
+    if color:
+        parts.append(color)
+    if clothing_type:
+        label = clothing_type + "s" if str(clothing_type).lower() not in ("shorts", "pants", "jeans") else clothing_type
+        parts.append(label)
+    if category:
+        parts.append(f"for {category}")
+    if search:
+        parts.append(search)
+    if not parts:
+        return "We couldn't find any products matching that. Would you like to try different filters or keywords?"
+    criteria_str = " ".join(parts)
+    return f"Sorry, we couldn't find any {criteria_str}. Try a different color, category, or keyword?"
+
+
+def _is_attribute_query(message):
+    """True if the user is asking about product attributes (stock, colors, sizes, description, price) without requesting a product search."""
+    if not message or not isinstance(message, str):
+        return False
+    msg = message.strip().lower()
+    return any(x in msg for x in (
+        "how many", "in stock", "stock count", "available", "are there any",
+        "what color", "what colors", "colors available", "come in", "available colors",
+        "what size", "what sizes", "sizes available", "available sizes",
+        "how much", "price", "cost", "how much does", "what's the price",
+        "tell me about", "describe", "description", "tell me more",
+    ))
+
+
+def _infer_criteria_from_attribute_message(message):
+    """Infer category, color, clothing_type, and product_id from an attribute query message when LLM did not pass parameters."""
+    if not message or not isinstance(message, str):
+        return {}
+    msg = message.strip().lower()
+    out = {}
+    # Product ID: "how many of 16720", "product 16720", "#16720", "id 16720"
+    id_match = re.search(r'(?:product\s*#?\s*|#|id\s*|of\s+)(\d{3,})', msg, re.I)
+    if not id_match:
+        id_match = re.search(r'\b(\d{4,})\b', msg)
+    if id_match:
+        out["product_id"] = id_match.group(1).strip()
+    if "for women" in msg or "women's" in msg or "womens" in msg:
+        out["category"] = "women"
+    elif "for men" in msg or "men's" in msg or "mens" in msg:
+        out["category"] = "men"
+    elif "for kids" in msg or "kids'" in msg:
+        out["category"] = "kids"
+    colors = ("blue", "red", "green", "black", "white", "pink", "yellow", "grey", "gray", "brown", "navy", "beige", "orange", "purple")
+    for c in colors:
+        if c in msg:
+            out["color"] = c
+            break
+    if "shirt" in msg or "blouse" in msg:
+        out["clothing_type"] = "shirt"
+    elif "pants" in msg or "trousers" in msg:
+        out["clothing_type"] = "pants"
+    elif "dress" in msg:
+        out["clothing_type"] = "dress"
+    elif "jacket" in msg:
+        out["clothing_type"] = "jacket"
+    elif "sweater" in msg:
+        out["clothing_type"] = "sweater"
+    elif "jeans" in msg:
+        out["clothing_type"] = "jeans"
+    return out
+
+
+def _is_product_info_question(message):
+    """True if the user is asking for factual info about a specific product (sizes, colors, brand, description, etc.)."""
+    if not message or not isinstance(message, str):
+        return False
+    msg = message.strip().lower()
+    if len(msg) < 5:
+        return False
+    patterns = (
+        'what size', 'what sizes', 'available sizes', 'sizes does', 'sizes do', 'does it come in size',
+        'what color', 'what colors', 'available colors', 'colors does', 'colors do', 'come in',
+        'what brand', 'who makes', 'who makes it', 'brand is', 'manufacturer',
+        'description of', 'describe the', 'tell me about', 'information about', 'details of', 'details about',
+        'what is the', 'tell me more about', 'what fabric', 'what occasion', 'what material',
+    )
+    return any(p in msg for p in patterns)
+
+
+def _build_product_info_response(user_message, suggested_products):
+    """
+    When the user asked for product details (sizes, colors, brand, description, etc.) and we have
+    search results, build a direct answer from the first product's data. Returns None if we should
+    not override the LLM response.
+    """
+    if not suggested_products or not _is_product_info_question(user_message):
+        return None
+    product = suggested_products[0]
+    if not isinstance(product, dict):
+        return None
+    name = product.get('name') or 'This product'
+    parts = []
+    msg = (user_message or '').strip().lower()
+
+    # Sizes
+    if any(x in msg for x in ('size', 'sizes')):
+        sizes = product.get('available_sizes') or product.get('size')
+        if sizes:
+            if isinstance(sizes, list):
+                sizes_str = ', '.join(str(s).strip() for s in sizes if s)
+            else:
+                sizes_str = str(sizes).strip()
+            if sizes_str:
+                parts.append(f"**Sizes:** {sizes_str}")
+        else:
+            parts.append("Sizes are not specified for this product.")
+
+    # Colors
+    if any(x in msg for x in ('color', 'colors', 'come in')):
+        colors = product.get('available_colors') or product.get('color')
+        if colors:
+            if isinstance(colors, list):
+                colors_str = ', '.join(str(c).strip() for c in colors if c)
+            else:
+                colors_str = str(colors).strip()
+            if colors_str:
+                parts.append(f"**Colors:** {colors_str}")
+        else:
+            parts.append("Colors are not specified for this product.")
+
+    # Brand
+    if any(x in msg for x in ('brand', 'who makes', 'manufacturer')):
+        brand = product.get('display_brand') or product.get('brand_other') or product.get('brand')
+        if brand:
+            parts.append(f"**Brand:** {brand}")
+        else:
+            parts.append("Brand is not specified.")
+
+    # Description / general info (fabric, occasion, etc.)
+    if any(x in msg for x in ('description', 'describe', 'tell me about', 'information', 'details', 'what is', 'fabric', 'occasion', 'material')):
+        desc = product.get('description')
+        if desc:
+            parts.append(f"**Description:** {desc.strip()}")
+        fabric = product.get('fabric')
+        if fabric:
+            parts.append(f"**Fabric:** {fabric}")
+        occasion = product.get('occasion')
+        if occasion:
+            parts.append(f"**Occasion:** {occasion}")
+        clothing_type = product.get('clothing_type')
+        if clothing_type:
+            parts.append(f"**Type:** {clothing_type}")
+        category = product.get('category')
+        if category:
+            parts.append(f"**Category:** {category}")
+        price = product.get('price') or product.get('original_price')
+        if price is not None:
+            try:
+                parts.append(f"**Price:** ${float(price):.2f}")
+            except (TypeError, ValueError):
+                pass
+
+    # If no specific aspect matched but it's a product-info question, return key details (sizes, colors, brand, description)
+    if not parts:
+        sizes = product.get('available_sizes') or product.get('size')
+        colors = product.get('available_colors') or product.get('color')
+        brand = product.get('display_brand') or product.get('brand_other') or product.get('brand')
+        desc = product.get('description')
+        if sizes:
+            s = sizes if isinstance(sizes, list) else [sizes]
+            parts.append(f"**Sizes:** {', '.join(str(x).strip() for x in s if x)}")
+        if colors:
+            c = colors if isinstance(colors, list) else [colors]
+            parts.append(f"**Colors:** {', '.join(str(x).strip() for x in c if x)}")
+        if brand:
+            parts.append(f"**Brand:** {brand}")
+        if desc:
+            parts.append(f"**Description:** {desc.strip()}")
+        price = product.get('price') or product.get('original_price')
+        if price is not None:
+            try:
+                parts.append(f"**Price:** ${float(price):.2f}")
+            except (TypeError, ValueError):
+                pass
+
+    if not parts:
+        return None
+    intro = f"For **{name}** (Product #{product.get('id', '')}):"
+    return intro + "\n\n" + "\n\n".join(parts)
 
 
 def _infer_action_when_none(message):
@@ -1262,7 +1463,7 @@ For all other admin tasks (orders, sales, carts, reviews), use the corresponding
 def chat_with_tools():
     '''Decision-engine chat (authenticated): same as /chat but requires auth. Every message produces structured JSON; backend executes actions. Logs to docs/ai_debug.csv.'''
     try:
-        from utils.ai_action_executor import execute_action
+        from utils.ai_action_executor import execute_action, get_product_attribute_response
         user = get_current_user_optional()
         data = request.get_json() or {}
         message = (data.get('message') or '').strip()
@@ -1314,8 +1515,31 @@ def chat_with_tools():
         suggested_products = []
         redirect_path = None
         exec_error = None
-        ran_fallback_search = False
-        if action.upper() not in ('RESPONSE', 'NONE'):
+        # CLARIFY: no backend action; show LLM message only.
+        if action.upper() == 'CLARIFY':
+            response_text = _sanitize_response_text(msg_text or "Could you tell me a bit more about what you're looking for?", action)
+        # Only execute SEARCH_PRODUCTS when LLM explicitly chose it and confidence is high enough.
+        elif action.upper() == 'SEARCH_PRODUCTS':
+            if confidence < SEARCH_CONFIDENCE_THRESHOLD:
+                response_text = _sanitize_response_text(msg_text or "Could you give me a bit more detail—for example category, color, or price range?", action)
+            else:
+                result = execute_action(
+                    action,
+                    parameters,
+                    current_user=user,
+                    flask_request=request,
+                )
+                if result.get('message_override'):
+                    response_text = result['message_override']
+                if not result.get('success'):
+                    exec_error = result.get('error') or 'Action failed'
+                    response_text = exec_error
+                elif result.get('data') is not None:
+                    raw_list = (result.get('data') or {}).get('products')
+                    suggested_products = list(raw_list) if raw_list is not None else []
+                if result.get('redirect_path'):
+                    redirect_path = result.get('redirect_path')
+        elif action.upper() not in ('RESPONSE', 'NONE'):
             result = execute_action(
                 action,
                 parameters,
@@ -1327,7 +1551,6 @@ def chat_with_tools():
             if not result.get('success'):
                 exec_error = result.get('error') or 'Action failed'
                 response_text = exec_error
-            # SEARCH_PRODUCTS: always take products from result so search results are never lost
             if action.upper() == 'SEARCH_PRODUCTS' and result.get('data') is not None:
                 raw_list = (result.get('data') or {}).get('products')
                 suggested_products = list(raw_list) if raw_list is not None else []
@@ -1337,32 +1560,25 @@ def chat_with_tools():
                 redirect_path = result['redirect_path']
         else:
             response_text = _sanitize_response_text(response_text, action)
-            if last_filters and isinstance(last_filters, dict) and any(v is not None and v != '' for v in last_filters.values()):
-                result = execute_action(
-                    'SEARCH_PRODUCTS',
-                    last_filters,
-                    current_user=user,
-                    flask_request=request,
-                )
-                if result.get('success') and result.get('data') and isinstance(result['data'], dict) and result['data'].get('products'):
-                    suggested_products = result['data']['products']
-            if not suggested_products and _message_looks_like_product_search(message):
-                ran_fallback_search = True
-                result = execute_action(
-                    'SEARCH_PRODUCTS',
-                    {'search': message},
-                    current_user=user,
-                    flask_request=request,
-                )
-                if result.get('success') and result.get('data') and isinstance(result['data'], dict):
-                    products_from_fallback = result['data'].get('products') or []
-                    suggested_products = products_from_fallback
-                    if not products_from_fallback:
-                        response_text = "I couldn't find any products matching that. Try different keywords or filters."
+            if _is_attribute_query(message):
+                has_product_criteria = parameters and any(parameters.get(k) for k in ("category", "color", "clothing_type", "search", "product_id"))
+                att_params = (parameters or {}) if has_product_criteria else _infer_criteria_from_attribute_message(message)
+                if att_params:
+                    try:
+                        att_msg = get_product_attribute_response(att_params, message)
+                        if att_msg:
+                            response_text = att_msg
+                    except Exception:
+                        pass
         if inferred_redirect and redirect_path and not exec_error:
             friendly = _redirect_friendly_message(inferred_redirect)
             if friendly:
                 response_text = friendly
+        # Override with actual product details when user asked for sizes, colors, brand, description, etc.
+        if action.upper() == 'SEARCH_PRODUCTS' and suggested_products and not exec_error:
+            product_info = _build_product_info_response(message, suggested_products)
+            if product_info:
+                response_text = product_info
         action_json_for_log = {'action': action, 'parameters': parameters, 'message': msg_text, 'confidence': confidence}
         append_ai_debug_log(message, response_text, action_json_for_log, exec_error)
         mj = build_message_json(
@@ -1378,7 +1594,7 @@ def chat_with_tools():
         mj['suggested_product_ids'] = [p.get('id') for p in suggested_products if p.get('id')]
         response_action = None
         structured_response = None
-        # When executor returned products (search ran), always send product_preview and search_results
+        # Only send search_results when we have products; otherwise no empty result block.
         if suggested_products and not exec_error:
             response_action = 'search_results'
             structured_response = {
@@ -1388,11 +1604,12 @@ def chat_with_tools():
                 'preview_limit': 5,
                 'show_view_all': True,
             }
-        elif (action.upper() == 'SEARCH_PRODUCTS' or ran_fallback_search) and not exec_error:
-            response_action = 'search_results'
+        elif action.upper() == 'SEARCH_PRODUCTS' and not exec_error and not suggested_products:
+            response_action = None
+            response_text = response_text or _build_no_results_message(parameters)
             structured_response = {
                 'type': 'no_results',
-                'message': 'No products found matching your criteria.',
+                'message': response_text,
             }
         elif action.upper() in ('ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART', 'ADD_WISHLIST_TO_CART') and not exec_error:
             response_action = 'agent_executed'
@@ -1424,7 +1641,7 @@ def chat_with_tools():
 def chat():
     '''Decision-engine chat: every message produces structured JSON (action, parameters, message, confidence). Backend executes actions and returns response + optional products/redirect. Logs every exchange to docs/ai_debug.csv.'''
     try:
-        from utils.ai_action_executor import execute_action
+        from utils.ai_action_executor import execute_action, get_product_attribute_response
         data = request.get_json() or {}
         message = (data.get('message') or '').strip()
         if not message:
@@ -1467,8 +1684,31 @@ def chat():
         suggested_products = []
         redirect_path = None
         exec_error = None
-        ran_fallback_search = False
-        if action.upper() not in ('RESPONSE', 'NONE'):
+        # CLARIFY: no backend action; show LLM message only.
+        if action.upper() == 'CLARIFY':
+            response_text = _sanitize_response_text(msg_text or "Could you tell me a bit more about what you're looking for?", action)
+        # Only execute SEARCH_PRODUCTS when LLM explicitly chose it and confidence is high enough.
+        elif action.upper() == 'SEARCH_PRODUCTS':
+            if confidence < SEARCH_CONFIDENCE_THRESHOLD:
+                response_text = _sanitize_response_text(msg_text or "Could you give me a bit more detail—for example category, color, or price range?", action)
+            else:
+                result = execute_action(
+                    action,
+                    parameters,
+                    current_user=get_current_user_optional(),
+                    flask_request=request,
+                )
+                if result.get('message_override'):
+                    response_text = result['message_override']
+                if not result.get('success'):
+                    exec_error = result.get('error') or 'Action failed'
+                    response_text = exec_error
+                elif result.get('data') is not None:
+                    raw_list = (result.get('data') or {}).get('products')
+                    suggested_products = list(raw_list) if raw_list is not None else []
+                if result.get('redirect_path'):
+                    redirect_path = result.get('redirect_path')
+        elif action.upper() not in ('RESPONSE', 'NONE'):
             result = execute_action(
                 action,
                 parameters,
@@ -1480,7 +1720,6 @@ def chat():
             if not result.get('success'):
                 exec_error = result.get('error') or 'Action failed'
                 response_text = exec_error
-            # SEARCH_PRODUCTS: always take products from result so search results are never lost
             if action.upper() == 'SEARCH_PRODUCTS' and result.get('data') is not None:
                 raw_list = (result.get('data') or {}).get('products')
                 suggested_products = list(raw_list) if raw_list is not None else []
@@ -1490,34 +1729,25 @@ def chat():
                 redirect_path = result['redirect_path']
         else:
             response_text = _sanitize_response_text(response_text, action)
-            # Fallback: LLM returned Response/NONE but we have last_filters — run search so we attach products
-            if last_filters and isinstance(last_filters, dict) and any(v is not None and v != '' for v in last_filters.values()):
-                result = execute_action(
-                    'SEARCH_PRODUCTS',
-                    last_filters,
-                    current_user=get_current_user_optional(),
-                    flask_request=request,
-                )
-                if result.get('success') and result.get('data') and isinstance(result['data'], dict) and result['data'].get('products'):
-                    suggested_products = result['data']['products']
-            # Fallback: message looks like product search but LLM didn't return SEARCH_PRODUCTS — use vector search with raw message
-            if not suggested_products and _message_looks_like_product_search(message):
-                ran_fallback_search = True
-                result = execute_action(
-                    'SEARCH_PRODUCTS',
-                    {'search': message},
-                    current_user=get_current_user_optional(),
-                    flask_request=request,
-                )
-                if result.get('success') and result.get('data') and isinstance(result['data'], dict):
-                    products_from_fallback = result['data'].get('products') or []
-                    suggested_products = products_from_fallback
-                    if not products_from_fallback:
-                        response_text = "I couldn't find any products matching that. Try different keywords or filters."
+            if _is_attribute_query(message):
+                has_product_criteria = parameters and any(parameters.get(k) for k in ("category", "color", "clothing_type", "search", "product_id"))
+                att_params = (parameters or {}) if has_product_criteria else _infer_criteria_from_attribute_message(message)
+                if att_params:
+                    try:
+                        att_msg = get_product_attribute_response(att_params, message)
+                        if att_msg:
+                            response_text = att_msg
+                    except Exception:
+                        pass
         if inferred_redirect and redirect_path and not exec_error:
             friendly = _redirect_friendly_message(inferred_redirect)
             if friendly:
                 response_text = friendly
+        # Override with actual product details when user asked for sizes, colors, brand, description, etc.
+        if action.upper() == 'SEARCH_PRODUCTS' and suggested_products and not exec_error:
+            product_info = _build_product_info_response(message, suggested_products)
+            if product_info:
+                response_text = product_info
         action_json_for_log = {'action': action, 'parameters': parameters, 'message': msg_text, 'confidence': confidence}
         append_ai_debug_log(message, response_text, action_json_for_log, exec_error)
         mj = build_message_json(
@@ -1533,7 +1763,7 @@ def chat():
         mj['suggested_product_ids'] = [p.get('id') for p in suggested_products if p.get('id')]
         response_action = None
         structured_response = None
-        # When executor returned products (search ran), always send product_preview and search_results
+        # Only send search_results when we have products; otherwise no empty result block.
         if suggested_products and not exec_error:
             response_action = 'search_results'
             structured_response = {
@@ -1543,11 +1773,12 @@ def chat():
                 'preview_limit': 5,
                 'show_view_all': True,
             }
-        elif (action.upper() == 'SEARCH_PRODUCTS' or ran_fallback_search) and not exec_error:
-            response_action = 'search_results'
+        elif action.upper() == 'SEARCH_PRODUCTS' and not exec_error and not suggested_products:
+            response_action = None
+            response_text = response_text or _build_no_results_message(parameters)
             structured_response = {
                 'type': 'no_results',
-                'message': 'No products found matching your criteria.',
+                'message': response_text,
             }
         elif action.upper() in ('ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART', 'ADD_WISHLIST_TO_CART') and not exec_error:
             response_action = 'agent_executed'

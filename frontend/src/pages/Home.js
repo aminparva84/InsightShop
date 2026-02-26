@@ -23,9 +23,13 @@ import ProductGrid from '../components/ProductGrid';
 import BlurText from '../components/BlurText';
 import AIChat from '../components/AIChat';
 import SectionTitleWithWavy from '../components/SectionTitleWithWavy';
-import womanImage from '../assets/woman-image.webp';
 import midBannerMain from '../assets/mid-banner-main.webp';
 import midBannerMobile from '../assets/mid-banner-mobile.webp';
+import womanHeroImage from '../assets/Woman-01.webp';
+import brainArtImage from '../assets/Brainart.webp';
+import brainGridIcon2 from '../assets/brain-grid-icon2.png';
+import brainGridIcon3 from '../assets/brain-grid-icon3.png';
+import brainGridIcon4 from '../assets/brain-grid-icon4.png';
 import './Home.css';
 
 /* Season banners: vintage-style imagery (softer, film-like) + sepia/vignette in CSS */
@@ -250,7 +254,7 @@ const Home = () => {
 
   return (
     <div className="home">
-      {/* Top Banner: background, hero image (woman-image) on right, text */}
+      {/* Top Banner: background, hero visual (brain art + woman) on right, text */}
       <section className="hero banner-four-layers">
         {/* Asset 1: Background */}
         <div id="banner-asset-1" className="hero-layer hero-layer-bg" data-asset-name="background" aria-hidden="true" />
@@ -305,9 +309,46 @@ const Home = () => {
             <AIChat isInline />
           </div>
           </div>
-          {/* Hero image – exactly to the right of text and chat */}
-          <div id="banner-main" className="hero-layer hero-layer-banner-main" data-asset-name="hero-image" aria-hidden="true">
-            <img src={womanImage} alt="" className="hero-layer-banner-main-img" />
+          {/* Hero visual: layered right side – brain art behind, woman on top */}
+          <div id="hero-banner-visual" className="hero-banner-visual">
+            <div id="hero-layer-brain-art" className="hero-layer hero-layer-brain-art" data-asset-name="brain-art" aria-hidden="true">
+              <div className="brain-art-img-wrap">
+                <img src={brainArtImage} alt="" className="hero-layer-brain-art-img" />
+                <div className="brain-art-grid" role="presentation">
+                <div className="brain-art-grid-cell brain-art-grid-cell--1" data-cell="1" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--2" data-cell="2">
+                  <Link to="/products?category=men" className="brain-art-grid-icon-link" aria-label="Shop clothing for men">
+                    <img src={brainGridIcon2} alt="" className="brain-art-grid-icon" />
+                  </Link>
+                </div>
+                <div className="brain-art-grid-cell brain-art-grid-cell--3" data-cell="3" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--4" data-cell="4">
+                  <Link to="/products?category=kids" className="brain-art-grid-icon-link" aria-label="Shop clothing for kids">
+                    <img src={brainGridIcon4} alt="" className="brain-art-grid-icon" />
+                  </Link>
+                </div>
+                <div className="brain-art-grid-cell brain-art-grid-cell--5" data-cell="5" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--6" data-cell="6" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--7" data-cell="7" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--8" data-cell="8" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--9" data-cell="9" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--10" data-cell="10" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--11" data-cell="11" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--12" data-cell="12" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--13" data-cell="13">
+                  <Link to="/products?category=women" className="brain-art-grid-icon-link" aria-label="Shop clothing for women">
+                    <img src={brainGridIcon3} alt="" className="brain-art-grid-icon" />
+                  </Link>
+                </div>
+                <div className="brain-art-grid-cell brain-art-grid-cell--14" data-cell="14" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--15" data-cell="15" />
+                <div className="brain-art-grid-cell brain-art-grid-cell--16" data-cell="16" />
+              </div>
+              </div>
+            </div>
+            <div id="banner-main" className="hero-layer hero-layer-banner-main" data-asset-name="hero-image" aria-hidden="true">
+              <img src={womanHeroImage} alt="" className="hero-layer-banner-main-img" />
+            </div>
           </div>
         </div>
       </section>

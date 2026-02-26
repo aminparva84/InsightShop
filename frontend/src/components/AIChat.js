@@ -1029,42 +1029,33 @@ const AIChat = ({ onClose, isInline = false, onProductsUpdate = null }) => {
         content: response.data.response || response.data.message || 'No response.'
       };
 
-      // Structured response: product_preview (show cards in chat) or no_results
+      // Structured response: show product preview only when there are actual products; no empty result blocks
       const structured = response.data.structured_response;
       const mjAction = (response.data.message_json?.action || response.data.message_json?.action_canonical || '').toString().toUpperCase();
-      const isSearchAction = response.data.action === 'search_results' || mjAction === 'SEARCH_PRODUCTS';
-
-      // When the backend says this is a search response, ALWAYS use suggested_products (backend guarantees it's an array)
       const suggestedProducts = Array.isArray(response.data.suggested_products) ? response.data.suggested_products : [];
-      const hasStructuredProducts = structured?.type === 'product_preview' && Array.isArray(structured.products) && structured.products.length > 0;
       const hasSuggestedProducts = suggestedProducts.length > 0;
+      const hasStructuredProducts = structured?.type === 'product_preview' && Array.isArray(structured.products) && structured.products.length > 0;
+      const hasProducts = hasSuggestedProducts || hasStructuredProducts;
+      const productsList = hasSuggestedProducts ? suggestedProducts : (hasStructuredProducts ? structured.products : []);
 
-      // SEARCH: Always attach product_preview so results show every time. Use suggested_products first (source of truth from backend).
-      if (isSearchAction) {
-        const products = hasSuggestedProducts ? suggestedProducts : (hasStructuredProducts ? structured.products : []);
-        aiMessage.content = response.data.response || response.data.message || (products.length > 0 ? 'Here are the results that match your search.' : 'No products found matching your criteria.');
+      if (hasProducts && productsList.length > 0) {
+        aiMessage.content = response.data.response || response.data.message || 'Here are the results that match your search.';
         aiMessage.product_preview = {
-          title: (hasStructuredProducts && structured.title) ? structured.title : 'Search results',
-          products,
+          title: (hasStructuredProducts && structured?.title) ? structured.title : 'Search results',
+          products: productsList,
           preview_limit: (hasStructuredProducts && typeof structured.preview_limit === 'number') ? structured.preview_limit : 5,
           show_view_all: hasStructuredProducts ? Boolean(structured.show_view_all) : true,
         };
-      } else if (hasStructuredProducts || hasSuggestedProducts) {
-        const products = hasStructuredProducts ? structured.products : suggestedProducts;
-        const previewLimit = hasStructuredProducts && typeof structured.preview_limit === 'number' ? structured.preview_limit : 5;
-        aiMessage.content = response.data.response || response.data.message || 'Here are some options that match your search.';
-        aiMessage.product_preview = {
-          title: (hasStructuredProducts && structured.title) ? structured.title : 'Search results',
-          products,
-          preview_limit: previewLimit,
-          show_view_all: hasStructuredProducts ? Boolean(structured.show_view_all) : true,
-        };
       } else if (structured?.type === 'no_results') {
-        const apiResponse = (response.data.response || response.data.message || '').trim();
-        aiMessage.content = apiResponse || structured.message || 'No products found.';
+        aiMessage.content = (response.data.response || response.data.message || structured.message || "We couldn't find any products matching that. Would you like to try different filters or keywords?").trim();
+      } else if ((response.data.action === 'search_results' || mjAction === 'SEARCH_PRODUCTS') && !hasProducts) {
+        // Search was run but returned no products: show message, never show empty product block
+        aiMessage.content = (response.data.response || response.data.message || "Sorry, we couldn't find any products matching that. Try a different color, category, or keyword?").trim();
+      } else {
+        aiMessage.content = response.data.response || response.data.message || 'No response.';
       }
 
-      // Track last search filters so follow-ups ("show me the blue ones") can merge with previous filters
+      // Track last search filters so LLM can merge on refinements (e.g. "the blue ones")
       const mj = response.data.message_json;
       const mjActionLower = (mj?.action || mj?.action_canonical || '').toString().toLowerCase();
       const isSearchResponse = response.data.action === 'search_results' || mjActionLower === 'search_products';

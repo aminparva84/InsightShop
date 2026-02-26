@@ -26,7 +26,7 @@ def _WishlistItem():
     return WishlistItem
 
 def _search_products_by_criteria(criteria):
-    """Search products by criteria (in-executor to avoid circular import). Case-insensitive for category and color."""
+    """Search products by criteria (in-executor to avoid circular import). Case-insensitive; color uses substring match."""
     from sqlalchemy import or_, and_
     from datetime import date
     Product = _Product()
@@ -34,13 +34,24 @@ def _search_products_by_criteria(criteria):
     if criteria.get('category'):
         query = query.filter(Product.category.ilike(criteria['category']))
     if criteria.get('color'):
-        query = query.filter(Product.color.ilike(criteria['color']))
+        # Substring match so "blue" matches "Light Blue", "Sky Blue", etc.
+        query = query.filter(Product.color.ilike(f'%{criteria["color"]}%'))
     if criteria.get('size'):
         query = query.filter_by(size=criteria['size'])
     if criteria.get('fabric'):
         query = query.filter_by(fabric=criteria['fabric'])
     if criteria.get('clothing_type'):
-        query = query.filter(Product.clothing_type.ilike(f'%{criteria["clothing_type"]}%'))
+        ct = (criteria['clothing_type'] or '').strip().lower()
+        if ct == 'shirt':
+            # Match T-Shirt, Dress Shirt, and Blouse (clothing_category shirts/t_shirts)
+            query = query.filter(
+                or_(
+                    Product.clothing_type.ilike('%shirt%'),
+                    Product.clothing_category.in_(['shirts', 't_shirts']),
+                )
+            )
+        else:
+            query = query.filter(Product.clothing_type.ilike(f'%{criteria["clothing_type"]}%'))
     if criteria.get('occasion'):
         query = query.filter_by(occasion=criteria['occasion'])
     if criteria.get('age_group'):
@@ -126,7 +137,7 @@ def _normalize_clothing_type(val):
 
 # Allowed actions (backend must implement each)
 ACTIONS = frozenset({
-    'SEARCH_PRODUCTS',
+    'SEARCH_PRODUCTS', 'CLARIFY',
     'ADD_TO_CART', 'REMOVE_FROM_CART', 'UPDATE_CART_ITEM', 'CLEAR_CART',
     'ADD_TO_WISHLIST', 'REMOVE_FROM_WISHLIST', 'CLEAR_WISHLIST', 'ADD_WISHLIST_TO_CART',
     'VIEW_CART', 'VIEW_WISHLIST', 'VIEW_PRODUCTS', 'VIEW_HOME', 'VIEW_CHECKOUT',
@@ -247,6 +258,160 @@ def _build_criteria(parameters: dict) -> dict:
     return criteria
 
 
+def _infer_attribute_type_from_message(user_message: Optional[str]) -> Optional[str]:
+    """Infer what attribute the user is asking for (stock, colors, sizes, description, price). Returns None if unclear."""
+    if not user_message or not isinstance(user_message, str):
+        return None
+    msg = user_message.strip().lower()
+    if any(x in msg for x in ("how many", "in stock", "stock count", "available", "how much .* in stock", "are there any")):
+        return "stock"
+    if any(x in msg for x in ("what color", "what colors", "colors available", "come in", "color options", "available colors")):
+        return "colors"
+    if any(x in msg for x in ("what size", "what sizes", "sizes available", "size options", "available sizes", "available in size")):
+        return "sizes"
+    if any(x in msg for x in ("how much", "price", "cost", "how much does", "what's the price")):
+        return "price"
+    if any(x in msg for x in ("tell me about", "describe", "description", "tell me more", "what about", "information about")):
+        return "description"
+    return None
+
+
+def get_product_attribute_response(parameters: dict, user_message: Optional[str] = None) -> Optional[str]:
+    """
+    For attribute queries (stock, colors, sizes, description, price): look up products by criteria
+    or by product_id, and return a single factual message. No product search is run for the user—only a backend lookup.
+    Returns None if this is not an attribute query or no criteria/product_id to look up.
+    """
+    if not parameters or not isinstance(parameters, dict):
+        return None
+    Product = _Product()
+    attribute_type = (parameters.get("attribute_type") or "").strip().lower() or _infer_attribute_type_from_message(user_message)
+    if not attribute_type:
+        attribute_type = "stock"
+
+    # Direct product_id lookup: "how many of 16720 do you have" -> real answer from DB
+    product_id_val = parameters.get("product_id")
+    if product_id_val is not None:
+        try:
+            pid = int(product_id_val)
+        except (TypeError, ValueError):
+            pid = None
+        if pid is not None:
+            product = Product.query.filter_by(id=pid, is_active=True).first()
+            if not product:
+                return f"We don't have a product with ID {pid} in our catalog, or it may be discontinued."
+            p = product.to_dict()
+            name = (p.get("name") or "").strip() or f"Product #{pid}"
+            stock = int(p.get("stock_quantity") or 0)
+            if attribute_type == "stock":
+                if stock > 0:
+                    return f"We have {stock} of {name} (product #{pid}) in stock."
+                return f"{name} (product #{pid}) is currently out of stock."
+            if attribute_type == "colors":
+                colors = p.get("available_colors") or ([p.get("color")] if p.get("color") else [])
+                if not colors:
+                    return f"We don't have color details for {name} (product #{pid}) right now."
+                return f"{name} (product #{pid}) is available in: {', '.join(str(c) for c in colors if c)}."
+            if attribute_type == "sizes":
+                sizes = p.get("available_sizes") or ([p.get("size")] if p.get("size") else [])
+                if not sizes:
+                    return f"We don't have size details for {name} (product #{pid}) right now."
+                return f"{name} (product #{pid}) is available in sizes: {', '.join(str(s) for s in sizes if s)}."
+            if attribute_type == "price":
+                pr = p.get("price") or p.get("original_price")
+                if pr is not None:
+                    return f"{name} (product #{pid}) is ${float(pr):.2f}."
+                return f"We don't have price information for {name} (product #{pid}) right now."
+            if attribute_type == "description":
+                desc = (p.get("description") or "").strip()
+                if desc:
+                    return f"{name} (product #{pid}): {desc[:400]}{'...' if len(desc) > 400 else ''}"
+                return f"{name} (product #{pid}). Would you like to see it on the product page for more details?"
+
+    criteria = _build_criteria(parameters)
+    has_criteria = any(criteria.get(k) for k in ("category", "color", "clothing_type", "search"))
+    if not has_criteria:
+        return None
+    products = _search_products_by_criteria(criteria)
+    if not products:
+        color = (criteria.get("color") or parameters.get("color") or "").strip()
+        ctype = (criteria.get("clothing_type") or parameters.get("clothing_type") or "").strip()
+        cat = (criteria.get("category") or parameters.get("category") or "").strip()
+        parts = [p for p in (color, ctype, cat) if p]
+        label = " ".join(parts) if parts else "products matching that"
+        return f"We don't have any {label} in stock right now."
+    count = len(products)
+    total_stock = sum(int(p.get("stock_quantity") or 0) for p in products if isinstance(p, dict))
+    color = (criteria.get("color") or parameters.get("color") or "").strip()
+    ctype = (criteria.get("clothing_type") or parameters.get("clothing_type") or "items").strip()
+    cat = (criteria.get("category") or parameters.get("category") or "").strip()
+    search_only = criteria.get("search") and not (criteria.get("category") or criteria.get("color") or criteria.get("clothing_type"))
+    if search_only and products and isinstance(products[0], dict):
+        label = (products[0].get("name") or "").strip() or "that product"
+    else:
+        label_parts = [p for p in (color, ctype, f"for {cat}" if cat else None) if p]
+        label = " ".join(label_parts) if label_parts else "matching products"
+    if attribute_type == "stock":
+        if total_stock > 0:
+            if count == 1:
+                return f"We have {total_stock} {label} in stock."
+            return f"We have {total_stock} units of {label} in stock ({count} product{'s' if count != 1 else ''} available)."
+        return f"We currently have no {label} in stock. We have {count} product{'s' if count != 1 else ''} in that category that are out of stock."
+    if attribute_type == "colors":
+        seen = set()
+        for p in products:
+            if not isinstance(p, dict):
+                continue
+            for c in p.get("available_colors") or ([(p.get("color") or "").strip()] if p.get("color") else []):
+                if c and isinstance(c, str) and c.strip():
+                    seen.add(c.strip())
+        if not seen:
+            return f"We don't have color details for {label} right now."
+        colors_str = ", ".join(sorted(seen))
+        return f"Available colors for {label}: {colors_str}."
+    if attribute_type == "sizes":
+        seen = set()
+        for p in products:
+            if not isinstance(p, dict):
+                continue
+            for s in p.get("available_sizes") or ([(p.get("size") or "").strip()] if p.get("size") else []):
+                if s is not None and str(s).strip():
+                    seen.add(str(s).strip())
+        if not seen:
+            return f"We don't have size details for {label} right now."
+        sizes_str = ", ".join(sorted(seen, key=lambda x: (x.isdigit(), x)))
+        return f"Available sizes for {label}: {sizes_str}."
+    if attribute_type == "price":
+        prices = []
+        for p in products:
+            if not isinstance(p, dict):
+                continue
+            pr = p.get("price") or p.get("original_price")
+            if pr is not None:
+                try:
+                    prices.append(float(pr))
+                except (TypeError, ValueError):
+                    pass
+        if not prices:
+            return f"We don't have price information for {label} right now."
+        if len(prices) == 1:
+            return f"Our {label} is ${prices[0]:.2f}."
+        return f"Our {label} range from ${min(prices):.2f} to ${max(prices):.2f}."
+    if attribute_type == "description":
+        first = products[0] if products else {}
+        if not isinstance(first, dict):
+            return f"We have {count} {label}. Would you like to see specific product details?"
+        desc = (first.get("description") or "").strip()
+        fabric = (first.get("fabric") or "").strip()
+        name = (first.get("name") or "").strip()
+        if desc:
+            return f"Our {label}: {desc[:300]}{'...' if len(desc) > 300 else ''}"
+        if fabric or name:
+            return f"We have {count} {label}. {name}. {fabric}".strip()
+        return f"We have {count} {label} available. Would you like to see specific product details?"
+    return None
+
+
 def _build_vector_query_from_criteria(criteria: dict) -> Optional[str]:
     """Build a natural-language query string from search criteria for vector search. Returns None if nothing to search."""
     parts = []
@@ -278,15 +443,18 @@ def _build_vector_query_from_criteria(criteria: dict) -> Optional[str]:
 
 
 def _filter_products_by_criteria(product_dicts: list, criteria: dict) -> list:
-    """Filter a list of product dicts (from to_dict()) by the same criteria used in search. Case-insensitive for category/color."""
+    """Filter a list of product dicts (from to_dict()) by the same criteria used in search. Color uses substring match."""
     if not criteria or not product_dicts:
         return product_dicts
     result = []
     for p in product_dicts:
         if criteria.get("category") and (p.get("category") or "").lower() != (criteria["category"] or "").lower():
             continue
-        if criteria.get("color") and (p.get("color") or "").lower() != (criteria["color"] or "").lower():
-            continue
+        if criteria.get("color"):
+            prod_color = (p.get("color") or "").lower()
+            want_color = (criteria["color"] or "").strip().lower()
+            if want_color not in prod_color:
+                continue
         if criteria.get("size") and (p.get("size") or "").strip() != (criteria["size"] or "").strip():
             continue
         if criteria.get("fabric") and (p.get("fabric") or "").strip() != (criteria["fabric"] or "").strip():
@@ -294,7 +462,11 @@ def _filter_products_by_criteria(product_dicts: list, criteria: dict) -> list:
         if criteria.get("clothing_type"):
             ct = (p.get("clothing_type") or "").strip().lower()
             want = (criteria["clothing_type"] or "").strip().lower()
-            if ct != want and want not in ct:
+            cat = (p.get("clothing_category") or "").strip().lower()
+            if want == "shirt":
+                if "shirt" not in ct and cat not in ("shirts", "t_shirts"):
+                    continue
+            elif ct != want and want not in ct:
                 continue
         if criteria.get("occasion") and (p.get("occasion") or "").strip() != (criteria["occasion"] or "").strip():
             continue
@@ -348,9 +520,13 @@ def _execute_search_products(parameters: dict) -> dict:
             products = _search_products_by_criteria(criteria)
             return {"success": True, "data": {"products": list(products) if products else [], "count": len(products) if products else 0}}
 
-        # 2) No search term but we have filters: use vector search with a query built from criteria, then filter results
+        # 2) No search term but we have filters: try SQL first (reliable for category/color/clothing_type), then vector if SQL returns nothing
         vector_query = _build_vector_query_from_criteria(criteria)
         if vector_query:
+            # Prefer SQL when we have structured filters so "blue shirts for women" matches reliably
+            sql_products = _search_products_by_criteria(criteria)
+            if sql_products:
+                return {"success": True, "data": {"products": sql_products, "count": len(sql_products)}}
             try:
                 product_ids = _search_products_vector(vector_query, n_results=40)
                 if product_ids:
@@ -360,13 +536,13 @@ def _execute_search_products(parameters: dict) -> dict:
                     ).all()
                     by_id = {p.id: p for p in products}
                     ordered_raw = [by_id[pid].to_dict() for pid in product_ids if pid in by_id]
-                # Filter by criteria so we only return products that match (vector can return near-matches)
-                filtered = _filter_products_by_criteria(ordered_raw, criteria)
-                if filtered:
-                    return {"success": True, "data": {"products": filtered, "count": len(filtered)}}
-                # When filter removes all, return unfiltered vector results so user sees something (better than empty)
-                if ordered_raw:
-                    return {"success": True, "data": {"products": ordered_raw, "count": len(ordered_raw)}}
+                    # Filter by criteria so we only return products that match (vector can return near-matches)
+                    filtered = _filter_products_by_criteria(ordered_raw, criteria)
+                    if filtered:
+                        return {"success": True, "data": {"products": filtered, "count": len(filtered)}}
+                    # When filter removes all, return unfiltered vector results so user sees something (better than empty)
+                    if ordered_raw:
+                        return {"success": True, "data": {"products": ordered_raw, "count": len(ordered_raw)}}
             except Exception:
                 pass
 
@@ -736,6 +912,7 @@ def _sanitize_parsed_message(action: str, message: str) -> str:
         'CLEAR_WISHLIST': "Your wishlist is now empty.",
         'ADD_WISHLIST_TO_CART': "I've added wishlist items to your cart.",
         'SEARCH_PRODUCTS': "Here are the results.",
+        'CLARIFY': "Could you tell me more about what you're looking for?",
     }
     return safe.get(action_upper, "Done.")
 

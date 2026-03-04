@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { WishlistProvider } from './contexts/WishlistContext';
+import { AdminNavSyncProvider } from './contexts/AdminNavSyncContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import FloatingAIAssistant from './components/FloatingAIAssistant';
@@ -76,9 +77,11 @@ function App() {
       <CartProvider>
         <NotificationProvider>
           <WishlistProvider>
+          <AdminNavSyncProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppContent />
           </Router>
+          </AdminNavSyncProvider>
           </WishlistProvider>
         </NotificationProvider>
       </CartProvider>

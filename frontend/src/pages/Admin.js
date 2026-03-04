@@ -15,6 +15,7 @@ import {
   HiOutlineBookOpen,
   HiOutlineCpuChip,
 } from 'react-icons/hi2';
+import { useAdminNavSync } from '../contexts/AdminNavSyncContext';
 import './Admin.css';
 
 // Brand options for product form (must match backend BRAND_CHOICES)
@@ -45,13 +46,13 @@ const Admin = () => {
   const { user, token, loading: authLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { adminSidebarOpen: sidebarOpen, setAdminSidebarOpen: setSidebarOpen } = useAdminNavSync();
   const [fashionKB, setFashionKB] = useState(null);
   const [fashionKBLoadError, setFashionKBLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [fashionSubTab, setFashionSubTab] = useState('colors');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [users, setUsers] = useState([]);
   const [paymentLogs, setPaymentLogs] = useState([]);
   const [paymentLogsLoading, setPaymentLogsLoading] = useState(false);
@@ -63,7 +64,6 @@ const Admin = () => {
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [syncVectorLoading, setSyncVectorLoading] = useState(false);
-  const [installChromadbLoading, setInstallChromadbLoading] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -132,7 +132,8 @@ const Admin = () => {
   useEffect(() => {
     const isSmallViewport = () => typeof window !== 'undefined' && window.innerWidth < 1024;
     if (isSmallViewport()) setSidebarOpen(false);
-  }, []);
+    else setSidebarOpen(true);
+  }, [setSidebarOpen]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -140,7 +141,7 @@ const Admin = () => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [setSidebarOpen]);
 
   useEffect(() => {
     if (authLoading || !token || !user || !user.is_superadmin) return;
@@ -1084,32 +1085,6 @@ const Admin = () => {
       setMessage({ type: 'error', text: errMsg });
     } finally {
       setSyncVectorLoading(false);
-    }
-  };
-
-  /** Install ChromaDB in the backend Python env (requires C++ Build Tools on Windows). Restart backend after success. */
-  const handleInstallChromadb = async () => {
-    if (!window.confirm('Install ChromaDB in the backend environment? This may take a few minutes. Restart the backend server after success to enable semantic search.')) return;
-    setInstallChromadbLoading(true);
-    setMessage({ type: '', text: '' });
-    try {
-      const response = await axios.post('/api/admin/install-chromadb', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = response.data || {};
-      if (data.success) {
-        setMessage({ type: 'success', text: data.message || 'ChromaDB installed. Restart the backend, then use Sync to AI Search.' });
-      } else {
-        setMessage({
-          type: 'error',
-          text: [data.message, data.detail].filter(Boolean).join(' ') || 'Install failed.'
-        });
-      }
-    } catch (error) {
-      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to run install.';
-      setMessage({ type: 'error', text: errMsg });
-    } finally {
-      setInstallChromadbLoading(false);
     }
   };
 
@@ -2150,16 +2125,6 @@ const Admin = () => {
                   style={{ background: syncVectorLoading ? '#94a3b8' : '#64748b', color: '#fff' }}
                 >
                   {syncVectorLoading ? 'Syncing…' : 'Sync to AI Search'}
-                </button>
-                <button
-                  type="button"
-                  className="save-btn"
-                  onClick={handleInstallChromadb}
-                  disabled={installChromadbLoading}
-                  title="Install ChromaDB in the backend (requires C++ Build Tools on Windows). Restart backend after install."
-                  style={{ background: installChromadbLoading ? '#94a3b8' : '#475569', color: '#fff' }}
-                >
-                  {installChromadbLoading ? 'Installing…' : 'Install ChromaDB'}
                 </button>
                 <button className="save-btn" onClick={() => {
                   setShowProductForm(!showProductForm);

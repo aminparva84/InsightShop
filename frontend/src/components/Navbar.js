@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
+import { useAdminNavSync } from '../contexts/AdminNavSyncContext';
 import SpotlightCard from './SpotlightCard';
 import './Navbar.css';
 
@@ -84,30 +85,30 @@ const Navbar = () => {
   const { wishlistCount } = useWishlist();
   const navigate = useNavigate();
   const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { navbarMenuOpen, setNavbarMenuOpen } = useAdminNavSync();
   const [searchQuery, setSearchQuery] = useState('');
   const [sliderGender, setSliderGender] = useState('men'); // 'men' | 'women' | 'kids' – Men selected by default, one always active
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= NAV_MOBILE_BREAKPOINT) setMenuOpen(false);
+      if (window.innerWidth >= NAV_MOBILE_BREAKPOINT) setNavbarMenuOpen(false);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [setNavbarMenuOpen]);
 
   useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
+    setNavbarMenuOpen(false);
+  }, [location.pathname, setNavbarMenuOpen]);
 
   useEffect(() => {
-    if (menuOpen) {
+    if (navbarMenuOpen) {
       document.body.classList.add('navbar-menu-open');
     } else {
       document.body.classList.remove('navbar-menu-open');
     }
     return () => document.body.classList.remove('navbar-menu-open');
-  }, [menuOpen]);
+  }, [navbarMenuOpen]);
 
   const handleLogout = () => {
     logout();
@@ -116,7 +117,7 @@ const Navbar = () => {
   };
 
   const closeMenu = () => {
-    setMenuOpen(false);
+    setNavbarMenuOpen(false);
     setSliderGender('men'); // reset so Men is selected when menu opens again
   };
 
@@ -196,10 +197,10 @@ const Navbar = () => {
           <button
             type="button"
             className="navbar-hamburger"
-            aria-expanded={menuOpen}
+            aria-expanded={navbarMenuOpen}
             aria-controls="navbar-menu"
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label={navbarMenuOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setNavbarMenuOpen(!navbarMenuOpen)}
           >
             <span className="hamburger-bar" />
             <span className="hamburger-bar" />
@@ -228,11 +229,11 @@ const Navbar = () => {
 
         {/* Dropdown expands downward from the nav; content starts below the nav bar */}
         <div
-          className={`navbar-dropdown ${menuOpen ? 'navbar-dropdown--open' : ''}`}
+          className={`navbar-dropdown ${navbarMenuOpen ? 'navbar-dropdown--open' : ''}`}
           id="navbar-mobile"
           role="dialog"
           aria-label="Menu"
-          aria-hidden={!menuOpen}
+          aria-hidden={!navbarMenuOpen}
         >
           <div className="navbar-dropdown-inner">
             {sliderNavLinks}
@@ -284,7 +285,7 @@ const Navbar = () => {
       </nav>
 
       <div
-        className={`navbar-overlay ${menuOpen ? 'navbar-overlay--open' : ''}`}
+        className={`navbar-overlay ${navbarMenuOpen ? 'navbar-overlay--open' : ''}`}
         aria-hidden="true"
         onClick={closeMenu}
       />

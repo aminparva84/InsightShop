@@ -1039,6 +1039,27 @@ PRODUCTS = [
         "season": "all_season",
         "image_index": 15,
     },
+    # --- Men's products (custom images and colors) ---
+    {
+        "name": "Basic T shirt for men",
+        "description": "A timeless essential for any wardrobe. This basic T-shirt for men offers ultimate comfort and versatile style. Crafted from soft, breathable cotton with a classic crew neck and short sleeves with a relaxed, slightly rolled cuff. Relaxed fit that drapes comfortably for an effortlessly cool look. Plain solid design with no logos or graphics. Perfect for everyday wear—pairs seamlessly with shorts, jeans, or layered under a shirt.",
+        "price": 28,
+        "category": "men",
+        "color": "Yellow",
+        "size": "M",
+        "fabric": "Cotton",
+        "clothing_type": "T-Shirt",
+        "clothing_category": "t_shirts",
+        "occasion": "casual",
+        "age_group": "all",
+        "season": "all_season",
+        "image_url": "/api/images/basic-tshirt-men-yellow.png",
+        "images_by_color": {
+            "Yellow": ["/api/images/basic-tshirt-men-yellow.png"],
+            "Grey": ["/api/images/basic-tshirt-men-grey.png", "/api/images/basic-tshirt-men-grey-back.png"]
+        },
+        "seed_available_colors": ["Yellow", "Grey"],
+    },
 ]
 
 # Size options by product type: different clothes have different sizes.
@@ -1281,7 +1302,10 @@ def seed_products():
         random.shuffle(products_to_seed)
 
         for idx, p in enumerate(products_to_seed, start=1):
-            image_url = f"/api/images/{get_image_filename(p['image_index'])}"
+            if p.get("image_url") is not None:
+                image_url = p["image_url"]
+            else:
+                image_url = f"/api/images/{get_image_filename(p['image_index'])}"
 
             sale_percentage = p.get("sale_percentage")
             sale_kw = {}
@@ -1295,37 +1319,43 @@ def seed_products():
 
             # Different clothes have different sizes and colors; each product gets a varied set.
             available_sizes_list, size_stock_dict, primary_size = get_sizes_and_stock_for_product(p, product_index=idx)
-            available_colors_list = get_available_colors_for_product(p, product_index=idx)
+            if p.get("seed_available_colors") is not None:
+                available_colors_list = p["seed_available_colors"]
+            else:
+                available_colors_list = get_available_colors_for_product(p, product_index=idx)
 
             # Name without any color so it works for all color variations.
             display_name = product_name_without_color(p["name"])
             default_color = available_colors_list[0] if available_colors_list else (p.get("color") or "")
 
-            product = Product(
-                name=display_name,
-                description=p["description"],
-                price=p["price"],
-                category=p["category"],
-                color=default_color,
-                size=primary_size,
-                available_sizes=json.dumps(available_sizes_list),
-                size_stock=json.dumps(size_stock_dict),
-                available_colors=json.dumps(available_colors_list),
-                fabric=p["fabric"],
-                clothing_type=p["clothing_type"],
-                clothing_category=p["clothing_category"],
-                occasion=p["occasion"],
-                age_group=p["age_group"],
-                season=p["season"],
-                brand='other',
-                image_url=image_url,
-                stock_quantity=0,
-                is_active=True,
-                slug=generate_slug(display_name, idx),
-                meta_title=f"{display_name} - InsightShop",
-                meta_description=f"Shop {display_name} at InsightShop. {p['description'][:150]}...",
+            product_kw = {
+                "name": display_name,
+                "description": p["description"],
+                "price": p["price"],
+                "category": p["category"],
+                "color": default_color,
+                "size": primary_size,
+                "available_sizes": json.dumps(available_sizes_list),
+                "size_stock": json.dumps(size_stock_dict),
+                "available_colors": json.dumps(available_colors_list),
+                "fabric": p["fabric"],
+                "clothing_type": p["clothing_type"],
+                "clothing_category": p["clothing_category"],
+                "occasion": p["occasion"],
+                "age_group": p["age_group"],
+                "season": p["season"],
+                "brand": "other",
+                "image_url": image_url,
+                "stock_quantity": 0,
+                "is_active": True,
+                "slug": generate_slug(display_name, idx),
+                "meta_title": f"{display_name} - InsightShop",
+                "meta_description": f"Shop {display_name} at InsightShop. {p['description'][:150]}...",
                 **sale_kw,
-            )
+            }
+            if p.get("images_by_color") is not None:
+                product_kw["images_by_color"] = json.dumps(p["images_by_color"])
+            product = Product(**product_kw)
             db.session.add(product)
             db.session.flush()
 

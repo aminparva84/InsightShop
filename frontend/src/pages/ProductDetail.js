@@ -282,66 +282,75 @@ const ProductDetail = () => {
     <div className="product-detail-page">
       <div className="container">
         <div className="product-detail-layout">
-          <div className="product-image-section">
-            {/* Thumbnail strip – desktop only, left side; show even for 1 image so gallery is always visible */}
-            {currentImages.length >= 1 && (
-              <div className="product-gallery-thumbnails" aria-hidden="true">
-                {currentImages.map((url, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={`product-gallery-thumb ${selectedImageIndex === idx ? 'active' : ''}`}
-                    onClick={() => setSelectedImageIndex(idx)}
-                    aria-label={`View image ${idx + 1} of ${currentImages.length}`}
-                  >
+          <div className="product-image-column">
+            <div className="product-image-section">
+              {/* Thumbnail strip – desktop only, left side; show even for 1 image so gallery is always visible */}
+              {currentImages.length >= 1 && (
+                <div className="product-gallery-thumbnails" aria-hidden="true">
+                  {currentImages.map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={`product-gallery-thumb ${selectedImageIndex === idx ? 'active' : ''}`}
+                      onClick={() => setSelectedImageIndex(idx)}
+                      aria-label={`View image ${idx + 1} of ${currentImages.length}`}
+                    >
+                      <img
+                        src={resolveImageSrc(url)}
+                        alt=""
+                        onError={(e) => { e.target.src = placeholderImg; }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Main image + scroll controls */}
+              <div className="product-gallery-main">
+                {currentImages.length > 0 ? (
+                  <>
                     <img
-                      src={resolveImageSrc(url)}
-                      alt=""
-                      onError={(e) => { e.target.src = placeholderImg; }}
+                      src={resolveImageSrc(currentImages[selectedImageIndex])}
+                      alt={product.name}
+                      onError={(e) => {
+                        e.target.src = placeholderImg;
+                      }}
                     />
-                  </button>
-                ))}
+                    {currentImages.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          className="product-gallery-btn product-gallery-btn-prev"
+                          onClick={goPrevImage}
+                          aria-label="Previous image"
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="product-gallery-btn product-gallery-btn-next"
+                          onClick={goNextImage}
+                          aria-label="Next image"
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                        </button>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <img
+                    src={placeholderImg}
+                    alt={product.name}
+                  />
+                )}
+              </div>
+            </div>
+
+            {product.description && (
+              <div className="product-description product-description--under-image">
+                <h3>Description</h3>
+                <p>{product.description}</p>
               </div>
             )}
-            {/* Main image + scroll controls */}
-            <div className="product-gallery-main">
-              {currentImages.length > 0 ? (
-                <>
-                  <img
-                    src={resolveImageSrc(currentImages[selectedImageIndex])}
-                    alt={product.name}
-                    onError={(e) => {
-                      e.target.src = placeholderImg;
-                    }}
-                  />
-                  {currentImages.length > 1 && (
-                    <>
-                      <button
-                        type="button"
-                        className="product-gallery-btn product-gallery-btn-prev"
-                        onClick={goPrevImage}
-                        aria-label="Previous image"
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
-                      </button>
-                      <button
-                        type="button"
-                        className="product-gallery-btn product-gallery-btn-next"
-                        onClick={goNextImage}
-                        aria-label="Next image"
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-                      </button>
-                    </>
-                  )}
-                </>
-              ) : (
-                <img
-                  src={placeholderImg}
-                  alt={product.name}
-                />
-              )}
-            </div>
           </div>
 
           <div className="product-info-section">
@@ -416,13 +425,6 @@ const ProductDetail = () => {
                 variationAvailability={product.variation_availability}
                 selectedColor={selectedColor}
               />
-            )}
-
-            {product.description && (
-              <div className="product-description">
-                <h3>Description</h3>
-                <p>{product.description}</p>
-              </div>
             )}
 
             <div className="product-stock">

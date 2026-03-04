@@ -543,6 +543,7 @@ def create_product():
             brand=brand,
             brand_other=brand_other,
             image_url=data.get('image_url') or None,
+            images_by_color=json.dumps(data.get('images_by_color')) if isinstance(data.get('images_by_color'), dict) else None,
             stock_quantity=stock_quantity,
             is_active=data.get('is_active', True),
             rating=float(data.get('rating', 0.0)),
@@ -720,6 +721,9 @@ def update_product(product_id):
             product.brand_other = (data.get('brand_other') or '').strip() or None
         if 'image_url' in data:
             product.image_url = data.get('image_url')
+        if 'images_by_color' in data:
+            ibc = data.get('images_by_color')
+            product.images_by_color = json.dumps(ibc) if isinstance(ibc, dict) else ibc
         if 'stock_quantity' in data:
             product.stock_quantity = int(data.get('stock_quantity', 0))
         if 'is_active' in data:

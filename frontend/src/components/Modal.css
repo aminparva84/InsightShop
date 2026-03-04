@@ -46,15 +46,46 @@
 
 @media (max-width: 768px) {
   .modal-overlay {
-    padding: 12px;
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding: 6px 0;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
     align-items: flex-end;
   }
 
   .modal-content {
-    max-height: calc(100vh - 24px - env(safe-area-inset-bottom));
+    max-height: calc(100vh - 12px - env(safe-area-inset-bottom));
     border-radius: 16px 16px 0 0;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  .modal-content::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}
+
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 4px 0;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+  }
+
+  .modal-content {
+    max-height: calc(100vh - 8px - env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 380px) {
+  .modal-overlay {
+    padding: 2px 0;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: max(2px, env(safe-area-inset-bottom));
+  }
+
+  .modal-content {
+    max-height: calc(100vh - 4px - env(safe-area-inset-bottom));
   }
 }

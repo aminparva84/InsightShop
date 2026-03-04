@@ -40,6 +40,8 @@ class Product(db.Model):
     brand = db.Column(db.String(50), nullable=False, default='other', index=True)  # BRAND_CHOICES key; 'other' = use brand_other
     brand_other = db.Column(db.String(255), nullable=True)  # Custom brand name when brand == 'other'
     image_url = db.Column(db.String(500), nullable=True)
+    # JSON: {"ColorName": ["url1", "url2"], ...} — multiple images per color for gallery
+    images_by_color = db.Column(db.Text, nullable=True)
     stock_quantity = db.Column(db.Integer, default=0, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     
@@ -164,12 +166,19 @@ class Product(db.Model):
             if self.size_stock:
                 raw = json.loads(self.size_stock) if isinstance(self.size_stock, str) else self.size_stock
                 size_stock_dict = raw if isinstance(raw, dict) else {}
+            if self.images_by_color:
+                raw_img = json.loads(self.images_by_color) if isinstance(self.images_by_color, str) else self.images_by_color
+                images_by_color_dict = raw_img if isinstance(raw_img, dict) else {}
+            else:
+                images_by_color_dict = {}
         except:
             # Fallback to single color/size if JSON parsing fails
             if self.color:
                 available_colors_list = [self.color]
             if self.size:
                 available_sizes_list = [self.size]
+            size_stock_dict = {}
+            images_by_color_dict = {}
         
         # Get sale price if on sale (with error handling)
         sale_data = None
@@ -205,6 +214,7 @@ class Product(db.Model):
             'brand_other': self.brand_other,
             'display_brand': self.get_display_brand(),
             'image_url': self._resolved_image_url(),
+            'images_by_color': images_by_color_dict if images_by_color_dict else None,
             'stock_quantity': int(self.stock_quantity) if self.stock_quantity is not None else 0,
             'is_active': self.is_active,
             'rating': float(self.rating) if self.rating else 0.0,

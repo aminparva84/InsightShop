@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import Modal from './Modal';
 import ColorSwatches from './ColorSwatches';
 import SizeSelector from './SizeSelector';
@@ -293,6 +294,14 @@ const AddToCartModal = ({ productId, isOpen, onClose, initialProduct = null }) =
                     {validationMessage}
                   </p>
                 )}
+
+                <Link
+                  to={`/products/${product.id}`}
+                  className="add-to-cart-btn-details"
+                  onClick={onClose}
+                >
+                  Product details
+                </Link>
 
                 <div className="add-to-cart-modal-actions">
                   <button

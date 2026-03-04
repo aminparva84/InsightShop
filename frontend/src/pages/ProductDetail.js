@@ -29,6 +29,25 @@ const ProductDetail = () => {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', user_name: '' });
   const [copyIdFeedback, setCopyIdFeedback] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  // Resolve image list for current selection: by selected color from images_by_color, else fallback to product.image_url
+  const getCurrentImages = () => {
+    if (!product) return [];
+    const ibc = product.images_by_color && typeof product.images_by_color === 'object' ? product.images_by_color : null;
+    const colorKey = selectedColor && ibc ? Object.keys(ibc).find(k => String(k).trim().toLowerCase() === String(selectedColor).trim().toLowerCase()) : null;
+    const list = (colorKey && Array.isArray(ibc[colorKey]) && ibc[colorKey].length > 0)
+      ? ibc[colorKey]
+      : (product.image_url ? [product.image_url] : []);
+    return list;
+  };
+
+  const currentImages = getCurrentImages();
+  const placeholderImg = 'https://via.placeholder.com/600x600?text=Product';
+
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [selectedColor, product?.id]);
 
   useEffect(() => {
     fetchProduct();
@@ -134,6 +153,16 @@ const ProductDetail = () => {
     if (availability.length && selectedSize && !isCombinationInStock(availability, selectedSize, color)) {
       setSelectedSize(getFirstInStockSizeForColor(availability, color, sizes));
     }
+  };
+
+  const baseUrl = process.env.PUBLIC_URL || '';
+  const resolveImageSrc = (url) => (!url ? placeholderImg : (url.startsWith('/') ? baseUrl + url : url));
+
+  const goPrevImage = () => {
+    setSelectedImageIndex((i) => (i <= 0 ? currentImages.length - 1 : i - 1));
+  };
+  const goNextImage = () => {
+    setSelectedImageIndex((i) => (currentImages.length <= 1 ? 0 : (i + 1) % currentImages.length));
   };
 
   const handleAddToCart = async () => {
@@ -254,13 +283,65 @@ const ProductDetail = () => {
       <div className="container">
         <div className="product-detail-layout">
           <div className="product-image-section">
-            <img
-              src={product.image_url || 'https://via.placeholder.com/600x600?text=Product'}
-              alt={product.name}
-              onError={(e) => {
-                e.target.src = 'https://via.placeholder.com/600x600?text=Product';
-              }}
-            />
+            {/* Thumbnail strip – desktop only, left side; show even for 1 image so gallery is always visible */}
+            {currentImages.length >= 1 && (
+              <div className="product-gallery-thumbnails" aria-hidden="true">
+                {currentImages.map((url, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    className={`product-gallery-thumb ${selectedImageIndex === idx ? 'active' : ''}`}
+                    onClick={() => setSelectedImageIndex(idx)}
+                    aria-label={`View image ${idx + 1} of ${currentImages.length}`}
+                  >
+                    <img
+                      src={resolveImageSrc(url)}
+                      alt=""
+                      onError={(e) => { e.target.src = placeholderImg; }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Main image + scroll controls */}
+            <div className="product-gallery-main">
+              {currentImages.length > 0 ? (
+                <>
+                  <img
+                    src={resolveImageSrc(currentImages[selectedImageIndex])}
+                    alt={product.name}
+                    onError={(e) => {
+                      e.target.src = placeholderImg;
+                    }}
+                  />
+                  {currentImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        className="product-gallery-btn product-gallery-btn-prev"
+                        onClick={goPrevImage}
+                        aria-label="Previous image"
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
+                      </button>
+                      <button
+                        type="button"
+                        className="product-gallery-btn product-gallery-btn-next"
+                        onClick={goNextImage}
+                        aria-label="Next image"
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                <img
+                  src={placeholderImg}
+                  alt={product.name}
+                />
+              )}
+            </div>
           </div>
 
           <div className="product-info-section">

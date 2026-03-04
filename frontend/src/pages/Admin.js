@@ -97,6 +97,7 @@ const Admin = () => {
     brand: 'other',
     brand_other: '',
     image_url: '',
+    images_by_color: {},
     stock_quantity: 0,
     is_active: true,
     sale_enabled: false,
@@ -205,6 +206,7 @@ const Admin = () => {
         brand: prefill.brand ?? 'other',
         brand_other: prefill.brand_other ?? '',
         image_url: prefill.image_url ?? '',
+        images_by_color: prefill.images_by_color && typeof prefill.images_by_color === 'object' ? prefill.images_by_color : {},
         stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
         is_active: prefill.is_active !== undefined ? prefill.is_active : true,
         sale_enabled: prefill.sale_enabled === true,
@@ -235,6 +237,7 @@ const Admin = () => {
         brand: prefill.brand ?? 'other',
         brand_other: prefill.brand_other ?? '',
         image_url: prefill.image_url ?? '',
+        images_by_color: prefill.images_by_color && typeof prefill.images_by_color === 'object' ? prefill.images_by_color : {},
         stock_quantity: typeof prefill.stock_quantity === 'number' ? prefill.stock_quantity : parseInt(String(prefill.stock_quantity), 10) || 0,
         is_active: prefill.is_active !== undefined ? prefill.is_active : true,
         sale_enabled: prefill.sale_enabled === true,
@@ -948,6 +951,7 @@ const Admin = () => {
           brand: 'other',
           brand_other: '',
           image_url: '',
+          images_by_color: {},
           stock_quantity: 0,
           is_active: true,
           sale_enabled: false,
@@ -1165,6 +1169,7 @@ const Admin = () => {
       brand: product.brand || 'other',
       brand_other: product.brand_other || '',
       image_url: product.image_url || '',
+      images_by_color: product.images_by_color && typeof product.images_by_color === 'object' ? product.images_by_color : {},
       stock_quantity: product.stock_quantity || 0,
       is_active: product.is_active !== undefined ? product.is_active : true,
       sale_enabled: product.sale_enabled === true,
@@ -1179,16 +1184,36 @@ const Admin = () => {
     if (color && !newProduct.available_colors.includes(color)) {
       setNewProduct({
         ...newProduct,
-        available_colors: [...newProduct.available_colors, color]
+        available_colors: [...newProduct.available_colors, color],
+        images_by_color: { ...(newProduct.images_by_color || {}), [color]: newProduct.images_by_color?.[color] || [] }
       });
     }
   };
 
   const removeColorFromProduct = (color) => {
+    const next = { ...newProduct, available_colors: newProduct.available_colors.filter(c => c !== color) };
+    const ibc = { ...(next.images_by_color || {}) };
+    delete ibc[color];
+    next.images_by_color = ibc;
+    setNewProduct(next);
+  };
+
+  const setColorImageUrls = (color, urls) => {
     setNewProduct({
       ...newProduct,
-      available_colors: newProduct.available_colors.filter(c => c !== color)
+      images_by_color: { ...(newProduct.images_by_color || {}), [color]: Array.isArray(urls) ? urls : [] }
     });
+  };
+
+  const addColorImage = (color, url) => {
+    const list = newProduct.images_by_color?.[color] || [];
+    if (!url || !url.trim()) return;
+    setColorImageUrls(color, [...list, url.trim()]);
+  };
+
+  const removeColorImage = (color, index) => {
+    const list = newProduct.images_by_color?.[color] || [];
+    setColorImageUrls(color, list.filter((_, i) => i !== index));
   };
 
   const addSizeToProduct = (size) => {
@@ -2434,6 +2459,76 @@ const Admin = () => {
                         style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                       />
                     </div>
+                    {/* Images per color – multiple images per color for product detail gallery */}
+                    {newProduct.available_colors.length > 0 && (
+                      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e0e0e0' }}>
+                        <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>Images per color (for product gallery)</label>
+                        <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>Add one or more image URLs for each color. These will be shown in the product detail gallery when the customer selects that color.</p>
+                        {newProduct.available_colors.map((color) => {
+                          const urls = newProduct.images_by_color?.[color] || [];
+                          return (
+                            <div key={color} style={{ marginBottom: '16px', padding: '12px', background: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                              <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1a2332' }}>Images for {color}</div>
+                              {urls.map((url, idx) => (
+                                <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'center' }}>
+                                  <input
+                                    type="text"
+                                    value={url}
+                                    onChange={(e) => {
+                                      const next = [...(newProduct.images_by_color?.[color] || [])];
+                                      next[idx] = e.target.value;
+                                      setColorImageUrls(color, next);
+                                    }}
+                                    placeholder="Image URL (e.g. /api/images/product-1.png)"
+                                    style={{ flex: 1, padding: '6px 10px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '13px' }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeColorImage(color, idx)}
+                                    style={{ padding: '6px 10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                    aria-label={`Remove image ${idx + 1} for ${color}`}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                <input
+                                  type="text"
+                                  id={`new-image-${color}`}
+                                  placeholder="Add image URL"
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const input = document.getElementById(`new-image-${color}`);
+                                      if (input?.value?.trim()) {
+                                        addColorImage(color, input.value.trim());
+                                        input.value = '';
+                                      }
+                                    }
+                                  }}
+                                  style={{ flex: 1, padding: '6px 10px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '13px' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const input = document.getElementById(`new-image-${color}`);
+                                    if (input?.value?.trim()) {
+                                      addColorImage(color, input.value.trim());
+                                      input.value = '';
+                                    }
+                                  }}
+                                  className="save-btn"
+                                  style={{ padding: '6px 14px' }}
+                                >
+                                  Add image
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Available Sizes Section */}
@@ -2560,6 +2655,7 @@ const Admin = () => {
                           brand: 'other',
                           brand_other: '',
                           image_url: '',
+                          images_by_color: {},
                           stock_quantity: 0,
                           is_active: true,
                           sale_enabled: false,

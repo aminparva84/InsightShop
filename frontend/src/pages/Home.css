@@ -150,6 +150,16 @@
   height: auto;
   object-fit: contain;
   display: block;
+  animation: brain-art-icon-flow 5s ease-in-out infinite;
+}
+.brain-art-grid-cell--2 .brain-art-grid-icon {
+  animation-delay: 0s;
+}
+.brain-art-grid-cell--4 .brain-art-grid-icon {
+  animation-delay: 1.6s;
+}
+.brain-art-grid-cell--13 .brain-art-grid-icon {
+  animation-delay: 3.2s;
 }
 
 /* Clickable icon links: fill cell, constant tilt + hover */
@@ -168,6 +178,10 @@
   transform: scale(1.15);
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
+.brain-art-grid-icon-link:hover .brain-art-grid-icon {
+  animation: none;
+  transform: translateY(0) scale(1);
+}
 .brain-art-grid-icon-link .brain-art-grid-icon {
   max-width: 72%;
   max-height: 72%;
@@ -175,6 +189,21 @@
 @keyframes brain-art-icon-tilt {
   0%, 100% { transform: rotate(-3deg); }
   50% { transform: rotate(3deg); }
+}
+/* Flow and movement: gentle float + subtle scale on icons */
+@keyframes brain-art-icon-flow {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-5px) scale(1.04);
+  }
+  50% {
+    transform: translateY(0) scale(0.98);
+  }
+  75% {
+    transform: translateY(4px) scale(1.02);
+  }
 }
 
 /* Layer 2 (front): hero image – woman in flow so wrapper shrinks to her, no left gap */
@@ -2215,6 +2244,13 @@
     max-height: min(58vh, 480px);
     max-width: min(48vw, 520px);
     object-position: right bottom;
+  }
+}
+
+/* Large screens (larger than laptops): cap hero height to remove empty space above images while keeping enough room for woman + brain art */
+@media (min-width: 1280px) {
+  .hero.banner-four-layers {
+    min-height: min(100vh, 880px);
   }
 }
 

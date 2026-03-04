@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, session
 from models.database import db
 from models.cart import CartItem
 from models.product import Product
+from models.product_variation import ProductVariation
 from routes.auth import require_auth
 from sqlalchemy.orm import joinedload
 from config import Config
@@ -40,28 +41,62 @@ def get_cart():
                                 quantity = int(g.get('quantity', 1))
                                 selected_color = g.get('selected_color')
                                 selected_size = g.get('selected_size')
+                                variation_id = g.get('variation_id')
                                 product = Product.query.get(product_id) if product_id else None
                                 if not product or not product.is_active or quantity < 1:
                                     continue
-                                existing = CartItem.query.filter_by(
-                                    user_id=user.id,
-                                    product_id=product_id,
-                                    selected_color=selected_color,
-                                    selected_size=selected_size
-                                ).first()
-                                if existing:
-                                    new_qty = min(existing.quantity + quantity, product.stock_quantity)
-                                    existing.quantity = new_qty
+                                variation = None
+                                if variation_id:
+                                    variation = ProductVariation.query.get(variation_id)
+                                if not variation and (selected_size or selected_color):
+                                    variation = ProductVariation.query.filter_by(
+                                        product_id=product_id,
+                                        size=selected_size or '',
+                                        color=selected_color or ''
+                                    ).first()
+                                if variation:
+                                    existing = CartItem.query.filter_by(
+                                        user_id=user.id,
+                                        product_id=product_id,
+                                        variation_id=variation.id
+                                    ).first()
+                                    if existing:
+                                        old_qty = existing.quantity
+                                        new_qty = min(old_qty + quantity, variation.stock_quantity)
+                                        variation.stock_quantity -= (new_qty - old_qty)
+                                        existing.quantity = new_qty
+                                    else:
+                                        qty = min(quantity, variation.stock_quantity)
+                                        if qty > 0:
+                                            variation.stock_quantity -= qty
+                                            db.session.add(CartItem(
+                                                user_id=user.id,
+                                                product_id=product_id,
+                                                variation_id=variation.id,
+                                                quantity=qty,
+                                                selected_color=variation.color,
+                                                selected_size=variation.size
+                                            ))
                                 else:
-                                    qty = min(quantity, product.stock_quantity)
-                                    if qty > 0:
-                                        db.session.add(CartItem(
-                                            user_id=user.id,
-                                            product_id=product_id,
-                                            quantity=qty,
-                                            selected_color=selected_color,
-                                            selected_size=selected_size
-                                        ))
+                                    existing = CartItem.query.filter_by(
+                                        user_id=user.id,
+                                        product_id=product_id,
+                                        selected_color=selected_color,
+                                        selected_size=selected_size
+                                    ).first()
+                                    if existing:
+                                        new_qty = min(existing.quantity + quantity, product.stock_quantity)
+                                        existing.quantity = new_qty
+                                    else:
+                                        qty = min(quantity, product.stock_quantity)
+                                        if qty > 0:
+                                            db.session.add(CartItem(
+                                                user_id=user.id,
+                                                product_id=product_id,
+                                                quantity=qty,
+                                                selected_color=selected_color,
+                                                selected_size=selected_size
+                                            ))
                             try:
                                 db.session.commit()
                             except Exception:
@@ -123,6 +158,7 @@ def get_cart():
                 items.append({
                     'id': unique_id,
                     'product_id': cart_item['product_id'],
+                    'variation_id': cart_item.get('variation_id'),
                     'product': product_dict,
                     'quantity': cart_item['quantity'],
                     'selected_color': cart_item.get('selected_color'),
@@ -141,51 +177,49 @@ def get_cart():
 
 @cart_bp.route('', methods=['POST'])
 def add_to_cart():
-    """Add item to cart (authenticated or guest)."""
+    """Add item to cart (authenticated or guest). Stock is per variation (product_id + size + color)."""
     try:
         data = request.get_json()
         product_id = data.get('product_id')
         quantity = int(data.get('quantity', 1))
         selected_color = data.get('selected_color')
         selected_size = data.get('selected_size')
-        
+        variation_id = data.get('variation_id')  # Optional: if provided, use it; else resolve from size+color
+
         if not product_id:
             return jsonify({'error': 'Product ID is required'}), 400
-        
+
         product = Product.query.get(product_id)
         if not product or not product.is_active:
             return jsonify({'error': 'Product not found'}), 404
-        
-        # Validate selected color/size against available options
-        if selected_color:
-            import json
-            available_colors = []
-            try:
-                if product.available_colors:
-                    available_colors = json.loads(product.available_colors) if isinstance(product.available_colors, str) else product.available_colors
-            except:
-                if product.color:
-                    available_colors = [product.color]
-            
-            if available_colors and selected_color not in available_colors:
-                return jsonify({'error': f'Selected color "{selected_color}" is not available for this product'}), 400
-        
-        if selected_size:
-            import json
-            available_sizes = []
-            try:
-                if product.available_sizes:
-                    available_sizes = json.loads(product.available_sizes) if isinstance(product.available_sizes, str) else product.available_sizes
-            except:
-                if product.size:
-                    available_sizes = [product.size]
-            
-            if available_sizes and selected_size not in available_sizes:
-                return jsonify({'error': f'Selected size "{selected_size}" is not available for this product'}), 400
-        
-        if product.stock_quantity < quantity:
-            return jsonify({'error': 'Insufficient stock'}), 400
-        
+
+        # Resolve variation: by variation_id or by (product_id, size, color)
+        variation = None
+        if variation_id:
+            variation = ProductVariation.query.filter_by(id=variation_id, product_id=product_id).first()
+        if not variation and (selected_size is not None and selected_color is not None):
+            variation = ProductVariation.query.filter_by(
+                product_id=product_id,
+                size=(selected_size or '').strip(),
+                color=(selected_color or '').strip()
+            ).first()
+
+        # If product has any variations, we require a valid variation
+        has_variations = ProductVariation.query.filter_by(product_id=product_id).count() > 0
+        if has_variations:
+            if not variation:
+                return jsonify({'error': 'Please select a valid size and color'}), 400
+            if variation.stock_quantity <= 0:
+                return jsonify({'error': 'This variation is out of stock'}), 400
+            if variation.stock_quantity < quantity:
+                return jsonify({'error': 'Insufficient stock for this variation'}), 400
+            selected_size = variation.size
+            selected_color = variation.color
+        else:
+            # Legacy: no variations table rows - use product-level stock (e.g. old data)
+            if getattr(product, 'stock_quantity', 0) < quantity:
+                return jsonify({'error': 'Insufficient stock'}), 400
+
         # Check if user is authenticated
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -197,52 +231,98 @@ def add_to_cart():
                     from models.user import User
                     user = User.query.get(payload.get('sub') or payload.get('user_id'))
                     if user:
-                        # Authenticated user
-                        existing_item = CartItem.query.filter_by(
-                            user_id=user.id,
-                            product_id=product_id,
-                            selected_color=selected_color,
-                            selected_size=selected_size
-                        ).first()
-                        
-                        if existing_item:
-                            new_total = existing_item.quantity + quantity
-                            if new_total > product.stock_quantity:
-                                return jsonify({'error': 'Insufficient stock'}), 400
-                            existing_item.quantity = new_total
-                            remaining_stock = product.stock_quantity - new_total
-                        else:
-                            cart_item = CartItem(
+                        if has_variations:
+                            existing_item = CartItem.query.filter_by(
                                 user_id=user.id,
                                 product_id=product_id,
-                                quantity=quantity,
+                                variation_id=variation.id
+                            ).first()
+                            if existing_item:
+                                new_total = existing_item.quantity + quantity
+                                if new_total > variation.stock_quantity:
+                                    return jsonify({'error': 'Insufficient stock for this variation'}), 400
+                                existing_item.quantity = new_total
+                                variation.stock_quantity -= quantity
+                                remaining_stock = variation.stock_quantity
+                            else:
+                                variation.stock_quantity -= quantity
+                                remaining_stock = variation.stock_quantity
+                                db.session.add(CartItem(
+                                    user_id=user.id,
+                                    product_id=product_id,
+                                    variation_id=variation.id,
+                                    quantity=quantity,
+                                    selected_color=selected_color,
+                                    selected_size=selected_size
+                                ))
+                        else:
+                            existing_item = CartItem.query.filter_by(
+                                user_id=user.id,
+                                product_id=product_id,
                                 selected_color=selected_color,
                                 selected_size=selected_size
-                            )
-                            db.session.add(cart_item)
-                            remaining_stock = product.stock_quantity - quantity
-                        
+                            ).first()
+                            if existing_item:
+                                new_total = existing_item.quantity + quantity
+                                if new_total > product.stock_quantity:
+                                    return jsonify({'error': 'Insufficient stock'}), 400
+                                existing_item.quantity = new_total
+                                remaining_stock = product.stock_quantity - new_total
+                            else:
+                                cart_item = CartItem(
+                                    user_id=user.id,
+                                    product_id=product_id,
+                                    quantity=quantity,
+                                    selected_color=selected_color,
+                                    selected_size=selected_size
+                                )
+                                db.session.add(cart_item)
+                                remaining_stock = product.stock_quantity - quantity
+
                         db.session.commit()
-                        return jsonify({'message': 'Item added to cart', 'remaining_stock': remaining_stock}), 200
-            except:
+                        return jsonify({'message': 'Item added to cart', 'remaining_stock': remaining_stock if has_variations else remaining_stock}), 200
+            except Exception:
                 pass
-        
-        # Guest cart: enforce stock against current guest cart total for this variant
-        guest_cart = get_guest_cart()
-        current_in_cart = sum(
-            item.get('quantity', 0)
-            for item in guest_cart
-            if (item.get('product_id') == product_id
-                and item.get('selected_color') == selected_color
-                and item.get('selected_size') == selected_size)
-        )
-        if current_in_cart + quantity > product.stock_quantity:
-            return jsonify({'error': 'Insufficient stock'}), 400
-        quantity_to_add = min(quantity, product.stock_quantity - current_in_cart)
-        add_to_guest_cart(product_id, quantity_to_add, selected_color, selected_size)
-        remaining_stock = product.stock_quantity - (current_in_cart + quantity_to_add)
+
+        # Guest cart
+        if has_variations:
+            guest_cart = get_guest_cart()
+            current_in_cart = sum(
+                item.get('quantity', 0)
+                for item in guest_cart
+                if (item.get('product_id') == product_id and item.get('variation_id') == variation.id)
+            )
+            if not current_in_cart:
+                current_in_cart = sum(
+                    item.get('quantity', 0)
+                    for item in guest_cart
+                    if (item.get('product_id') == product_id
+                        and item.get('selected_color') == selected_color
+                        and item.get('selected_size') == selected_size)
+                )
+            if current_in_cart + quantity > variation.stock_quantity:
+                return jsonify({'error': 'Insufficient stock for this variation'}), 400
+            quantity_to_add = min(quantity, variation.stock_quantity - current_in_cart)
+            variation.stock_quantity -= quantity_to_add
+            db.session.commit()
+            add_to_guest_cart(product_id, quantity_to_add, selected_color, selected_size, variation_id=variation.id)
+            remaining_stock = variation.stock_quantity
+        else:
+            guest_cart = get_guest_cart()
+            current_in_cart = sum(
+                item.get('quantity', 0)
+                for item in guest_cart
+                if (item.get('product_id') == product_id
+                    and item.get('selected_color') == selected_color
+                    and item.get('selected_size') == selected_size)
+            )
+            if current_in_cart + quantity > product.stock_quantity:
+                return jsonify({'error': 'Insufficient stock'}), 400
+            quantity_to_add = min(quantity, product.stock_quantity - current_in_cart)
+            add_to_guest_cart(product_id, quantity_to_add, selected_color, selected_size)
+            remaining_stock = product.stock_quantity - (current_in_cart + quantity_to_add)
         return jsonify({'message': 'Item added to cart', 'remaining_stock': remaining_stock}), 200
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -341,9 +421,19 @@ def update_cart_item(item_id):
         
         cart_item = CartItem.query.filter_by(id=int(item_id), user_id=user.id).first_or_404()
         product = Product.query.get(cart_item.product_id)
-        if product and product.stock_quantity < quantity:
-            return jsonify({'error': 'Insufficient stock'}), 400
-        
+        if cart_item.variation_id:
+            variation = ProductVariation.query.get(cart_item.variation_id)
+            if variation:
+                old_qty = cart_item.quantity
+                variation.stock_quantity += old_qty
+                if quantity > variation.stock_quantity:
+                    variation.stock_quantity -= old_qty
+                    db.session.rollback()
+                    return jsonify({'error': 'Insufficient stock for this variation'}), 400
+                variation.stock_quantity -= quantity
+        else:
+            if product and product.stock_quantity < quantity:
+                return jsonify({'error': 'Insufficient stock'}), 400
         cart_item.quantity = quantity
         if selected_color is not None:
             cart_item.selected_color = selected_color
@@ -400,32 +490,27 @@ def remove_from_cart(item_id):
             selected_color = data.get('selected_color')
             selected_size = data.get('selected_size')
             
-            print(f"DELETE Request - Item ID: {item_id}")
-            print(f"DELETE Request - Product ID: {product_id}")
-            print(f"DELETE Request - Color: {selected_color}")
-            print(f"DELETE Request - Size: {selected_size}")
-            print(f"DELETE Request - Request data: {data}")
-            print(f"DELETE Request - Request content type: {request.content_type}")
-            
-            # Debug: Show current cart before removal
-            from utils.guest_cart import get_guest_cart
+            # Find the guest cart item to get variation_id and quantity (to restore stock)
             current_cart = get_guest_cart()
-            print(f"Current cart before removal ({len(current_cart)} items):")
-            for idx, item in enumerate(current_cart):
-                print(f"  [{idx}] product_id={item.get('product_id')}, color={item.get('selected_color')}, size={item.get('selected_size')}, qty={item.get('quantity')}")
+            removed_qty = 0
+            variation_id_to_restore = None
+            for item in current_cart:
+                if (item.get('product_id') == product_id and
+                    item.get('selected_color') == selected_color and
+                    item.get('selected_size') == selected_size):
+                    removed_qty = item.get('quantity', 0)
+                    variation_id_to_restore = item.get('variation_id')
+                    break
             
-            # Remove from guest cart (function handles color/size matching)
             result = remove_from_guest_cart(product_id, selected_color, selected_size)
-            print(f"Guest cart removal result: {result}")
-            
-            if not result:
-                print(f"WARNING: No item found to remove with product_id={product_id}, color={selected_color}, size={selected_size}")
-                # Still return success to avoid breaking the UI, but log the issue
-            
-            # Verify removal by checking cart
-            remaining_cart = get_guest_cart()
-            print(f"Remaining items in guest cart: {len(remaining_cart)}")
-            print(f"Cart contents after removal: {remaining_cart}")
+            if variation_id_to_restore and removed_qty > 0:
+                variation = ProductVariation.query.get(variation_id_to_restore)
+                if variation:
+                    variation.stock_quantity += removed_qty
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
             
             return jsonify({'message': 'Item removed from cart', 'removed': result}), 200
         
@@ -458,6 +543,10 @@ def remove_from_cart(item_id):
             return jsonify({'error': 'User not found'}), 401
         
         cart_item = CartItem.query.filter_by(id=int(item_id), user_id=user.id).first_or_404()
+        if cart_item.variation_id:
+            variation = ProductVariation.query.get(cart_item.variation_id)
+            if variation:
+                variation.stock_quantity += cart_item.quantity
         db.session.delete(cart_item)
         db.session.commit()
         
@@ -485,13 +574,30 @@ def clear_cart():
                     from models.user import User
                     user = User.query.get(payload.get('sub') or payload.get('user_id'))
                     if user:
+                        for item in CartItem.query.filter_by(user_id=user.id).all():
+                            if item.variation_id:
+                                v = ProductVariation.query.get(item.variation_id)
+                                if v:
+                                    v.stock_quantity += item.quantity
                         CartItem.query.filter_by(user_id=user.id).delete()
                         db.session.commit()
                         return jsonify({'message': 'Cart cleared'}), 200
             except:
                 pass
         
-        # Guest cart
+        # Guest cart: restore variation stock for each item then clear
+        guest_cart = get_guest_cart()
+        for item in guest_cart:
+            vid = item.get('variation_id')
+            qty = int(item.get('quantity', 0))
+            if vid and qty > 0:
+                v = ProductVariation.query.get(vid)
+                if v:
+                    v.stock_quantity += qty
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         clear_guest_cart()
         return jsonify({'message': 'Cart cleared'}), 200
         

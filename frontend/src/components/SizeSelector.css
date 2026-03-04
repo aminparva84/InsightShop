@@ -53,16 +53,34 @@
 }
 
 .size-option.out-of-stock {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
-  border-color: #d1d5db;
+  border-color: #c41e3a;
   color: #9ca3af;
-  background: #f3f4f6;
+  background: #fef2f2;
+  position: relative;
+}
+
+.size-option.out-of-stock .size-option-strike {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* Red diagonal line (diameter) – 45deg */
+.size-option.out-of-stock .size-option-strike::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: #c41e3a;
+  transform: translateY(-50%) rotate(-45deg);
 }
 
 .size-option.out-of-stock:hover {
   transform: none;
-  background: #f3f4f6;
+  background: #fef2f2;
   color: #9ca3af;
 }
 

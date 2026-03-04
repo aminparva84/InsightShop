@@ -17,11 +17,12 @@ import {
   GiNightSleep,
   GiUnderwear,
 } from 'react-icons/gi';
-import { useCart } from '../contexts/CartContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import ProductRating from './ProductRating';
+import AddToCartModal from './AddToCartModal';
+import { getColorHex } from '../utils/colorMap';
 import './ProductCard.css';
 
 const HeartOutline = () => (
@@ -57,31 +58,22 @@ const CLOTHING_CATEGORY_ICONS = {
   suits: FaUserTie,
 };
 
-const COLOR_MAP = {
-  black: '#000000', white: '#FFFFFF', red: '#FF0000', blue: '#0000FF', green: '#008000',
-  yellow: '#FFFF00', gray: '#808080', grey: '#808080', pink: '#FFC0CB', purple: '#800080',
-  orange: '#FFA500', brown: '#A52A2A', navy: '#000080', beige: '#F5F5DC', maroon: '#800000',
-  teal: '#008080', burgundy: '#800020', olive: '#808000', sage: '#9DC183', cream: '#FFFDD0',
-  tan: '#D2B48C', mustard: '#FFDB58', gold: '#FFD700', silver: '#C0C0C0', charcoal: '#36454F',
-  'forest green': '#228B22', 'sky blue': '#87CEEB', 'light blue': '#ADD8E6', sienna: '#A0522D',
-  rust: '#B7410E', 'dark green': '#006400', 'dark blue': '#00008B'
-};
-
-const getColorHex = (colorName) => {
-  if (!colorName) return '#CCCCCC';
-  const key = String(colorName).toLowerCase().trim();
-  return COLOR_MAP[key] || '#CCCCCC';
-};
-
 const ProductCard = ({ product, compact = false, showCompareCheckbox = false, selectedForCompare = false, onToggleCompare }) => {
-  const { addToCart } = useCart();
   const { showSuccess, showError } = useNotification();
   const { isAuthenticated } = useAuth();
   const { isInWishlist, toggleWishlist } = useWishlist();
-  const [selectedColor] = useState(product.available_colors?.[0] || product.color || null);
-  const [selectedSize] = useState(product.available_sizes?.[0] || product.size || null);
+  const [addToCartModalOpen, setAddToCartModalOpen] = useState(false);
 
+  const outOfStock = typeof product.stock_quantity === 'number' && product.stock_quantity <= 0;
   const inWishlist = isInWishlist(product.id);
+
+  const handleAddToCart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (outOfStock) return;
+    setAddToCartModalOpen(true);
+  };
+
   const handleWishlistClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -97,26 +89,6 @@ const ProductCard = ({ product, compact = false, showCompareCheckbox = false, se
     }
   };
 
-  const handleAddToCart = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Guest shopping enabled - no login required
-    const result = await addToCart(product.id, 1, selectedColor, selectedSize);
-    if (result.success) {
-      showSuccess('Added to cart!');
-      const stock = product?.stock_quantity;
-      const remaining = typeof result.remaining_stock === 'number' ? result.remaining_stock : (typeof stock === 'number' ? Math.max(0, stock - 1) : null);
-      const lowStockCount = typeof remaining === 'number' ? remaining : (typeof stock === 'number' && stock >= 1 && stock <= 5 ? stock : null);
-      if (lowStockCount !== null && lowStockCount >= 1 && lowStockCount <= 5) {
-        const message = `Only ${lowStockCount} left in stock. Make sure to finalize your purchase soon before the item is sold out.`;
-        setTimeout(() => showSuccess(message, 6000), 100);
-      }
-    } else {
-      showError(result.error || 'Failed to add to cart');
-    }
-  };
-
   const baseUrl = process.env.PUBLIC_URL || '';
   const rawSrc = product.image_url || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop&q=80';
   const imageSrc = rawSrc.startsWith('/') ? baseUrl + rawSrc : rawSrc;
@@ -127,8 +99,10 @@ const ProductCard = ({ product, compact = false, showCompareCheckbox = false, se
   };
 
   return (
-    <Link to={`/products/${product.id}`} className={`product-card ${compact ? 'compact' : ''} ${product.on_sale ? 'product-card--on-sale' : ''}`}>
-      {showCompareCheckbox && (
+    <>
+      <div className={`product-card ${compact ? 'compact' : ''} ${product.on_sale ? 'product-card--on-sale' : ''}`}>
+        <Link to={`/products/${product.id}`} className="product-card-link" aria-label={`View ${product.name}`}>
+          {showCompareCheckbox && (
         <div className="compare-checkbox-wrapper" title="Compare" onClick={handleCompareClick} role="presentation">
           <label className="compare-checkbox">
             <input
@@ -198,6 +172,7 @@ const ProductCard = ({ product, compact = false, showCompareCheckbox = false, se
           )}
         </div>
       </div>
+        </Link>
       <div className="product-card-actions">
         <button
           type="button"
@@ -208,13 +183,27 @@ const ProductCard = ({ product, compact = false, showCompareCheckbox = false, se
         >
           {inWishlist ? <HeartFilled /> : <HeartOutline />}
         </button>
-        <button type="button" onClick={handleAddToCart} className="btn-add-cart">
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          className="btn-add-cart"
+          disabled={outOfStock}
+          aria-disabled={outOfStock}
+          aria-label={outOfStock ? `${product.name} is out of stock` : `Add ${product.name} to cart`}
+        >
           <span className="btn-add-cart-text btn-add-cart-text-desktop">Add to cart</span>
           <span className="btn-add-cart-text btn-add-cart-text-mobile" aria-hidden="true">Add</span>
           <span className="btn-add-cart-icon" aria-hidden="true">+</span>
         </button>
       </div>
-    </Link>
+      </div>
+    <AddToCartModal
+      productId={product.id}
+      isOpen={addToCartModalOpen}
+      onClose={() => setAddToCartModalOpen(false)}
+      initialProduct={product}
+    />
+    </>
   );
 };
 

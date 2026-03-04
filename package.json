@@ -3,7 +3,8 @@
   "private": true,
   "description": "Run backend + frontend dev server for instant frontend updates (no rebuild).",
   "scripts": {
-    "dev": "concurrently -n proxy,api,web -c magenta,blue,green \"node dev-proxy.js\" \"cross-env PORT=5001 python app.py\" \"cd frontend && npm start\""
+    "dev": "concurrently -n proxy,api,web -c magenta,blue,green \"node dev-proxy.js\" \"cross-env PORT=5001 python app.py\" \"cd frontend && npm start\"",
+    "dev:web": "concurrently -n proxy,web -c magenta,green \"node dev-proxy.js\" \"cd frontend && npm start\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

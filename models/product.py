@@ -205,7 +205,7 @@ class Product(db.Model):
             'brand_other': self.brand_other,
             'display_brand': self.get_display_brand(),
             'image_url': self._resolved_image_url(),
-            'stock_quantity': self.stock_quantity,
+            'stock_quantity': int(self.stock_quantity) if self.stock_quantity is not None else 0,
             'is_active': self.is_active,
             'rating': float(self.rating) if self.rating else 0.0,
             'review_count': self.review_count,

@@ -1139,6 +1139,20 @@
   box-sizing: border-box;
 }
 
+/* Ensure product cards and Add to Cart button are clickable (stacking context so modal/buttons work) */
+.featured-products .product-grid-item-wrapper {
+  position: relative;
+  z-index: 0;
+}
+.featured-products .product-grid-item-wrapper .product-card {
+  position: relative;
+  z-index: 1;
+}
+.featured-products .product-card-actions {
+  position: relative;
+  z-index: 2;
+}
+
 /* Section title – Bebas Neue, sage (matches mid-banner); left-aligned for Featured Products & Special offers */
 .featured-products .section-title {
   font-family: 'The Bold Font', 'Bebas Neue', sans-serif;

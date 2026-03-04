@@ -13,6 +13,7 @@ const Login = ({ returnPath: returnPathProp }) => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -21,15 +22,35 @@ const Login = ({ returnPath: returnPathProp }) => {
     }
   }, [isAuthenticated, navigate, redirectTo]);
 
+  // Load Google GSI script only on Login page to avoid "Failed to fetch" on other pages (e.g. product detail)
   useEffect(() => {
-    // Initialize Google Sign-In
-    if (window.google) {
-      window.google.accounts.id.initialize({
-        client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID || '',
-        callback: handleGoogleSignIn
-      });
+    if (window.google?.accounts?.id) {
+      setGoogleReady(true);
+      return;
     }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleReady(true);
+    script.onerror = () => setGoogleReady(false);
+    document.body.appendChild(script);
+    return () => {
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!googleReady || !window.google) return;
+    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
+    if (!clientId) return;
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleSignIn
+    });
+    const btn = document.getElementById('google-signin-button');
+    if (btn) window.google.accounts.id.renderButton(btn, { theme: 'outline', size: 'large', width: 320 });
+  }, [googleReady]);
 
   const handleGoogleSignIn = async (response) => {
     try {
@@ -105,7 +126,7 @@ const Login = ({ returnPath: returnPathProp }) => {
           <span>OR</span>
         </div>
 
-        {window.google && (
+        {googleReady && window.google && (
           <div id="google-signin-button" className="google-signin-container"></div>
         )}
 

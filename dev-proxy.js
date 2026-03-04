@@ -14,11 +14,17 @@ const webProxy = httpProxy.createProxyServer({ target: WEB_TARGET, ws: true });
 
 apiProxy.on('error', (err, req, res) => {
   console.error('[proxy] API error:', err.message);
-  if (res && !res.headersSent) res.writeHead(502, { 'Content-Type': 'text/plain' }).end('API proxy error');
+  if (res && !res.headersSent) {
+    res.writeHead(502, { 'Content-Type': 'text/plain' });
+    res.end(`API proxy error: ${err.message}. Is the Flask backend running on ${API_TARGET}?`);
+  }
 });
 webProxy.on('error', (err, req, res) => {
   console.error('[proxy] Web error:', err.message);
-  if (res && !res.headersSent) res.writeHead(502, { 'Content-Type': 'text/plain' }).end('Web proxy error');
+  if (res && !res.headersSent) {
+    res.writeHead(502, { 'Content-Type': 'text/plain' });
+    res.end(`Web proxy error: ${err.message}. Is the React dev server running? Start it with: cd frontend && npm start (expected on ${WEB_TARGET}).`);
+  }
 });
 
 const server = http.createServer((req, res) => {

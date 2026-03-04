@@ -8,6 +8,7 @@ import { useWishlist } from '../contexts/WishlistContext';
 import ProductRating from '../components/ProductRating';
 import ColorSwatches from '../components/ColorSwatches';
 import SizeSelector from '../components/SizeSelector';
+import { isCombinationInStock, getFirstInStockColorForSize, getFirstInStockSizeForColor } from '../utils/variationAvailability';
 import './ProductDetail.css';
 
 const ProductDetail = () => {
@@ -22,6 +23,8 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
+  const [variation, setVariation] = useState(null);
+  const [variationLoading, setVariationLoading] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', user_name: '' });
@@ -32,24 +35,73 @@ const ProductDetail = () => {
     fetchReviews();
   }, [id]);
 
+  const hasVariations = product && (
+    (product.available_colors && product.available_colors.length > 0) ||
+    (product.available_sizes && product.available_sizes.length > 0)
+  );
+
+  useEffect(() => {
+    if (!id || !product || !hasVariations) {
+      setVariation(null);
+      setVariationLoading(false);
+      return;
+    }
+    const color = selectedColor || (product.available_colors && product.available_colors[0]) || product.color || '';
+    const size = selectedSize || (product.available_sizes && product.available_sizes[0]) || product.size || '';
+    if (!size || !color) {
+      setVariation(null);
+      setVariationLoading(false);
+      return;
+    }
+    setVariationLoading(true);
+    const controller = new AbortController();
+    axios.get(`/api/products/${id}/variation`, {
+      params: { size, color },
+      signal: controller.signal
+    })
+      .then((res) => {
+        setVariation(res.data);
+        setVariationLoading(false);
+      })
+      .catch((err) => {
+        if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+          setVariation(null);
+        }
+        setVariationLoading(false);
+      });
+    return () => controller.abort();
+  }, [id, product, hasVariations, selectedColor, selectedSize]);
+
   const fetchProduct = async () => {
     try {
       const response = await axios.get(`/api/products/${id}`);
       const productData = response.data.product;
       setProduct(productData);
-      
-      // Set default selections
-      if (productData.available_colors && productData.available_colors.length > 0) {
-        setSelectedColor(productData.available_colors[0]);
-      } else if (productData.color) {
-        setSelectedColor(productData.color);
+
+      const sizes = productData.available_sizes || (productData.size ? [productData.size] : []);
+      const colors = productData.available_colors || (productData.color ? [productData.color] : []);
+      const availability = productData.variation_availability || [];
+
+      // Default to first in-stock (size, color) so we never show "This combination is unavailable"
+      const norm = (s) => String(s).trim().toLowerCase();
+      let defaultSize = sizes[0];
+      let defaultColor = colors[0];
+      if (availability.length > 0 && sizes.length && colors.length) {
+        outer: for (const sz of sizes) {
+          for (const cl of colors) {
+            const v = availability.find(
+              (x) => norm(x.size) === norm(sz) && norm(x.color) === norm(cl) && Number(x.stock_quantity) > 0
+            );
+            if (v) {
+              defaultSize = sz;
+              defaultColor = cl;
+              break outer;
+            }
+          }
+        }
       }
-      
-      if (productData.available_sizes && productData.available_sizes.length > 0) {
-        setSelectedSize(productData.available_sizes[0]);
-      } else if (productData.size) {
-        setSelectedSize(productData.size);
-      }
+      if (sizes.length) setSelectedSize(defaultSize);
+      if (colors.length) setSelectedColor(defaultColor);
     } catch (error) {
       console.error('Error fetching product:', error);
     } finally {
@@ -66,6 +118,24 @@ const ProductDetail = () => {
     }
   };
 
+  const availability = product?.variation_availability || [];
+  const sizes = product?.available_sizes || (product?.size ? [product.size] : []);
+  const colors = product?.available_colors || (product?.color ? [product.color] : []);
+
+  const handleSizeSelect = (size) => {
+    setSelectedSize(size);
+    if (availability.length && selectedColor && !isCombinationInStock(availability, size, selectedColor)) {
+      setSelectedColor(getFirstInStockColorForSize(availability, size, colors));
+    }
+  };
+
+  const handleColorSelect = (color) => {
+    setSelectedColor(color);
+    if (availability.length && selectedSize && !isCombinationInStock(availability, selectedSize, color)) {
+      setSelectedSize(getFirstInStockSizeForColor(availability, color, sizes));
+    }
+  };
+
   const handleAddToCart = async () => {
     if (!selectedColor && product.available_colors && product.available_colors.length > 0) {
       showError('Please select a color');
@@ -75,18 +145,25 @@ const ProductDetail = () => {
       showError('Please select a size');
       return;
     }
-    
-    // Guest shopping enabled - no login required
-    const result = await addToCart(product.id, quantity, selectedColor, selectedSize);
+    if (hasVariations && variation && variation.stock_quantity === 0) {
+      showError('This variation is out of stock');
+      return;
+    }
+    const result = await addToCart(
+      product.id,
+      quantity,
+      selectedColor,
+      selectedSize,
+      variation?.variation_id ?? null
+    );
     if (result.success) {
       showSuccess('Added to cart!');
-      // Low stock alert: show second toast after a tick so both notifications appear (avoids React batching)
-      const stock = product?.stock_quantity;
-      const remaining = typeof result.remaining_stock === 'number' ? result.remaining_stock : (typeof stock === 'number' ? Math.max(0, stock - quantity) : null);
-      const lowStockCount = typeof remaining === 'number' ? remaining : (typeof stock === 'number' && stock >= 1 && stock <= 5 ? stock : null);
-      if (lowStockCount !== null && lowStockCount >= 1 && lowStockCount <= 5) {
-        const message = `Only ${lowStockCount} left in stock. Make sure to finalize your purchase soon before the item is sold out.`;
-        setTimeout(() => showSuccess(message, 6000), 100);
+      const remaining = typeof result.remaining_stock === 'number' ? result.remaining_stock : (variation?.stock_quantity ?? null);
+      if (remaining !== null && remaining >= 1 && remaining <= 5) {
+        setTimeout(() => showSuccess(`Only ${remaining} left in stock for this variation.`, 6000), 100);
+      }
+      if (variation && typeof result.remaining_stock === 'number') {
+        setVariation((v) => v ? { ...v, stock_quantity: result.remaining_stock } : v);
       }
     } else {
       showError(result.error || 'Failed to add to cart');
@@ -239,19 +316,24 @@ const ProductDetail = () => {
             
             {/* Color Selection - Only show if multiple colors available */}
             {product.available_colors && product.available_colors.length > 1 && (
-              <ColorSwatches 
-                colors={product.available_colors} 
+              <ColorSwatches
+                colors={product.available_colors}
                 selectedColor={selectedColor}
-                onColorSelect={setSelectedColor}
+                onColorSelect={handleColorSelect}
+                variationAvailability={product.variation_availability}
+                selectedSize={selectedSize}
               />
             )}
-            
+
             {/* Size Selection - Only show if multiple sizes available */}
             {product.available_sizes && product.available_sizes.length > 1 && (
-              <SizeSelector 
-                sizes={product.available_sizes} 
+              <SizeSelector
+                sizes={product.available_sizes}
                 selectedSize={selectedSize}
-                onSizeSelect={setSelectedSize}
+                onSizeSelect={handleSizeSelect}
+                stockBySize={product.size_stock || product.stock_by_size || {}}
+                variationAvailability={product.variation_availability}
+                selectedColor={selectedColor}
               />
             )}
 
@@ -263,10 +345,28 @@ const ProductDetail = () => {
             )}
 
             <div className="product-stock">
-              {product.stock_quantity > 0 ? (
-                <span className="in-stock">In Stock ({product.stock_quantity} available)</span>
+              {hasVariations ? (
+                variationLoading && (selectedColor || selectedSize) ? (
+                  <span className="stock-loading">Checking availability…</span>
+                ) : variation != null ? (
+                  variation.stock_quantity > 0 ? (
+                    <span className="in-stock">In Stock ({variation.stock_quantity} available)</span>
+                  ) : (
+                    <span className="out-of-stock">Out of Stock</span>
+                  )
+                ) : (selectedColor && selectedSize) ? (
+                  <span className="out-of-stock">Out of Stock</span>
+                ) : (
+                  <span className="stock-select">Select size and color to see availability</span>
+                )
               ) : (
-                <span className="out-of-stock">Out of Stock</span>
+                product.stock_quantity != null ? (
+                  product.stock_quantity > 0 ? (
+                    <span className="in-stock">In Stock ({product.stock_quantity} available)</span>
+                  ) : (
+                    <span className="out-of-stock">Out of Stock</span>
+                  )
+                ) : null
               )}
             </div>
 
@@ -276,11 +376,12 @@ const ProductDetail = () => {
                 <input
                   type="number"
                   min="1"
-                  max={product.stock_quantity}
+                  max={hasVariations ? (variation?.stock_quantity ?? 99) : (product.stock_quantity ?? 99)}
                   value={quantity}
                   onChange={(e) => {
+                    const maxQ = hasVariations ? (variation?.stock_quantity ?? 99) : (product.stock_quantity ?? 99);
                     const raw = parseInt(e.target.value, 10);
-                    const clamped = Math.min(product.stock_quantity || 1, Math.max(1, Number.isNaN(raw) ? 1 : raw));
+                    const clamped = Math.min(maxQ || 1, Math.max(1, Number.isNaN(raw) ? 1 : raw));
                     setQuantity(clamped);
                   }}
                   className="quantity-input"
@@ -289,7 +390,7 @@ const ProductDetail = () => {
 
               <button
                 onClick={handleAddToCart}
-                disabled={product.stock_quantity === 0}
+                disabled={hasVariations ? (variation == null || variation.stock_quantity === 0) : (product.stock_quantity != null && product.stock_quantity < 1)}
                 className="btn btn-primary btn-add-cart-large"
               >
                 Add to Cart

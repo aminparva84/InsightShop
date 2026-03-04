@@ -58,15 +58,17 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const addToCart = async (productId, quantity = 1, selectedColor = null, selectedSize = null) => {
+  const addToCart = async (productId, quantity = 1, selectedColor = null, selectedSize = null, variationId = null) => {
     // Guest shopping - no authentication required
     try {
-      const response = await axios.post('/api/cart', { 
+      const payload = { 
         product_id: productId, 
         quantity,
         selected_color: selectedColor,
         selected_size: selectedSize
-      });
+      };
+      if (variationId != null) payload.variation_id = variationId;
+      const response = await axios.post('/api/cart', payload);
       await fetchCart();
       const remainingStock = response.data?.remaining_stock;
       return { success: true, remaining_stock: remainingStock };

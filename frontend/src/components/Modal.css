@@ -1,0 +1,60 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100002; /* Above navbar, AI chat, confirmation dialogs */
+  padding: 20px;
+  box-sizing: border-box;
+  animation: modalOverlayFade 0.25s ease-out;
+}
+
+@keyframes modalOverlayFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: #373F2E;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  max-width: 100%;
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  animation: modalContentSlide 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalContentSlide {
+  from {
+    transform: scale(0.95) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    align-items: flex-end;
+  }
+
+  .modal-content {
+    max-height: calc(100vh - 24px - env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+  }
+}

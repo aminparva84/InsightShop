@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.database import db
 from models.product import Product
+from models.product_variation import ProductVariation
 from routes.auth import require_auth
 from sqlalchemy import or_, func, desc, asc
 
@@ -45,11 +46,24 @@ def get_products():
                     # Maintain order from the IDs list
                     product_dict = {p.id: p for p in products}
                     ordered_products = [product_dict[id] for id in product_ids if id in product_dict]
+                    # Enrich with variation stock so variable products don't show as out of stock
+                    from sqlalchemy import func
+                    var_totals = db.session.query(
+                        ProductVariation.product_id,
+                        func.coalesce(func.sum(ProductVariation.stock_quantity), 0).label('total_stock')
+                    ).filter(ProductVariation.product_id.in_([p.id for p in ordered_products])).group_by(ProductVariation.product_id).all()
+                    var_stock = {r.product_id: int(r.total_stock) for r in var_totals}
+                    product_list = []
+                    for p in ordered_products:
+                        d = p.to_dict()
+                        if p.id in var_stock:
+                            d['stock_quantity'] = var_stock[p.id]
+                        product_list.append(d)
                     return jsonify({
-                        'products': [p.to_dict() for p in ordered_products],
-                        'total': len(ordered_products),
+                        'products': product_list,
+                        'total': len(product_list),
                         'page': 1,
-                        'per_page': len(ordered_products),
+                        'per_page': len(product_list),
                         'pages': 1
                     }), 200
                 else:
@@ -74,6 +88,14 @@ def get_products():
         
         on_sale_only = request.args.get('on_sale', '').strip().lower() in ('1', 'true', 'yes')
         query = Product.query.filter_by(is_active=True)
+        # Only list products that have at least one variation in stock (or have no variations for legacy)
+        from sqlalchemy import or_, exists
+        no_variations = ~exists().where(ProductVariation.product_id == Product.id)
+        has_stock = exists().where(
+            ProductVariation.product_id == Product.id,
+            ProductVariation.stock_quantity > 0
+        )
+        query = query.filter(or_(no_variations, has_stock))
         
         if on_sale_only:
             # Filter to products currently on sale (product-level sale active now)
@@ -134,19 +156,31 @@ def get_products():
             )
         
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-        
+
+        # For variable products, compute display stock from variations so cards don't all show "Out of stock"
+        product_ids = [p.id for p in pagination.items]
+        from sqlalchemy import func
+        variation_totals = db.session.query(
+            ProductVariation.product_id,
+            func.coalesce(func.sum(ProductVariation.stock_quantity), 0).label('total_stock')
+        ).filter(ProductVariation.product_id.in_(product_ids)).group_by(ProductVariation.product_id).all()
+        variation_stock_by_id = {row.product_id: int(row.total_stock) for row in variation_totals}
+
         # Convert products to dict with error handling
         products_list = []
         for p in pagination.items:
             try:
-                products_list.append(p.to_dict())
+                d = p.to_dict()
+                if p.id in variation_stock_by_id:
+                    d['stock_quantity'] = variation_stock_by_id[p.id]
+                products_list.append(d)
             except Exception as e:
                 # If to_dict fails (e.g., Sale table issue), create basic dict
                 import traceback
                 print(f"Error converting product {p.id} to dict: {e}")
                 print(traceback.format_exc())
                 # Return basic product info without sale data
-                products_list.append({
+                fallback = {
                     'id': p.id,
                     'name': p.name,
                     'description': p.description,
@@ -159,7 +193,10 @@ def get_products():
                     'clothing_category': getattr(p, 'clothing_category', 'other'),
                     'image_url': p.image_url,
                     'is_active': p.is_active
-                })
+                }
+                if p.id in variation_stock_by_id:
+                    fallback['stock_quantity'] = variation_stock_by_id[p.id]
+                products_list.append(fallback)
         
         return jsonify({
             'products': products_list,
@@ -182,17 +219,31 @@ def get_special_offers():
         limit = min(int(request.args.get('limit', 20)), 50)
         all_active = Product.query.filter_by(is_active=True).limit(300).all()
         sale_products = []
+        product_ids = []
         for p in all_active:
             try:
                 if p.get_sale_price():
-                    sale_products.append(p.to_dict())
+                    sale_products.append(p)
+                    product_ids.append(p.id)
                     if len(sale_products) >= limit:
                         break
             except Exception:
                 continue
+        from sqlalchemy import func
+        var_totals = db.session.query(
+            ProductVariation.product_id,
+            func.coalesce(func.sum(ProductVariation.stock_quantity), 0).label('total_stock')
+        ).filter(ProductVariation.product_id.in_(product_ids)).group_by(ProductVariation.product_id).all()
+        var_stock = {r.product_id: int(r.total_stock) for r in var_totals}
+        result = []
+        for p in sale_products:
+            d = p.to_dict()
+            if p.id in var_stock:
+                d['stock_quantity'] = var_stock[p.id]
+            result.append(d)
         return jsonify({
-            'products': sale_products,
-            'total': len(sale_products)
+            'products': result,
+            'total': len(result)
         }), 200
     except Exception as e:
         import traceback
@@ -321,11 +372,15 @@ def search_products():
         size = data.get('size', '').strip()
         sort_by = data.get('sort_by', 'relevance')  # relevance, rating, price_low, price_high
         
-        # Build query - only active products with inventory
-        query = Product.query.filter(
-            Product.is_active == True,
-            Product.stock_quantity > 0
+        # Build query - only active products; with variations use "has any variation in stock"
+        from sqlalchemy import exists
+        has_stock = exists().where(
+            ProductVariation.product_id == Product.id,
+            ProductVariation.stock_quantity > 0
         )
+        query = Product.query.filter(
+            Product.is_active == True
+        ).filter(has_stock)
         
         # Apply filters
         if category:
@@ -416,20 +471,68 @@ def search_products():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
+@products_bp.route('/<int:product_id>/variation', methods=['GET'])
+def get_product_variation(product_id):
+    """Get variation (and stock) for a product by size and color.
+    Query params: size (required), color (required).
+    Returns: variation_id, stock_quantity, sku, size, color. 404 if product or variation not found."""
+    try:
+        size = request.args.get('size', '').strip() or None
+        color = request.args.get('color', '').strip() or None
+        if not size or not color:
+            return jsonify({'error': 'size and color are required'}), 400
+
+        product = Product.query.get(product_id)
+        if not product or not product.is_active:
+            return jsonify({'error': 'Product not found'}), 404
+
+        from models.product_variation import ProductVariation
+        variation = ProductVariation.query.filter_by(
+            product_id=product_id,
+            size=size,
+            color=color
+        ).first()
+        if not variation:
+            return jsonify({'error': 'Variation not found for this size and color'}), 404
+
+        return jsonify({
+            'variation_id': variation.id,
+            'product_id': product_id,
+            'size': variation.size,
+            'color': variation.color,
+            'stock_quantity': int(variation.stock_quantity) if variation.stock_quantity is not None else 0,
+            'sku': variation.sku,
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @products_bp.route('/<int:product_id>', methods=['GET'])
 def get_product(product_id):
-    """Get a single product by ID."""
+    """Get a single product by ID. Includes variation_availability (size, color, stock_quantity) when product has variations."""
     try:
         product = Product.query.get(product_id)
-        
+
         if not product:
             return jsonify({'error': 'Product not found'}), 404
-        
+
         if not product.is_active:
             return jsonify({'error': 'Product not found'}), 404
-        
-        return jsonify({'product': product.to_dict()}), 200
-        
+
+        data = product.to_dict()
+        # Add per (size, color) stock so frontend can show/disable unavailable combinations
+        variations = ProductVariation.query.filter_by(product_id=product_id).all()
+        if variations:
+            data['variation_availability'] = [
+                {'size': v.size, 'color': v.color, 'stock_quantity': int(v.stock_quantity) if v.stock_quantity is not None else 0}
+                for v in variations
+            ]
+            # Variable product: display stock = sum of variation stock so listing/cards show "In stock"
+            data['stock_quantity'] = sum(int(v.stock_quantity) if v.stock_quantity is not None else 0 for v in variations)
+        else:
+            data['variation_availability'] = []
+
+        return jsonify({'product': data}), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

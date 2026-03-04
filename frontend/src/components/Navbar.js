@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { FaUserTie, FaCloudRain, FaSocks, FaShoePrints, FaSignOutAlt } from 'react-icons/fa';
+import { FaUserTie, FaCloudRain, FaSocks, FaShoePrints, FaSignOutAlt, FaArrowLeft } from 'react-icons/fa';
 import {
   GiTrousers,
   GiShirt,
@@ -182,6 +182,17 @@ const Navbar = () => {
     <header className="navbar-wrapper">
       <nav className="navbar navbar-pill" role="navigation" aria-label="Main navigation">
         <div className="navbar-container">
+          {location.pathname !== '/' && (
+            <button
+              type="button"
+              className="navbar-back-btn"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              title="Go back"
+            >
+              <FaArrowLeft className="navbar-back-icon" aria-hidden="true" />
+            </button>
+          )}
           <button
             type="button"
             className="navbar-hamburger"

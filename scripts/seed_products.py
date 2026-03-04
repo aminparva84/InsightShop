@@ -12,6 +12,8 @@ from models.cart import CartItem
 from models.order import OrderItem
 from models.review import Review
 from models.product_relation import ProductRelation
+from models.wishlist import WishlistItem
+from models.product_variation import ProductVariation
 from datetime import date, timedelta
 import random
 
@@ -1040,6 +1042,7 @@ PRODUCTS = [
 ]
 
 # Size options by product type: different clothes have different sizes.
+# Some products use a subset of sizes for variety (e.g. S/M/L only).
 SIZE_CONFIG = {
     "T-Shirt": (["XS", "S", "M", "L", "XL"], False),
     "Blouse": (["XS", "S", "M", "L", "XL"], False),
@@ -1054,13 +1057,93 @@ SIZE_CONFIG = {
     "Watch": (["One Size"], True),
     "Sunglasses": (["One Size"], True),
 }
+# Optional size subsets for variety: some products get only these instead of full set.
+SIZE_SUBSETS_TOP = [
+    ["XS", "S", "M", "L", "XL"],
+    ["S", "M", "L", "XL"],
+    ["S", "M", "L"],
+    ["XS", "S", "M", "L"],
+]
+SIZE_SUBSETS_PANTS = [
+    ["26", "28", "30", "32"],
+    ["28", "30", "32"],
+    ["26", "28", "30"],
+]
 DEFAULT_TOP_SIZES = (["XS", "S", "M", "L", "XL"], False)
 DEFAULT_PANT_SIZES = (["26", "28", "30", "32"], False)
 DEFAULT_ONE_SIZE = (["One Size"], True)
 
+# Color options by product type: each product gets its primary color plus alternatives.
+COLOR_CONFIG = {
+    "T-Shirt": ["Black", "White", "Grey", "Navy", "Burgundy", "Olive Green", "Pale Yellow", "Light Blue", "Maroon"],
+    "Blouse": ["White", "Off-White", "Black", "Light Blue", "Olive Green", "Tan", "Rust", "Beige & Light Blue Plaid", "Khaki & Brown Plaid"],
+    "Dress Shirt": ["White", "Light Blue", "Olive Green", "Beige", "Pale Yellow", "Black", "Navy"],
+    "Sweater": ["Black", "White", "Brown", "Light Blue", "Tan Beige", "Cream", "Grey", "Olive"],
+    "Shorts": ["Olive Green", "Dark Brown", "Teal & Rust Plaid", "Beige", "Khaki", "Black", "Navy", "Beige, Tan & Red Plaid"],
+    "Chinos": ["Dark Brown", "Olive Green", "Black", "Beige", "White", "Caramel Brown", "Brown", "Cognac Brown", "Red, Orange & Beige Plaid"],
+    "Belt": ["Black", "Brown", "Dark Brown", "Tan", "Navy", "Burgundy"],
+    "Necklace": ["Gold", "Silver", "Rose Gold", "Bronze", "Gunmetal"],
+    "Ring": ["Gold", "Silver", "Rose Gold", "Bronze"],
+    "Bag": ["Olive Green", "Black", "Brown", "Tan", "Navy"],
+    "Watch": ["Brown", "Black", "Tan", "Navy", "Burgundy"],
+    "Sunglasses": ["Black", "Brown", "Tortoise", "Navy", "Gold"],
+}
+DEFAULT_APPAREL_COLORS = ["Black", "White", "Navy", "Grey", "Brown", "Beige"]
+DEFAULT_ACCESSORY_COLORS = ["Gold", "Silver", "Black", "Brown"]
 
-def get_sizes_and_stock_for_product(p):
-    """Return (available_sizes list, size_stock dict, primary size) for a product seed entry."""
+# Single-word color names for stripping from names (trailing words and leading when no phrase matches).
+SINGLE_WORD_COLORS = {
+    "black", "white", "navy", "gold", "silver", "brown", "beige", "tan", "rust", "olive", "grey", "gray",
+    "maroon", "burgundy", "red", "orange", "blue", "green", "yellow", "cream", "bronze", "gunmetal",
+    "tortoise", "khaki", "cognac", "caramel", "teal", "pale", "light", "dark", "muted", "off-white",
+}
+
+# All known color phrases (for stripping from product names); longest first so we match "Cognac Brown" before "Brown".
+_all_phrases = set()
+for lst in list(COLOR_CONFIG.values()) + [DEFAULT_APPAREL_COLORS, DEFAULT_ACCESSORY_COLORS]:
+    _all_phrases.update(c.strip() for c in lst if c and isinstance(c, str))
+for w in SINGLE_WORD_COLORS:
+    if w and len(w) > 1:
+        _all_phrases.add(w.title())
+ALL_KNOWN_COLOR_PHRASES = sorted(_all_phrases, key=lambda s: -len(s))
+
+
+def get_available_colors_for_product(p, product_index=0):
+    """Return a list of available colors for a product. Each product gets a different number
+    of colors (2–6 for apparel, 1–4 for accessories). Primary color is always first."""
+    primary = (p.get("color") or "").strip()
+    clothing_type = p.get("clothing_type") or ""
+    category = p.get("clothing_category") or "other"
+    config = COLOR_CONFIG.get(clothing_type)
+    if config is None:
+        if category in ("t_shirts", "shirts", "sweaters", "pants"):
+            config = DEFAULT_APPAREL_COLORS
+        else:
+            config = DEFAULT_ACCESSORY_COLORS
+    # Vary count by product index so each product has different variety (deterministic per run).
+    is_apparel = category in ("t_shirts", "shirts", "sweaters", "pants")
+    if is_apparel:
+        n_want = 2 + (product_index % 5)  # 2, 3, 4, 5, or 6 colors
+    else:
+        n_want = 1 + (product_index % 4)  # 1, 2, 3, or 4 colors for accessories
+    n_want = min(n_want, len(config) + (1 if primary else 0))
+    seen = set()
+    result = []
+    if primary and primary not in seen:
+        result.append(primary)
+        seen.add(primary)
+    for c in config:
+        if c and c not in seen and len(result) < n_want:
+            result.append(c)
+            seen.add(c)
+    if not result and primary:
+        result = [primary]
+    return result
+
+
+def get_sizes_and_stock_for_product(p, product_index=0):
+    """Return (available_sizes list, size_stock dict, primary size) for a product seed entry.
+    Different products get different size sets: full set or a subset (e.g. S/M/L only) for variety."""
     clothing_type = p.get("clothing_type") or ""
     category = p.get("clothing_category") or "other"
     config = SIZE_CONFIG.get(clothing_type)
@@ -1071,11 +1154,29 @@ def get_sizes_and_stock_for_product(p):
             config = DEFAULT_PANT_SIZES
         else:
             config = DEFAULT_ONE_SIZE
-    size_labels, one_size = config
+    size_labels_full, one_size = config
+    # For apparel, pick a size subset so products have different size options (e.g. one has XS–XL, another S–L).
+    if not one_size and size_labels_full:
+        if category in ("t_shirts", "shirts", "sweaters"):
+            size_labels = SIZE_SUBSETS_TOP[product_index % len(SIZE_SUBSETS_TOP)]
+            size_labels = [s for s in size_labels if s in size_labels_full]
+        elif category == "pants":
+            size_labels = SIZE_SUBSETS_PANTS[product_index % len(SIZE_SUBSETS_PANTS)]
+            size_labels = [s for s in size_labels if s in size_labels_full]
+        else:
+            size_labels = list(size_labels_full)
+    else:
+        size_labels = list(size_labels_full)
+    if not size_labels:
+        size_labels = list(size_labels_full)
     size_stock = {}
     for s in size_labels:
-        size_stock[s] = random.randint(3, 18) if not one_size else random.randint(8, 40)
+        size_stock[s] = random.randint(0, 18) if not one_size else random.randint(0, 40)
     primary = size_labels[0]
+    for s in size_labels:
+        if size_stock.get(s, 0) > 0:
+            primary = s
+            break
     return size_labels, size_stock, primary
 
 
@@ -1084,6 +1185,46 @@ def generate_slug(name, index):
     slug = name.lower().replace(" ", "-")
     slug = "".join(c for c in slug if c.isalnum() or c == "-")
     return f"{slug}-{index}"
+
+
+def product_name_without_color(name, _color_hint=None):
+    """Remove color from product name so the title is color-agnostic (colors are variation attributes).
+    Strips any leading known color phrase and trailing single color words.
+    E.g. 'Cognac Brown Pleated Trousers' -> 'Pleated Trousers'; 'Shorts Beige Tan Red' -> 'Shorts'."""
+    if not name:
+        return ""
+    name_str = name.strip()
+    if not name_str:
+        return ""
+    lower_name = name_str.lower()
+    # Strip leading color phrases (longest first); repeat until no leading color matches
+    changed = True
+    while changed:
+        changed = False
+        for phrase in ALL_KNOWN_COLOR_PHRASES:
+            if not phrase:
+                continue
+            lower_phrase = phrase.lower()
+            if lower_name.startswith(lower_phrase):
+                rest = name_str[len(phrase):].strip()
+                if rest.startswith("-"):
+                    rest = rest.lstrip("-").strip()
+                if rest:
+                    name_str = rest
+                    lower_name = name_str.lower()
+                    changed = True
+                break
+    # Strip trailing single-word colors (e.g. "Plaid Shorts Beige Tan Red" -> "Plaid Shorts")
+    words = name_str.split()
+    while words:
+        last = words[-1].lower()
+        last_clean = last.replace("-", " ")
+        if last_clean in SINGLE_WORD_COLORS or last in SINGLE_WORD_COLORS:
+            words.pop()
+        else:
+            break
+    name_str = " ".join(words).strip()
+    return name_str if name_str else name.strip()
 
 
 def get_image_filename(image_index):
@@ -1102,6 +1243,7 @@ def seed_products():
             (OrderItem, "order items"),
             (Review, "reviews"),
             (ProductRelation, "product relations"),
+            (WishlistItem, "wishlist items"),
         ]:
             try:
                 n = model.query.delete()
@@ -1109,6 +1251,7 @@ def seed_products():
                     print(f"Removed {n} {label}.")
             except Exception as e:
                 print(f"Note: could not clear {label}: {e}")
+        ProductVariation.query.delete()
         db.session.commit()
 
         # Remove existing products so we have exactly these
@@ -1138,7 +1281,6 @@ def seed_products():
         random.shuffle(products_to_seed)
 
         for idx, p in enumerate(products_to_seed, start=1):
-            slug = generate_slug(p["name"], idx)
             image_url = f"/api/images/{get_image_filename(p['image_index'])}"
 
             sale_percentage = p.get("sale_percentage")
@@ -1151,19 +1293,24 @@ def seed_products():
                     "sale_percentage": float(sale_percentage),
                 }
 
-            # Different clothes have different sizes; each size has its own quantity.
-            available_sizes_list, size_stock_dict, primary_size = get_sizes_and_stock_for_product(p)
-            total_stock = sum(size_stock_dict.values())
+            # Different clothes have different sizes and colors; each product gets a varied set.
+            available_sizes_list, size_stock_dict, primary_size = get_sizes_and_stock_for_product(p, product_index=idx)
+            available_colors_list = get_available_colors_for_product(p, product_index=idx)
+
+            # Name without any color so it works for all color variations.
+            display_name = product_name_without_color(p["name"])
+            default_color = available_colors_list[0] if available_colors_list else (p.get("color") or "")
 
             product = Product(
-                name=p["name"],
+                name=display_name,
                 description=p["description"],
                 price=p["price"],
                 category=p["category"],
-                color=p["color"],
+                color=default_color,
                 size=primary_size,
                 available_sizes=json.dumps(available_sizes_list),
                 size_stock=json.dumps(size_stock_dict),
+                available_colors=json.dumps(available_colors_list),
                 fabric=p["fabric"],
                 clothing_type=p["clothing_type"],
                 clothing_category=p["clothing_category"],
@@ -1172,17 +1319,33 @@ def seed_products():
                 season=p["season"],
                 brand='other',
                 image_url=image_url,
-                stock_quantity=total_stock,
+                stock_quantity=0,
                 is_active=True,
-                slug=slug,
-                meta_title=f"{p['name']} - InsightShop",
-                meta_description=f"Shop {p['name']} at InsightShop. {p['description'][:150]}...",
+                slug=generate_slug(display_name, idx),
+                meta_title=f"{display_name} - InsightShop",
+                meta_description=f"Shop {display_name} at InsightShop. {p['description'][:150]}...",
                 **sale_kw,
             )
             db.session.add(product)
+            db.session.flush()
+
+            # Create one variation per (size, color) with its own stock
+            def sku_safe(s):
+                return "".join(c if c.isalnum() else "-" for c in str(s))[:15].strip("-") or "X"
+            for vi, (size, color) in enumerate([(s, c) for s in available_sizes_list for c in available_colors_list]):
+                qty = random.randint(0, 12) if size != "One Size" else random.randint(0, 25)
+                sku = f"SKU-{product.id}-{sku_safe(size)}-{sku_safe(color)}-{vi}"
+                var = ProductVariation(
+                    product_id=product.id,
+                    size=size,
+                    color=color,
+                    stock_quantity=qty,
+                    sku=sku,
+                )
+                db.session.add(var)
 
         db.session.commit()
-        print(f"Successfully created {len(PRODUCTS)} products.")
+        print(f"Successfully created {len(PRODUCTS)} products with variations.")
         print("Product seeding completed! (Vector DB will sync in background.)")
 
 

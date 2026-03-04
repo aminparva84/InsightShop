@@ -71,6 +71,7 @@ def init_db(app):
         # Import all models to ensure they're registered with SQLAlchemy
         from models.user import User
         from models.product import Product
+        from models.product_variation import ProductVariation
         from models.cart import CartItem
         from models.wishlist import WishlistItem
         from models.order import Order, OrderItem
@@ -227,6 +228,21 @@ def init_db(app):
                     print("[OK] Added column products.size_stock for existing database")
         except Exception as e:
             print(f"[WARNING] Could not add products.size_stock column: {e}")
+
+        # Add cart_items.variation_id if missing (FK to product_variations)
+        try:
+            from sqlalchemy import text
+            dialect_name = db.engine.dialect.name
+            with db.engine.connect() as conn:
+                if not _table_has_column(conn, 'cart_items', 'variation_id', dialect_name):
+                    if dialect_name == 'postgresql':
+                        conn.execute(text("ALTER TABLE cart_items ADD COLUMN variation_id INTEGER REFERENCES product_variations(id)"))
+                    else:
+                        conn.execute(text("ALTER TABLE cart_items ADD COLUMN variation_id INTEGER"))
+                    conn.commit()
+                    print("[OK] Added column cart_items.variation_id for existing database")
+        except Exception as e:
+            print(f"[WARNING] Could not add cart_items.variation_id column: {e}")
 
         # Add User.is_superadmin column if missing (existing databases)
         try:

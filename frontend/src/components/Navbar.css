@@ -65,6 +65,38 @@
   background: rgba(245, 245, 220, 0.12);
 }
 
+/* Back button: shown on all pages except home; uses browser history back */
+.navbar-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: #F5F5DC;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.navbar-back-btn:hover {
+  background: rgba(245, 245, 220, 0.12);
+  color: #FFFEF5;
+}
+
+.navbar-back-btn:focus-visible {
+  outline: 2px solid #F5F5DC;
+  outline-offset: 2px;
+}
+
+.navbar-back-icon {
+  width: 22px;
+  height: 22px;
+}
+
 .navbar-hamburger:focus-visible {
   outline: 2px solid #F5F5DC;
   outline-offset: 2px;
@@ -696,6 +728,16 @@
   .navbar-hamburger {
     width: 40px;
     height: 40px;
+  }
+
+  .navbar-back-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .navbar-back-icon {
+    width: 20px;
+    height: 20px;
   }
 
   /* Responsive menu padding: smaller on tablet/mobile (reduced by 50px from desktop scale) */

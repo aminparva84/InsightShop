@@ -15,29 +15,39 @@ def get_guest_cart():
             item['selected_size'] = None
     return cart
 
-def add_to_guest_cart(product_id, quantity, selected_color=None, selected_size=None):
-    """Add item to guest cart."""
+def add_to_guest_cart(product_id, quantity, selected_color=None, selected_size=None, variation_id=None):
+    """Add item to guest cart. Optionally store variation_id for variation-based stock."""
     cart = get_guest_cart()
     
-    # Check if same product with same color/size already exists
+    # Check if same product with same color/size (or same variation_id) already exists
     for item in cart:
+        if variation_id is not None and item.get('variation_id') == variation_id:
+            item['quantity'] += quantity
+            session[GUEST_CART_SESSION_KEY] = cart
+            session.modified = True
+            return True
         if (item['product_id'] == product_id and 
             item.get('selected_color') == selected_color and 
             item.get('selected_size') == selected_size):
             item['quantity'] += quantity
+            if variation_id is not None:
+                item['variation_id'] = variation_id
             session[GUEST_CART_SESSION_KEY] = cart
-            session.modified = True  # Force Flask to save the session
+            session.modified = True
             return True
     
     # Add new item
-    cart.append({
+    new_item = {
         'product_id': product_id,
         'quantity': quantity,
         'selected_color': selected_color,
         'selected_size': selected_size
-    })
+    }
+    if variation_id is not None:
+        new_item['variation_id'] = variation_id
+    cart.append(new_item)
     session[GUEST_CART_SESSION_KEY] = cart
-    session.modified = True  # Force Flask to save the session
+    session.modified = True
     return True
 
 def update_guest_cart_item(product_id, quantity, selected_color=None, selected_size=None, old_color=None, old_size=None):

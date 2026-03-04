@@ -1,20 +1,23 @@
+/* Footer – classic vintage look, aligned with navbar (#4A5844) and site palette (cream, sage, gold) */
+
 .footer {
   background: #373F2E;
-  color: #f0ebe0;
+  color: #F5F5DC;
   margin-top: 60px;
-  border-top: 2px solid rgba(212, 196, 160, 0.4);
+  border-top: 3px solid rgba(212, 196, 160, 0.5);
+  box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.06);
 }
 
 .footer-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 48px 20px 24px;
+  padding: 52px 24px 28px;
 }
 
 .footer-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 40px;
+  grid-template-columns: 1.4fr repeat(3, 1fr);
+  gap: 48px 32px;
   margin-bottom: 40px;
 }
 
@@ -23,40 +26,51 @@
   flex-direction: column;
 }
 
+.footer-brand-section {
+  max-width: 320px;
+}
+
 .footer-brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  font-size: 20px;
+  gap: 12px;
+  margin-bottom: 18px;
+  font-size: 22px;
   font-weight: 700;
-  color: #f0ebe0;
+  color: #F5F5DC;
   text-decoration: none;
-  transition: transform 0.3s ease, color 0.3s ease;
+  transition: color 0.25s ease, transform 0.25s ease;
+  font-family: inherit;
+  letter-spacing: 0.02em;
 }
 
 .footer-brand:hover {
-  transform: scale(1.05);
-  color: #e5dcc8;
+  color: #FFFEF5;
+  transform: translateX(2px);
 }
 
 .footer-brand-text {
-  color: #f0ebe0;
+  color: inherit;
 }
 
 .footer-description {
-  color: #b5c0a8;
+  color: rgba(245, 245, 220, 0.82);
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
   margin: 0;
+  font-family: inherit;
+  letter-spacing: 0.01em;
 }
 
 .footer-title {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
-  color: #d4c4a0;
-  margin-bottom: 16px;
+  color: #D4C4A0;
+  margin-bottom: 18px;
   margin-top: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-family: inherit;
 }
 
 .footer-links {
@@ -66,41 +80,122 @@
 }
 
 .footer-links li {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .footer-links a {
-  color: #b5c0a8;
+  color: rgba(245, 245, 220, 0.88);
   text-decoration: none;
   font-size: 14px;
-  transition: color 0.3s ease;
+  transition: color 0.2s ease;
+  font-family: inherit;
+  letter-spacing: 0.02em;
 }
 
 .footer-links a:hover {
-  color: #e5dcc8;
+  color: #FFFEF5;
+}
+
+/* Decorative curved line between content and copyright (matches home section titles) */
+.footer-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 480px;
+  height: 24px;
+  margin: 0 auto 28px;
+  color: rgba(212, 196, 160, 0.6);
+}
+
+.footer-divider svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .footer-bottom {
-  border-top: 1px solid rgba(184, 196, 168, 0.25);
-  padding-top: 24px;
+  padding-top: 0;
   text-align: center;
 }
 
-.footer-bottom p {
+.footer-copyright {
   margin: 0;
-  color: #9ca88c;
-  font-size: 14px;
+  color: rgba(245, 245, 220, 0.65);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  font-family: inherit;
+}
+
+@media (max-width: 992px) {
+  .footer-content {
+    grid-template-columns: 1fr 1fr;
+    gap: 40px 24px;
+  }
+
+  .footer-brand-section {
+    grid-column: 1 / -1;
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 768px) {
-  .footer-content {
-    grid-template-columns: 1fr;
-    gap: 32px;
+  .footer {
+    margin-top: 48px;
+    border-top-width: 2px;
   }
 
   .footer-container {
-    padding: 32px 20px 20px;
+    padding: 40px 20px 24px;
+  }
+
+  .footer-content {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    margin-bottom: 32px;
+  }
+
+  .footer-brand-section {
+    max-width: 100%;
+  }
+
+  .footer-brand {
+    font-size: 20px;
+    margin-bottom: 14px;
+  }
+
+  .footer-description {
+    font-size: 14px;
+  }
+
+  .footer-title {
+    margin-bottom: 14px;
+  }
+
+  .footer-divider {
+    margin-bottom: 24px;
+    max-width: 320px;
+    height: 18px;
+  }
+
+  .footer-copyright {
+    font-size: 12px;
   }
 }
 
+@media (max-width: 480px) {
+  .footer-container {
+    padding: 32px 16px 20px;
+  }
 
+  .footer-content {
+    gap: 28px;
+    margin-bottom: 28px;
+  }
+
+  .footer-divider {
+    max-width: 240px;
+    height: 14px;
+    margin-bottom: 20px;
+  }
+}

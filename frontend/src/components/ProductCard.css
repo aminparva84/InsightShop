@@ -13,6 +13,17 @@
   width: 100%;
 }
 
+/* Inner link: only image + info (actions are outside so Add to Cart popup works everywhere) */
+.product-card-link {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  text-decoration: none;
+  color: inherit;
+  color: #fff !important;
+}
+
 /* Sale badge – top of card, red, larger */
 .product-card-sale-badge {
   position: absolute;
@@ -316,6 +327,15 @@
   background: #A88C6F !important;
   filter: brightness(1.1);
   transform: scale(1.02);
+}
+
+.product-card .btn-add-cart:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: none;
+}
+.product-card .btn-add-cart:disabled:hover {
+  transform: none;
 }
 
 /* Rating on dark card */

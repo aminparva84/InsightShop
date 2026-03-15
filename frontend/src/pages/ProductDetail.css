@@ -28,7 +28,7 @@
 .product-detail-layout {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) 1fr;
-  align-items: stretch;
+  align-items: start;
   gap: 32px;
   max-width: 1000px;
   margin: 0 auto;
@@ -38,7 +38,10 @@
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
 }
 
-/* Left column: image + description stacked */
+.product-detail-layout .product-image-column { grid-column: 1; grid-row: 1; }
+.product-detail-layout .product-info-section { grid-column: 2; grid-row: 1; }
+
+/* Left column: image + description stacked – consistent structure */
 .product-image-column {
   display: flex;
   flex-direction: column;
@@ -46,26 +49,35 @@
   min-width: 0;
 }
 
-/* Image – responsive to container (square, scales with width); gallery thumbnails match height */
+/* Image section – fixed aspect-ratio frame so layout stays consistent across products */
 .product-image-section {
   width: 100%;
   min-width: 0;
   aspect-ratio: 1;
-  height: auto;
-  max-height: 100%;
-  min-height: 280px;
+  /* Fixed frame: height derived from width so proportions stay consistent */
+  height: 0;
+  padding-bottom: 100%; /* 1:1 aspect ratio – frame size is fixed by container width */
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(55, 63, 46, 0.15);
+  border: 1px solid rgba(55, 63, 46, 0.2);
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.product-image-section .product-image-section-inner {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: row;
   gap: 0;
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(55, 63, 46, 0.15);
-  border: 1px solid rgba(55, 63, 46, 0.2);
-  align-self: flex-start;
 }
 
 /* Thumbnail strip – same height as main image; scrolls if many thumbs */
-.product-gallery-thumbnails {
+.product-image-section-inner .product-gallery-thumbnails {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -108,8 +120,8 @@
   display: block;
 }
 
-/* Main image area – scrollable gallery */
-.product-gallery-main {
+/* Main image area – fixed frame; image fits inside with object-fit */
+.product-image-section-inner .product-gallery-main {
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -117,11 +129,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .product-gallery-main img {
   width: 100%;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   object-fit: contain;
   display: block;
@@ -159,11 +173,92 @@
   right: 12px;
 }
 
+/* Desktop: larger image section, thumbnails in a horizontal row under the main image */
+@media (min-width: 969px) {
+  .product-detail-layout {
+    grid-template-columns: minmax(320px, 1.15fr) 1fr;
+    max-width: 1100px;
+  }
+
+  .product-image-section {
+    aspect-ratio: unset;
+    height: auto;
+    padding-bottom: 0;
+    min-height: 0;
+  }
+
+  .product-image-section .product-image-section-inner {
+    position: relative;
+    inset: auto;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  /* Main image on top, thumbnails below (DOM has thumbs first) */
+  .product-image-section-inner .product-gallery-main {
+    order: 0;
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 4/5;
+    min-height: 320px;
+    border-radius: 10px 10px 0 0;
+  }
+
+  .product-image-section-inner .product-gallery-main img {
+    border-radius: 10px 10px 0 0;
+  }
+
+  .product-image-section-inner .product-gallery-thumbnails {
+    order: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    height: auto;
+    min-width: 0;
+    width: 100%;
+    padding: 12px 10px 10px;
+    border-right: none;
+    border-top: 1px solid rgba(55, 63, 46, 0.2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-self: stretch;
+  }
+}
+
+/* Product info – consistent structure; attribute rows always present to avoid layout shift */
 .product-info-section {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.product-info-attribute-row {
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.product-info-attribute-row .attribute-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(245, 245, 220, 0.9);
+  margin: 0;
+}
+
+.product-info-attribute-fallback {
+  font-size: 15px;
+  color: #F5F5DC;
+  padding: 8px 12px;
+  background: rgba(245, 245, 220, 0.1);
+  border: 1px solid rgba(245, 245, 220, 0.25);
+  border-radius: 8px;
+  display: inline-block;
+  text-transform: capitalize;
 }
 
 .product-title {
@@ -193,6 +288,8 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  min-height: 36px;
+  align-items: center;
 }
 
 .product-category,
@@ -306,36 +403,86 @@
   box-shadow: 0 0 0 3px rgba(196, 167, 125, 0.35);
 }
 
-/* Description – cream panel on dark layout */
+/* Description – inside right column; desktop: 2-line clamp + Read more; mobile: full text */
 .product-description {
   padding: 16px 20px;
   background: rgba(245, 245, 220, 0.12);
   border-radius: 10px;
   border: 1px solid rgba(245, 245, 220, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.product-description--in-info {
+  width: 100%;
+  margin-top: 0;
 }
 
 .product-description h3 {
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin: 0;
   color: #F5F5DC;
+  flex-shrink: 0;
 }
 
-.product-description p {
+/* Desktop: collapse to 2 lines; expanded shows full text */
+.product-description-content {
+  margin: 0;
   color: rgba(245, 245, 220, 0.95);
   line-height: 1.55;
   font-size: 15px;
 }
 
-/* Description when placed under the image (left column) */
-.product-description--under-image {
-  width: 100%;
-  margin-top: 0;
+.product-description-content--collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.product-description-content--expanded {
+  display: block;
+  overflow: visible;
+}
+
+.product-description-content p {
+  margin: 0;
+  color: inherit;
+  line-height: inherit;
+  font-size: inherit;
+}
+
+.product-description-empty {
+  color: rgba(245, 245, 220, 0.6);
+  font-style: italic;
+}
+
+.product-description-read-more {
+  align-self: flex-start;
+  padding: 6px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #C4A77D;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.2s;
+}
+
+.product-description-read-more:hover {
+  color: #d4af37;
 }
 
 .product-stock {
   font-size: 16px;
   font-weight: 500;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
 }
 
 .in-stock {
@@ -654,28 +801,50 @@
   border-top-color: #4A5844;
 }
 
+/* Tablet and below: single column, flex for reliable stacking */
 @media (max-width: 968px) {
   .product-detail-layout {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 24px;
     padding: 20px;
-    max-width: 480px;
+    max-width: 100%;
     margin-left: auto;
     margin-right: auto;
   }
 
+  .product-detail-layout .product-image-column,
+  .product-detail-layout .product-info-section {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .product-image-column {
+    order: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .product-info-section {
+    order: 2;
+  }
+
+  /* Image: keep aspect-ratio box; constrain width so it doesn’t overflow */
   .product-image-section {
     width: 100%;
-    min-width: unset;
     max-width: 360px;
-    aspect-ratio: 1;
-    height: auto;
     margin: 0 auto;
   }
 
-  /* Hide thumbnail strip on mobile – gallery shows only main image + arrows */
-  .product-gallery-thumbnails {
+  .product-image-section-inner .product-gallery-thumbnails {
     display: none;
+  }
+
+  .product-gallery-main {
+    border-radius: 10px;
   }
 
   .product-gallery-main img {
@@ -691,12 +860,23 @@
 
   .product-image-section {
     max-width: 320px;
-    aspect-ratio: 1;
-    height: auto;
+  }
+
+  /* Mobile: full description, no Read more */
+  .product-description-content--collapsed,
+  .product-description-content--expanded {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+  }
+
+  .product-description-read-more {
+    display: none !important;
   }
 
   .product-title {
     font-size: 26px;
+    word-wrap: break-word;
   }
 
   .product-detail-page .product-price {
@@ -741,12 +921,11 @@
 @media (max-width: 480px) {
   .product-detail-layout {
     padding: 14px;
+    gap: 18px;
   }
 
   .product-image-section {
     max-width: 280px;
-    aspect-ratio: 1;
-    height: auto;
   }
 
   .product-title {

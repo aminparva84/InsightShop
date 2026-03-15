@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductGrid from '../components/ProductGrid';
@@ -16,8 +16,10 @@ const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [totalProducts, setTotalProducts] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [loadedPage, setLoadedPage] = useState(1); // How many pages we've loaded (for Load More)
+  const [loadedPage, setLoadedPage] = useState(1); // How many pages we've loaded (infinite scroll)
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
+  const loadMoreSentinelRef = useRef(null);
+  const loadMoreProductsRef = useRef(null);
   const [activeTab, setActiveTab] = useState(() => {
     // Check URL for tab parameter or ai_results
     const tabParam = searchParams.get('tab');
@@ -313,7 +315,7 @@ const Products = () => {
         setAiProducts([]);
       }
       
-      // Regular filtering — always fetch first page (Load More appends via loadMoreProducts)
+      // Regular filtering — always fetch first page (infinite scroll appends via loadMoreProducts)
       const params = new URLSearchParams();
       if (filters.category) params.append('category', filters.category);
       if (filters.color) params.append('color', filters.color);
@@ -366,7 +368,7 @@ const Products = () => {
     setFilters(newFilters);
     const params = { ...newFilters };
     if (!params.ai_results) delete params.ai_results;
-    // Remove empty filter values (no page in URL — we use Load More)
+    // Remove empty filter values (no page in URL — we use infinite scroll)
     Object.keys(params).forEach(k => {
       if (params[k] === '' || params[k] === null || params[k] === undefined) {
         delete params[k];
@@ -407,7 +409,7 @@ const Products = () => {
     });
   };
 
-  // Load next page of products (AJAX) and append to list
+  // Load next page of products (AJAX) and append to list (used by infinite scroll)
   const loadMoreProducts = async () => {
     if (loadMoreLoading || activeTab !== 'normal') return;
     const nextPage = loadedPage + 1;
@@ -445,6 +447,23 @@ const Products = () => {
   const displayProducts = activeTab === 'ai' ? aiProducts : products;
   const displayAllProducts = activeTab === 'ai' ? aiProducts : allProducts;
   const hasMore = activeTab === 'normal' && totalProducts > products.length;
+
+  loadMoreProductsRef.current = loadMoreProducts;
+
+  // Infinite scroll: when sentinel enters viewport, load next page
+  useEffect(() => {
+    if (activeTab !== 'normal' || !hasMore) return;
+    const el = loadMoreSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreProductsRef.current?.();
+      },
+      { root: null, rootMargin: '200px', threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeTab, hasMore]);
 
   const activeFilterCount = [
     filters.search,
@@ -631,25 +650,22 @@ const Products = () => {
                   showCompareCheckbox={true}
                 />
 
-                {activeTab === 'normal' && hasMore && (
-                  <div className="load-more-wrapper">
-                    <button
-                      type="button"
-                      className="btn load-more-btn"
-                      onClick={loadMoreProducts}
-                      disabled={loadMoreLoading}
-                      aria-busy={loadMoreLoading}
-                      aria-label={loadMoreLoading ? 'Loading more products' : 'Load more products'}
-                    >
-                      {loadMoreLoading ? (
-                        <>
-                          <span className="load-more-spinner" aria-hidden="true"></span>
-                          Loading…
-                        </>
-                      ) : (
-                        `Load more (${totalProducts - products.length} remaining)`
-                      )}
-                    </button>
+                {/* Infinite scroll: sentinel triggers load when near bottom; show spinner while loading */}
+                {activeTab === 'normal' && (hasMore || loadMoreLoading) && (
+                  <div className="infinite-scroll-footer" aria-live="polite">
+                    {hasMore && (
+                      <div
+                        ref={loadMoreSentinelRef}
+                        className="infinite-scroll-sentinel"
+                        aria-hidden="true"
+                      />
+                    )}
+                    {loadMoreLoading && (
+                      <div className="infinite-scroll-loading" role="status" aria-label="Loading more products">
+                        <span className="infinite-scroll-spinner" aria-hidden="true"></span>
+                        <span>Loading more products…</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
